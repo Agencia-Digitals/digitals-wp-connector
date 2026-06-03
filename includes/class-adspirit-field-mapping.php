@@ -32,8 +32,14 @@ class AdSpirit_Field_Mapping {
     }
 
     private function __construct() {
-        add_action('adspirit_connector_render_tab_forms', array($this, 'render_tab'));
-        add_action('adspirit_connector_save_forms', array($this, 'handle_save'));
+        add_action(
+            'adspirit_connector_render_tab_forms',
+            AdSpirit_Safe_Hook::action(array($this, 'render_tab'), 'field_mapping_tab')
+        );
+        add_action(
+            'adspirit_connector_save_forms',
+            AdSpirit_Safe_Hook::action(array($this, 'handle_save'), 'field_mapping_save')
+        );
     }
 
     /**

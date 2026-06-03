@@ -21,7 +21,11 @@ class AdSpirit_Pixel_Injector {
     }
 
     private function __construct() {
-        add_action('wp_head', array($this, 'inject'), 5);
+        add_action(
+            'wp_head',
+            AdSpirit_Safe_Hook::action(array($this, 'inject'), 'pixel_injector'),
+            5
+        );
     }
 
     public function inject() {

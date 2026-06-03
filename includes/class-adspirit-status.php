@@ -26,8 +26,14 @@ class AdSpirit_Status {
     }
 
     private function __construct() {
-        add_action('adspirit_connector_render_tab_overview', array($this, 'render'));
-        add_action('wp_ajax_adspirit_test_connection', array($this, 'ajax_test_connection'));
+        add_action(
+            'adspirit_connector_render_tab_overview',
+            AdSpirit_Safe_Hook::action(array($this, 'render'), 'status_overview')
+        );
+        add_action(
+            'wp_ajax_adspirit_test_connection',
+            AdSpirit_Safe_Hook::action(array($this, 'ajax_test_connection'), 'status_test_connection')
+        );
     }
 
     public function render() {
@@ -179,6 +185,58 @@ class AdSpirit_Status {
             <tr>
                 <th>Endpoint configurado</th>
                 <td><code><?php echo esc_html($core['endpoint_url'] . '/api/webhooks/contact-form-7'); ?></code></td>
+            </tr>
+        </table>
+
+        <h2>Resiliência</h2>
+        <p class="description">Camadas de proteção que garantem que esse plugin nunca derruba o site, mesmo se algo der errado.</p>
+        <?php
+        $safe_mode = class_exists('AdSpirit_Safe_Bootstrap') && AdSpirit_Safe_Bootstrap::is_safe_mode();
+        $crashes = class_exists('AdSpirit_Crash_Tracker') ? AdSpirit_Crash_Tracker::get_log() : array();
+        $recent_crashes = 0;
+        $window = time() - 86400; // 24h
+        foreach ($crashes as $c) {
+            if (($c['at'] ?? 0) >= $window) $recent_crashes++;
+        }
+        ?>
+        <table class="widefat striped" style="max-width:720px;">
+            <tr>
+                <th style="width:240px;">Modo de operação</th>
+                <td>
+                    <?php if ($safe_mode): ?>
+                        <span class="badge danger">Safe Mode</span>
+                        <span class="description">— features desligadas, site intocado</span>
+                    <?php else: ?>
+                        <span class="badge ok">Normal</span>
+                        <span class="description">— todas as features ativas</span>
+                    <?php endif; ?>
+                </td>
+            </tr>
+            <tr>
+                <th>Crashes capturados (24h)</th>
+                <td>
+                    <?php if ($recent_crashes === 0): ?>
+                        <span class="badge ok">0</span>
+                        <span class="description">— nenhuma exceção silenciada</span>
+                    <?php else: ?>
+                        <span class="badge <?php echo $recent_crashes >= 3 ? 'danger' : 'warn'; ?>"><?php echo esc_html($recent_crashes); ?></span>
+                        <a href="<?php echo esc_url(admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=logs')); ?>">ver logs</a>
+                        <?php if ($recent_crashes >= 3): ?>
+                            <span class="description">— acima do threshold, Safe Mode pode ter sido ativado</span>
+                        <?php endif; ?>
+                    <?php endif; ?>
+                </td>
+            </tr>
+            <tr>
+                <th>Auto-recuperação</th>
+                <td>
+                    <span class="badge ok">Ativa</span>
+                    <span class="description">— se 3+ erros em 5min, plugin entra em Safe Mode automaticamente</span>
+                </td>
+            </tr>
+            <tr>
+                <th>Compatibilidade mínima</th>
+                <td>WP <code>6.0+</code> · PHP <code>7.4+</code> — checado no boot e na ativação</td>
             </tr>
         </table>
 
@@ -410,7 +468,7 @@ class AdSpirit_Status {
 }
 
 // Conexão CRM tab
-add_action('adspirit_connector_render_tab_connection', function() {
+add_action('adspirit_connector_render_tab_connection', AdSpirit_Safe_Hook::action(function() {
     $s = AdSpirit_Settings::get_core();
     AdSpirit_Menu::form_open('connection');
     ?>
@@ -463,9 +521,9 @@ add_action('adspirit_connector_render_tab_connection', function() {
     </table>
     <?php
     AdSpirit_Menu::form_close('Salvar conexão');
-});
+}, 'connection_tab'));
 
-add_action('adspirit_connector_save_connection', function($post) {
+add_action('adspirit_connector_save_connection', AdSpirit_Safe_Hook::action(function($post) {
     $patch = array();
     if (isset($post['endpoint_url'])) {
         $patch['endpoint_url'] = esc_url_raw(rtrim((string) $post['endpoint_url'], '/'));
@@ -488,4 +546,4 @@ add_action('adspirit_connector_save_connection', function($post) {
     $patch['pixel_enabled'] = !empty($post['pixel_enabled']) ? '1' : '0';
     AdSpirit_Settings::update_core($patch);
     add_settings_error(AdSpirit_Settings::OPTION_CORE, 'saved', 'Conexão salva.', 'updated');
-});
+}, 'connection_save'));

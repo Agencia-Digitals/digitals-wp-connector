@@ -25,8 +25,14 @@ class AdSpirit_Logs {
     }
 
     private function __construct() {
-        add_action('adspirit_connector_render_tab_logs', array($this, 'render_tab'));
-        add_action('admin_post_adspirit_clear_logs', array($this, 'clear_logs'));
+        add_action(
+            'adspirit_connector_render_tab_logs',
+            AdSpirit_Safe_Hook::action(array($this, 'render_tab'), 'logs_tab')
+        );
+        add_action(
+            'admin_post_adspirit_clear_logs',
+            AdSpirit_Safe_Hook::action(array($this, 'clear_logs'), 'logs_clear')
+        );
     }
 
     public function render_tab() {
@@ -34,6 +40,7 @@ class AdSpirit_Logs {
         if (!is_array($cf7_log)) $cf7_log = array();
         $as_log = get_option(AdSpirit_Settings::OPTION_ANTISPAM_LOG, array());
         if (!is_array($as_log)) $as_log = array();
+        $crash_log = class_exists('AdSpirit_Crash_Tracker') ? AdSpirit_Crash_Tracker::get_log() : array();
         ?>
         <h2>Logs</h2>
         <p class="description">Últimas 100 entradas de cada tipo. Logs circulares — entradas antigas são descartadas automaticamente.</p>
@@ -41,7 +48,35 @@ class AdSpirit_Logs {
         <p>
             <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=adspirit_clear_logs&which=cf7'), 'adspirit_clear_logs_cf7')); ?>" class="button">Limpar log CF7</a>
             <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=adspirit_clear_logs&which=antispam'), 'adspirit_clear_logs_antispam')); ?>" class="button">Limpar log Anti-spam</a>
+            <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=adspirit_clear_logs&which=crashes'), 'adspirit_clear_logs_crashes')); ?>" class="button">Limpar log Crashes</a>
         </p>
+
+        <h3>Crashes capturados (<?php echo count($crash_log); ?>)</h3>
+        <p class="description">Erros que o plugin capturou e silenciou pra não derrubar o site. Se aparecerem 3+ aqui em menos de 5min, o plugin entra em Safe Mode automaticamente.</p>
+        <?php if (empty($crash_log)): ?>
+            <p>Nenhum crash registrado — plugin rodando saudável.</p>
+        <?php else: ?>
+            <table class="widefat striped">
+                <thead>
+                    <tr>
+                        <th>Quando</th>
+                        <th>Componente</th>
+                        <th>Mensagem</th>
+                        <th>Arquivo:linha</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($crash_log as $entry): ?>
+                        <tr>
+                            <td><?php echo esc_html(date('Y-m-d H:i:s', $entry['at'] ?? 0)); ?></td>
+                            <td><code><?php echo esc_html($entry['component'] ?? '?'); ?></code></td>
+                            <td><?php echo esc_html($entry['message'] ?? ''); ?></td>
+                            <td><code style="font-size:11px;"><?php echo esc_html(basename((string) ($entry['file'] ?? '')) . ':' . ($entry['line'] ?? '')); ?></code></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
 
         <h3>CF7 → CRM (<?php echo count($cf7_log); ?>)</h3>
         <?php if (empty($cf7_log)): ?>
@@ -118,6 +153,10 @@ class AdSpirit_Logs {
             delete_option(AdSpirit_Cf7_Handler::LOG_KEY);
         } elseif ($which === 'antispam') {
             delete_option(AdSpirit_Settings::OPTION_ANTISPAM_LOG);
+        } elseif ($which === 'crashes') {
+            if (class_exists('AdSpirit_Crash_Tracker')) {
+                AdSpirit_Crash_Tracker::clear_log();
+            }
         }
         wp_safe_redirect(admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=logs&cleared=1'));
         exit;

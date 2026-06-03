@@ -31,7 +31,12 @@ class AdSpirit_Cf7_Handler {
     }
 
     private function __construct() {
-        add_action('wpcf7_mail_sent', array($this, 'dispatch'), 99, 1);
+        add_action(
+            'wpcf7_mail_sent',
+            AdSpirit_Safe_Hook::action(array($this, 'dispatch'), 'cf7_handler'),
+            99,
+            1
+        );
     }
 
     public function dispatch($contact_form) {

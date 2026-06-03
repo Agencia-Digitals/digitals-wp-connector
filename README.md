@@ -2,6 +2,28 @@
 
 Plugin WordPress oficial da [Agência Digitals](https://agenciadigitals.com.br) que conecta o site ao CRM **AdSpirit**. Tudo num lugar: envio de leads em real-time, anti-spam embutido, field mapping per-form, Meta Conversion API server-side, GA4 server-side e cross-domain decoration. Configurado via wp-admin, sem editar código.
 
+## Garantia: nunca derruba o site
+
+Defense-in-depth em 10 camadas pra que esse plugin **nunca** consiga quebrar o site WordPress, mesmo se algo der errado:
+
+1. **Plugin header declara requisitos** — WP bloqueia ativação automaticamente se PHP < 7.4 ou WP < 6.0
+2. **Activation valida runtime** — se incompatível, plugin se desativa sozinho com mensagem clara, site fica intocado
+3. **Safe Mode global** — option que desliga TODAS as features (frontend + hooks). UI continua acessível pra admin sair do modo
+4. **Auto-recuperação** — `register_shutdown_function` detecta fatal errors do plugin. Se 3+ em 5min → Safe Mode automático
+5. **Cada hook em try/catch** — `AdSpirit_Safe_Hook::wrap` envelopa cada callback. Exception é logada em `error_log` + crash tracker, nunca propaga
+6. **Existence checks defensivos** — `class_exists('WPCF7_Submission')`, etc, antes de usar. CF7 desinstalado? Degrada silenciosamente
+7. **Admin pages output-buffered** — fatal numa tab descarta o buffer, mostra notice clean, resto do wp-admin funciona
+8. **HTTP fire-and-forget** — todos os `wp_remote_post` com `blocking=false` + `timeout=8`. CRM caiu? WP não espera
+9. **Hooks frontend só renderizam se config válida** — pixel/cross-domain checam settings antes de qualquer output
+10. **Erros só pra admin** — visitante do site nunca vê mensagem do plugin. Logs no `error_log` do servidor + UI admin
+
+**Recuperação manual:** se algo der muito errado, basta abrir wp-admin → AdSpirit → Visão geral. Se Safe Mode estiver ativo, aparece banner vermelho com botão "Sair do Safe Mode" + link pra logs.
+
+**Aba "Logs" mostra:**
+- Crashes capturados (componente, mensagem, arquivo:linha, timestamp)
+- Submissões CF7 (sent/error/skipped)
+- Bloqueios anti-spam
+
 ## O que o plugin faz
 
 ```

@@ -37,14 +37,31 @@ class AdSpirit_Anti_Spam {
     }
 
     private function __construct() {
-        // CF7 filters
-        add_filter('wpcf7_form_elements', array($this, 'inject_honeypot'));
-        add_action('wp_head', array($this, 'inject_time_cookie'));
-        add_filter('wpcf7_validate', array($this, 'validate_submission'), 5, 2);
+        // CF7 filters / frontend hooks — wrapped pra nunca quebrar página
+        add_filter(
+            'wpcf7_form_elements',
+            AdSpirit_Safe_Hook::filter(array($this, 'inject_honeypot'), 'antispam_honeypot')
+        );
+        add_action(
+            'wp_head',
+            AdSpirit_Safe_Hook::action(array($this, 'inject_time_cookie'), 'antispam_time_cookie')
+        );
+        add_filter(
+            'wpcf7_validate',
+            AdSpirit_Safe_Hook::filter(array($this, 'validate_submission'), 'antispam_validate'),
+            5,
+            2
+        );
 
-        // Admin tab
-        add_action('adspirit_connector_render_tab_antispam', array($this, 'render_tab'));
-        add_action('adspirit_connector_save_antispam', array($this, 'handle_save'));
+        // Admin tab — wrapped também pra não derrubar wp-admin
+        add_action(
+            'adspirit_connector_render_tab_antispam',
+            AdSpirit_Safe_Hook::action(array($this, 'render_tab'), 'antispam_render_tab')
+        );
+        add_action(
+            'adspirit_connector_save_antispam',
+            AdSpirit_Safe_Hook::action(array($this, 'handle_save'), 'antispam_save')
+        );
     }
 
     // ─────────────────────────────────────────────────────────

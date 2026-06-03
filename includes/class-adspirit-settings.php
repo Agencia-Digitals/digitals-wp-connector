@@ -32,7 +32,10 @@ class AdSpirit_Settings {
     }
 
     private function __construct() {
-        add_action('admin_init', array($this, 'register_settings'));
+        add_action(
+            'admin_init',
+            AdSpirit_Safe_Hook::action(array($this, 'register_settings'), 'settings_register')
+        );
     }
 
     public static function seed_defaults() {

@@ -30,9 +30,19 @@ class AdSpirit_Cross_Domain {
     }
 
     private function __construct() {
-        add_action('adspirit_connector_render_tab_cross-domain', array($this, 'render_tab'));
-        add_action('adspirit_connector_save_cross-domain', array($this, 'handle_save'));
-        add_action('wp_footer', array($this, 'inject_script'), 99);
+        add_action(
+            'adspirit_connector_render_tab_cross-domain',
+            AdSpirit_Safe_Hook::action(array($this, 'render_tab'), 'cross_domain_tab')
+        );
+        add_action(
+            'adspirit_connector_save_cross-domain',
+            AdSpirit_Safe_Hook::action(array($this, 'handle_save'), 'cross_domain_save')
+        );
+        add_action(
+            'wp_footer',
+            AdSpirit_Safe_Hook::action(array($this, 'inject_script'), 'cross_domain_inject'),
+            99
+        );
     }
 
     public function inject_script() {

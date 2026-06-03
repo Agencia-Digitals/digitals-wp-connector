@@ -39,9 +39,33 @@ class AdSpirit_Menu {
     }
 
     private function __construct() {
-        add_action('admin_menu', array($this, 'register_menu'), 9);
-        add_action('admin_post_adspirit_save', array($this, 'handle_save'));
-        add_action('admin_enqueue_scripts', array($this, 'enqueue_assets'));
+        add_action(
+            'admin_menu',
+            AdSpirit_Safe_Hook::action(array($this, 'register_menu'), 'menu_register'),
+            9
+        );
+        add_action(
+            'admin_post_adspirit_save',
+            AdSpirit_Safe_Hook::action(array($this, 'handle_save'), 'menu_save')
+        );
+        add_action(
+            'admin_enqueue_scripts',
+            AdSpirit_Safe_Hook::action(array($this, 'enqueue_assets'), 'menu_assets')
+        );
+        add_action(
+            'admin_post_adspirit_exit_safe_mode',
+            AdSpirit_Safe_Hook::action(array($this, 'handle_exit_safe_mode'), 'exit_safe_mode')
+        );
+    }
+
+    public function handle_exit_safe_mode() {
+        if (!current_user_can(self::CAPABILITY)) wp_die('forbidden', 403);
+        check_admin_referer('adspirit_exit_safe_mode');
+        if (class_exists('AdSpirit_Safe_Bootstrap')) {
+            AdSpirit_Safe_Bootstrap::exit_safe_mode();
+        }
+        wp_safe_redirect(admin_url('admin.php?page=' . self::PAGE_SLUG . '&safe_mode=off'));
+        exit;
     }
 
     public static function tabs() {
@@ -155,11 +179,65 @@ class AdSpirit_Menu {
             </h2>
 
             <?php
+            // Safe Mode banner — sempre visível no topo se ativo
+            if (class_exists('AdSpirit_Safe_Bootstrap') && AdSpirit_Safe_Bootstrap::is_safe_mode()) {
+                self::render_safe_mode_banner();
+            }
+
             /**
-             * Render tab: cada classe tab faz add_action('adspirit_connector_render_tab_<slug>', ...).
+             * Render tab com output-buffering + try/catch. Fatal numa tab
+             * não cascadeia pra rest do wp-admin — buffer descarta,
+             * mostra notice clean.
              */
-            do_action('adspirit_connector_render_tab_' . $current_tab);
+            ob_start();
+            try {
+                do_action('adspirit_connector_render_tab_' . $current_tab);
+                echo ob_get_clean();
+            } catch (\Throwable $e) {
+                ob_end_clean();
+                if (class_exists('AdSpirit_Crash_Tracker')) {
+                    AdSpirit_Crash_Tracker::record(
+                        'admin_render_' . $current_tab,
+                        get_class($e) . ': ' . $e->getMessage(),
+                        $e->getFile(),
+                        $e->getLine()
+                    );
+                }
+                ?>
+                <div class="notice notice-error">
+                    <p><strong>Erro ao renderizar essa aba.</strong> O resto do plugin continua funcionando. Detalhes em <em>error_log</em> do servidor.</p>
+                    <p><code><?php echo esc_html(get_class($e) . ': ' . $e->getMessage()); ?></code></p>
+                </div>
+                <?php
+            }
             ?>
+        </div>
+        <?php
+    }
+
+    private static function render_safe_mode_banner() {
+        $reason = AdSpirit_Safe_Bootstrap::safe_mode_reason();
+        $at     = AdSpirit_Safe_Bootstrap::safe_mode_at();
+        $exit_url = wp_nonce_url(
+            admin_url('admin-post.php?action=adspirit_exit_safe_mode'),
+            'adspirit_exit_safe_mode'
+        );
+        ?>
+        <div class="notice notice-error" style="border-left-color:#b91c1c;">
+            <h3 style="margin:6px 0;">Safe Mode ativo — features do plugin desligadas</h3>
+            <p>
+                Motivo: <code><?php echo esc_html($reason ?: 'manual'); ?></code>
+                <?php if ($at): ?>
+                    · ativado <?php echo esc_html(human_time_diff($at, time()) . ' atrás'); ?>
+                <?php endif; ?>
+            </p>
+            <p>
+                Enquanto Safe Mode estiver ligado, o plugin NÃO envia leads pro CRM, NÃO dispara Meta CAPI/GA4, NÃO injeta scripts. Site fica intocado. A aba "Logs" mostra os erros que levaram aqui.
+            </p>
+            <p>
+                <a href="<?php echo esc_url($exit_url); ?>" class="button button-primary">Sair do Safe Mode</a>
+                <a href="<?php echo esc_url(admin_url('admin.php?page=' . self::PAGE_SLUG . '&tab=logs')); ?>" class="button">Ver logs</a>
+            </p>
         </div>
         <?php
     }

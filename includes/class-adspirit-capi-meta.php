@@ -37,11 +37,20 @@ class AdSpirit_Capi_Meta {
     }
 
     private function __construct() {
-        add_action('adspirit_connector_render_tab_capi-meta', array($this, 'render_tab'));
-        add_action('adspirit_connector_save_capi-meta', array($this, 'handle_save'));
-
+        add_action(
+            'adspirit_connector_render_tab_capi-meta',
+            AdSpirit_Safe_Hook::action(array($this, 'render_tab'), 'capi_meta_tab')
+        );
+        add_action(
+            'adspirit_connector_save_capi-meta',
+            AdSpirit_Safe_Hook::action(array($this, 'handle_save'), 'capi_meta_save')
+        );
         // Page view via hook wp (depois do template_redirect)
-        add_action('wp', array($this, 'maybe_send_page_view'), 99);
+        add_action(
+            'wp',
+            AdSpirit_Safe_Hook::action(array($this, 'maybe_send_page_view'), 'capi_meta_page_view'),
+            99
+        );
     }
 
     /**

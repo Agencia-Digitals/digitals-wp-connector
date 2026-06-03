@@ -31,9 +31,19 @@ class AdSpirit_Ga4 {
     }
 
     private function __construct() {
-        add_action('adspirit_connector_render_tab_ga4', array($this, 'render_tab'));
-        add_action('adspirit_connector_save_ga4', array($this, 'handle_save'));
-        add_action('wp', array($this, 'maybe_send_page_view'), 99);
+        add_action(
+            'adspirit_connector_render_tab_ga4',
+            AdSpirit_Safe_Hook::action(array($this, 'render_tab'), 'ga4_tab')
+        );
+        add_action(
+            'adspirit_connector_save_ga4',
+            AdSpirit_Safe_Hook::action(array($this, 'handle_save'), 'ga4_save')
+        );
+        add_action(
+            'wp',
+            AdSpirit_Safe_Hook::action(array($this, 'maybe_send_page_view'), 'ga4_page_view'),
+            99
+        );
     }
 
     public static function send_lead_for_submission($submission_id, array $data, $referrer_url = '') {
