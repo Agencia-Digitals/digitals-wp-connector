@@ -1,0 +1,491 @@
+<?php
+/**
+ * AdSpirit Connector — Visão geral (overview tab).
+ *
+ * Dashboard com:
+ *   1. Checklist visual de onboarding (5-7 steps)
+ *   2. Próxima ação (computada dinamicamente)
+ *   3. Métricas resumidas (24h/7d/30d submits + taxa sucesso)
+ *   4. Forms CF7 detectados (com link pra mapping)
+ *   5. Plugins relevantes (CF7 instalado? versão? WP Armour?)
+ *   6. Botão de teste de conexão
+ *
+ * @package AdSpiritConnector
+ */
+
+if (!defined('ABSPATH')) exit;
+
+class AdSpirit_Status {
+    private static $instance = null;
+
+    public static function instance() {
+        if (null === self::$instance) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
+
+    private function __construct() {
+        add_action('adspirit_connector_render_tab_overview', array($this, 'render'));
+        add_action('wp_ajax_adspirit_test_connection', array($this, 'ajax_test_connection'));
+    }
+
+    public function render() {
+        $core = AdSpirit_Settings::get_core();
+        $checklist = $this->compute_checklist($core);
+        $next_action = $this->compute_next_action($checklist);
+        $metrics = AdSpirit_Health_Checker::summarize();
+        $forms = $this->discover_cf7_forms();
+        $env = $this->detect_environment();
+
+        ?>
+        <?php if ($next_action): ?>
+            <div class="notice notice-info" style="border-left-color:#2563eb;">
+                <p><strong>Próxima ação:</strong> <?php echo wp_kses_post($next_action); ?></p>
+            </div>
+        <?php endif; ?>
+
+        <h2>Onboarding</h2>
+        <p class="description">Checklist do que falta pra ferramenta estar 100% conectada e enviando leads.</p>
+
+        <ul class="checklist">
+            <?php foreach ($checklist as $item): ?>
+                <li>
+                    <span class="icon <?php echo esc_attr($item['status']); ?>">
+                        <?php echo $item['status'] === 'done' ? '✓' : ($item['status'] === 'fail' ? '✗' : '○'); ?>
+                    </span>
+                    <div class="body">
+                        <div class="title"><?php echo esc_html($item['title']); ?></div>
+                        <div class="desc"><?php echo wp_kses_post($item['desc']); ?></div>
+                        <?php if (!empty($item['cta_url']) && $item['status'] !== 'done'): ?>
+                            <div class="cta">
+                                <a href="<?php echo esc_url($item['cta_url']); ?>" class="button button-secondary">
+                                    <?php echo esc_html($item['cta_label'] ?? 'Configurar'); ?>
+                                </a>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </li>
+            <?php endforeach; ?>
+        </ul>
+
+        <h2>Métricas (últimos 30 dias)</h2>
+        <div class="metric-grid">
+            <div class="metric">
+                <div class="label">CF7 → CRM enviados</div>
+                <div class="value"><?php echo esc_html($metrics['cf7_sent_30d']); ?></div>
+                <div class="sub"><?php echo esc_html($metrics['cf7_sent_24h']); ?> nas últimas 24h</div>
+            </div>
+            <div class="metric">
+                <div class="label">Falhas no envio</div>
+                <div class="value" style="color:<?php echo $metrics['cf7_failed_30d'] > 0 ? '#b91c1c' : '#15803d'; ?>;"><?php echo esc_html($metrics['cf7_failed_30d']); ?></div>
+                <div class="sub"><?php echo esc_html($metrics['cf7_failed_24h']); ?> nas últimas 24h</div>
+            </div>
+            <div class="metric">
+                <div class="label">Taxa de sucesso</div>
+                <div class="value"><?php echo esc_html($metrics['success_rate']); ?>%</div>
+                <div class="sub"><?php echo $metrics['cf7_sent_30d'] + $metrics['cf7_failed_30d']; ?> tentativas</div>
+            </div>
+            <div class="metric">
+                <div class="label">Bloqueios anti-spam</div>
+                <div class="value"><?php echo esc_html($metrics['antispam_blocked_30d']); ?></div>
+                <div class="sub"><?php echo esc_html($metrics['antispam_blocked_24h']); ?> nas últimas 24h</div>
+            </div>
+            <div class="metric">
+                <div class="label">Última submissão enviada</div>
+                <div class="value" style="font-size:16px;"><?php echo esc_html($metrics['last_cf7_at_human'] ?: 'nunca'); ?></div>
+                <div class="sub"><?php echo esc_html($metrics['last_cf7_at_iso'] ?: ''); ?></div>
+            </div>
+            <div class="metric">
+                <div class="label">Último erro</div>
+                <div class="value" style="font-size:14px; color:<?php echo $metrics['last_error'] ? '#b91c1c' : '#15803d'; ?>;">
+                    <?php echo esc_html($metrics['last_error'] ?: '—'); ?>
+                </div>
+            </div>
+        </div>
+
+        <h2>Forms detectados</h2>
+        <?php if (empty($forms)): ?>
+            <div class="notice notice-warning inline">
+                <p>Nenhum form CF7 encontrado. Crie um em <code>Contact → Forms</code>.</p>
+            </div>
+        <?php else: ?>
+            <table class="widefat striped">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Título</th>
+                        <th>Campos</th>
+                        <th>Mapeamento</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($forms as $form): ?>
+                        <tr>
+                            <td><code><?php echo esc_html($form['id']); ?></code></td>
+                            <td><?php echo esc_html($form['title']); ?></td>
+                            <td><?php echo esc_html(count($form['fields'])); ?> campos</td>
+                            <td>
+                                <?php if ($form['mapped_count'] > 0): ?>
+                                    <span class="badge ok"><?php echo esc_html($form['mapped_count']); ?> mapeados</span>
+                                <?php else: ?>
+                                    <span class="badge warn">não mapeado</span>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <a href="<?php echo esc_url(admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=forms&form_id=' . $form['id'])); ?>" class="button button-secondary">
+                                    Mapear campos
+                                </a>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
+
+        <h2>Ambiente</h2>
+        <table class="widefat striped" style="max-width:720px;">
+            <tr>
+                <th style="width:240px;">Contact Form 7</th>
+                <td>
+                    <?php if ($env['cf7_installed']): ?>
+                        <span class="badge ok">Ativo</span> v<?php echo esc_html($env['cf7_version']); ?>
+                    <?php else: ?>
+                        <span class="badge danger">Não instalado</span>
+                    <?php endif; ?>
+                </td>
+            </tr>
+            <tr>
+                <th>WP Armour (anti-spam externo)</th>
+                <td>
+                    <?php if ($env['wp_armour']): ?>
+                        <span class="badge ok">Ativo</span>
+                        <span class="description">— o anti-spam embutido neste plugin pode rodar em paralelo, em sequência.</span>
+                    <?php else: ?>
+                        <span class="badge muted">Não detectado</span>
+                        <span class="description">— anti-spam embutido cobre o caso de uso comum.</span>
+                    <?php endif; ?>
+                </td>
+            </tr>
+            <tr>
+                <th>WordPress</th>
+                <td>v<?php echo esc_html(get_bloginfo('version')); ?></td>
+            </tr>
+            <tr>
+                <th>PHP</th>
+                <td>v<?php echo esc_html(PHP_VERSION); ?></td>
+            </tr>
+            <tr>
+                <th>Endpoint configurado</th>
+                <td><code><?php echo esc_html($core['endpoint_url'] . '/api/webhooks/contact-form-7'); ?></code></td>
+            </tr>
+        </table>
+
+        <h2>Testar conexão</h2>
+        <p class="description">Faz GET no endpoint validando brand slug + secret. Não cria lead.</p>
+        <button type="button" class="button button-primary" id="adspirit-test-btn">Testar conexão agora</button>
+        <pre class="json test-result" id="adspirit-test-result" style="display:none;"></pre>
+
+        <script>
+        (function() {
+            var btn = document.getElementById('adspirit-test-btn');
+            var box = document.getElementById('adspirit-test-result');
+            if (!btn) return;
+            btn.addEventListener('click', function() {
+                btn.disabled = true;
+                btn.textContent = 'Testando…';
+                box.style.display = 'block';
+                box.textContent = 'Aguarde…';
+                fetch(ajaxurl + '?action=adspirit_test_connection&_wpnonce=<?php echo esc_js(wp_create_nonce('adspirit_test_connection')); ?>')
+                    .then(function(r) { return r.json(); })
+                    .then(function(d) {
+                        box.textContent = JSON.stringify(d, null, 2);
+                        btn.disabled = false;
+                        btn.textContent = 'Testar conexão agora';
+                    })
+                    .catch(function(err) {
+                        box.textContent = 'Erro: ' + err.message;
+                        btn.disabled = false;
+                        btn.textContent = 'Testar conexão agora';
+                    });
+            });
+        })();
+        </script>
+        <?php
+    }
+
+    private function compute_checklist(array $core) {
+        $cf7_installed = class_exists('WPCF7_Submission');
+        $endpoint_ok = !empty($core['endpoint_url']) && filter_var($core['endpoint_url'], FILTER_VALIDATE_URL);
+        $slug_ok = !empty($core['brand_slug']);
+        $secret_ok = !empty($core['secret']) && preg_match('/^[a-f0-9]{32,128}$/i', $core['secret']);
+
+        $metrics = AdSpirit_Health_Checker::summarize();
+        $sent_30d_ok = $metrics['cf7_sent_30d'] > 0;
+
+        $forms = $this->discover_cf7_forms();
+        $any_mapped = false;
+        foreach ($forms as $f) {
+            if ($f['mapped_count'] > 0) {
+                $any_mapped = true;
+                break;
+            }
+        }
+        // Default mapping (sem custom) também conta — se o form CF7 já usa
+        // os nomes canônicos, está implicitamente mapeado.
+        if (!$any_mapped && !empty($forms)) {
+            foreach ($forms as $f) {
+                foreach ($f['fields'] as $field) {
+                    if (in_array($field, array_keys(AdSpirit_Settings::canonical_fields()), true)) {
+                        $any_mapped = true;
+                        break 2;
+                    }
+                }
+            }
+        }
+
+        return array(
+            array(
+                'status' => $cf7_installed ? 'done' : 'fail',
+                'title'  => 'Contact Form 7 instalado e ativo',
+                'desc'   => $cf7_installed
+                    ? 'Plugin CF7 detectado. Hooks de submissão prontos.'
+                    : 'Instale e ative o plugin <a href="' . esc_url(admin_url('plugin-install.php?s=contact+form+7&tab=search')) . '">Contact Form 7</a>. Sem ele, o envio de leads não funciona.',
+                'cta_url' => admin_url('plugin-install.php?s=contact+form+7&tab=search'),
+                'cta_label' => 'Instalar CF7',
+            ),
+            array(
+                'status' => $endpoint_ok ? 'done' : 'todo',
+                'title'  => 'Endpoint do CRM configurado',
+                'desc'   => $endpoint_ok
+                    ? 'URL: <code>' . esc_html($core['endpoint_url']) . '</code>'
+                    : 'Configure a base URL do CRM (default <code>https://crm.agenciadigitals.com.br</code>).',
+                'cta_url' => admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=connection'),
+                'cta_label' => 'Configurar',
+            ),
+            array(
+                'status' => $slug_ok ? 'done' : 'todo',
+                'title'  => 'Brand slug definido',
+                'desc'   => $slug_ok
+                    ? 'Slug: <code>' . esc_html($core['brand_slug']) . '</code>. Você recebe esse valor em <code>/settings/integrations/tracking</code> no painel do CRM.'
+                    : 'Falta o identificador da marca. Pegue em <em>Tracking → Plugin WordPress</em> no CRM.',
+                'cta_url' => admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=connection'),
+                'cta_label' => 'Adicionar slug',
+            ),
+            array(
+                'status' => $secret_ok ? 'done' : 'todo',
+                'title'  => 'Secret de autenticação configurado',
+                'desc'   => $secret_ok
+                    ? 'Secret presente (oculto por segurança). Rotacione se suspeitar de vazamento.'
+                    : 'Gere o secret em <em>Tracking → Plugin WordPress → Gerar secret</em> no CRM. Cole aqui em <em>Conexão CRM</em>. O secret só aparece uma vez — guarde com cuidado.',
+                'cta_url' => admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=connection'),
+                'cta_label' => 'Colar secret',
+            ),
+            array(
+                'status' => $any_mapped ? 'done' : 'todo',
+                'title'  => 'Forms com campos mapeados',
+                'desc'   => $any_mapped
+                    ? 'Pelo menos um form tem mapeamento configurado. Verifique outros forms se houver.'
+                    : 'Cada cliente tem um perfil diferente. Mapeie os campos do form pra que o CRM reconheça nome, email, telefone, etc.',
+                'cta_url' => admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=forms'),
+                'cta_label' => 'Mapear campos',
+            ),
+            array(
+                'status' => $sent_30d_ok ? 'done' : 'todo',
+                'title'  => 'Primeira submissão enviada com sucesso',
+                'desc'   => $sent_30d_ok
+                    ? 'Pelo menos uma submissão chegou ao CRM nos últimos 30 dias.'
+                    : 'Submeta um form de teste no site. Em até 5s aparece em <code>/leads</code> no CRM.',
+            ),
+        );
+    }
+
+    private function compute_next_action(array $checklist) {
+        foreach ($checklist as $item) {
+            if ($item['status'] === 'done') continue;
+            $cta = !empty($item['cta_url'])
+                ? ' <a href="' . esc_url($item['cta_url']) . '">' . esc_html($item['cta_label'] ?? 'configurar') . '</a>'
+                : '';
+            return esc_html($item['title']) . '.' . $cta;
+        }
+        return ''; // tudo done
+    }
+
+    private function discover_cf7_forms() {
+        if (!class_exists('WPCF7_ContactForm')) return array();
+        $forms = WPCF7_ContactForm::find(array(
+            'posts_per_page' => 50,
+            'orderby' => 'date',
+            'order' => 'DESC',
+        ));
+        $mappings = AdSpirit_Settings::get_field_mappings();
+        $out = array();
+        foreach ($forms as $form) {
+            $id = $form->id();
+            $tags = $form->scan_form_tags();
+            $fields = array();
+            foreach ($tags as $tag) {
+                $name = isset($tag->name) ? $tag->name : '';
+                if ($name) $fields[] = $name;
+            }
+            $map = isset($mappings[$id]) ? $mappings[$id] : array();
+            $out[] = array(
+                'id'           => $id,
+                'title'        => $form->title(),
+                'fields'       => $fields,
+                'mapped_count' => count(array_filter($map)),
+            );
+        }
+        return $out;
+    }
+
+    private function detect_environment() {
+        $cf7_installed = false;
+        $cf7_version = '?';
+        if (defined('WPCF7_VERSION')) {
+            $cf7_installed = true;
+            $cf7_version = WPCF7_VERSION;
+        }
+
+        // WP Armour (Honeypot for Contact Form 7 plugin) detection
+        $wp_armour = false;
+        if (is_plugin_active('honeypot-for-contact-form-7/honeypot-for-cf7.php')
+            || is_plugin_active('wp-armour/wp-armour.php')
+            || class_exists('WPA_Settings')) {
+            $wp_armour = true;
+        }
+
+        return array(
+            'cf7_installed' => $cf7_installed,
+            'cf7_version'   => $cf7_version,
+            'wp_armour'     => $wp_armour,
+        );
+    }
+
+    public function ajax_test_connection() {
+        if (!current_user_can(AdSpirit_Menu::CAPABILITY)) {
+            wp_send_json(array('ok' => false, 'error' => 'forbidden'), 403);
+        }
+        check_ajax_referer('adspirit_test_connection');
+
+        $s = AdSpirit_Settings::get_core();
+        if (empty($s['endpoint_url']) || empty($s['brand_slug']) || empty($s['secret'])) {
+            wp_send_json(array(
+                'ok'    => false,
+                'error' => 'config_incompleta',
+                'hint'  => 'Preencha endpoint URL, brand slug e secret na aba Conexão CRM antes de testar.',
+            ));
+        }
+
+        $url = trailingslashit($s['endpoint_url']) . 'api/webhooks/contact-form-7';
+        $response = wp_remote_get($url, array(
+            'timeout' => 10,
+            'headers' => array(
+                'x-brand-slug' => $s['brand_slug'],
+                'x-cf7-secret' => $s['secret'],
+                'User-Agent'   => 'AdSpirit-Connector/' . ADSPIRIT_CONNECTOR_VERSION,
+            ),
+        ));
+
+        if (is_wp_error($response)) {
+            wp_send_json(array(
+                'ok'      => false,
+                'error'   => 'network',
+                'message' => $response->get_error_message(),
+            ));
+        }
+
+        $code = wp_remote_retrieve_response_code($response);
+        $body = wp_remote_retrieve_body($response);
+        $parsed = json_decode($body, true);
+
+        wp_send_json(array(
+            'ok'        => $code === 200,
+            'http_code' => $code,
+            'endpoint'  => $url,
+            'response'  => $parsed ?: $body,
+        ));
+    }
+}
+
+// Conexão CRM tab
+add_action('adspirit_connector_render_tab_connection', function() {
+    $s = AdSpirit_Settings::get_core();
+    AdSpirit_Menu::form_open('connection');
+    ?>
+    <h2>Conexão com o CRM</h2>
+    <p class="description">Cole aqui os valores que o CRM gerou em <code>/settings/integrations/tracking → Plugin WordPress</code>.</p>
+
+    <table class="form-table">
+        <tr>
+            <th><label for="adspirit_endpoint_url">Endpoint URL</label></th>
+            <td>
+                <input type="url" id="adspirit_endpoint_url" name="endpoint_url" value="<?php echo esc_attr($s['endpoint_url']); ?>" class="regular-text" required>
+                <p class="description">Base do CRM. Default: <code>https://crm.agenciadigitals.com.br</code>.</p>
+            </td>
+        </tr>
+        <tr>
+            <th><label for="adspirit_brand_slug">Brand slug</label></th>
+            <td>
+                <input type="text" id="adspirit_brand_slug" name="brand_slug" value="<?php echo esc_attr($s['brand_slug']); ?>" class="regular-text" required pattern="[a-z0-9_-]+">
+                <p class="description">Identificador da marca no CRM (ex.: <code>agd</code>).</p>
+            </td>
+        </tr>
+        <tr>
+            <th><label for="adspirit_secret">Secret CF7</label></th>
+            <td>
+                <input type="password" id="adspirit_secret" name="secret" value="<?php echo esc_attr($s['secret']); ?>" class="regular-text" autocomplete="off">
+                <button type="button" class="button" onclick="var e=document.getElementById('adspirit_secret');e.type=e.type==='password'?'text':'password';">Mostrar</button>
+                <p class="description">64 caracteres hex. Cola o valor gerado no CRM. Não fica visível depois — guarde.</p>
+            </td>
+        </tr>
+        <tr>
+            <th><label for="adspirit_pixel_token">Pixel token</label></th>
+            <td>
+                <input type="text" id="adspirit_pixel_token" name="pixel_token" value="<?php echo esc_attr($s['pixel_token']); ?>" class="regular-text">
+                <p class="description">Opcional. Token <code>dos_…</code> da marca pro pixel JS. Mesma página do CRM.</p>
+            </td>
+        </tr>
+        <tr>
+            <th>Features</th>
+            <td>
+                <label>
+                    <input type="checkbox" name="cf7_enabled" value="1" <?php checked($s['cf7_enabled'], '1'); ?>>
+                    Enviar submissões do Contact Form 7 pro CRM
+                </label><br>
+                <label>
+                    <input type="checkbox" name="pixel_enabled" value="1" <?php checked($s['pixel_enabled'], '1'); ?>>
+                    Injetar pixel de tracking no &lt;head&gt;
+                </label>
+            </td>
+        </tr>
+    </table>
+    <?php
+    AdSpirit_Menu::form_close('Salvar conexão');
+});
+
+add_action('adspirit_connector_save_connection', function($post) {
+    $patch = array();
+    if (isset($post['endpoint_url'])) {
+        $patch['endpoint_url'] = esc_url_raw(rtrim((string) $post['endpoint_url'], '/'));
+    }
+    if (isset($post['brand_slug'])) {
+        $patch['brand_slug'] = sanitize_text_field(trim((string) $post['brand_slug']));
+    }
+    if (isset($post['secret'])) {
+        $secret = trim((string) $post['secret']);
+        if ($secret !== '' && !preg_match('/^[a-f0-9]{32,128}$/i', $secret)) {
+            add_settings_error(AdSpirit_Settings::OPTION_CORE, 'invalid_secret', 'Secret inválido — deve ser hexadecimal de 64 caracteres.');
+        } else {
+            $patch['secret'] = $secret;
+        }
+    }
+    if (isset($post['pixel_token'])) {
+        $patch['pixel_token'] = sanitize_text_field(trim((string) $post['pixel_token']));
+    }
+    $patch['cf7_enabled']   = !empty($post['cf7_enabled']) ? '1' : '0';
+    $patch['pixel_enabled'] = !empty($post['pixel_enabled']) ? '1' : '0';
+    AdSpirit_Settings::update_core($patch);
+    add_settings_error(AdSpirit_Settings::OPTION_CORE, 'saved', 'Conexão salva.', 'updated');
+});

@@ -1,0 +1,205 @@
+<?php
+/**
+ * AdSpirit Connector — data layer (sem UI).
+ *
+ * Centraliza get/save de todas as options do plugin. UI é
+ * responsabilidade de cada *_Tab classe. Aqui só persistência +
+ * defaults + sanitização.
+ *
+ * @package AdSpiritConnector
+ */
+
+if (!defined('ABSPATH')) exit;
+
+class AdSpirit_Settings {
+    // 1 row pra config geral. Features grandes (field mapping, anti-spam stats,
+    // cf7 log) têm options separadas porque crescem com uso.
+    const OPTION_CORE         = 'adspirit_connector_settings';
+    const OPTION_FIELD_MAP    = 'adspirit_connector_field_mappings';
+    const OPTION_ANTISPAM     = 'adspirit_connector_antispam';
+    const OPTION_ANTISPAM_LOG = 'adspirit_connector_antispam_log';
+    const OPTION_CAPI_META    = 'adspirit_connector_capi_meta';
+    const OPTION_GA4          = 'adspirit_connector_ga4';
+    const OPTION_CROSS_DOMAIN = 'adspirit_connector_cross_domain';
+
+    private static $instance = null;
+
+    public static function instance() {
+        if (null === self::$instance) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
+
+    private function __construct() {
+        add_action('admin_init', array($this, 'register_settings'));
+    }
+
+    public static function seed_defaults() {
+        if (false === get_option(self::OPTION_CORE)) {
+            add_option(self::OPTION_CORE, self::core_defaults());
+        }
+        if (false === get_option(self::OPTION_ANTISPAM)) {
+            add_option(self::OPTION_ANTISPAM, self::antispam_defaults());
+        }
+        if (false === get_option(self::OPTION_CAPI_META)) {
+            add_option(self::OPTION_CAPI_META, self::capi_meta_defaults());
+        }
+        if (false === get_option(self::OPTION_GA4)) {
+            add_option(self::OPTION_GA4, self::ga4_defaults());
+        }
+        if (false === get_option(self::OPTION_CROSS_DOMAIN)) {
+            add_option(self::OPTION_CROSS_DOMAIN, self::cross_domain_defaults());
+        }
+        if (false === get_option(self::OPTION_FIELD_MAP)) {
+            add_option(self::OPTION_FIELD_MAP, array());
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // CORE: brand slug + secret + endpoint URL + pixel token
+    // ─────────────────────────────────────────────────────────
+    public static function core_defaults() {
+        return array(
+            'endpoint_url'  => 'https://crm.agenciadigitals.com.br',
+            'brand_slug'    => '',
+            'secret'        => '',
+            'pixel_token'   => '',
+            'cf7_enabled'   => '1',
+            'pixel_enabled' => '0',
+        );
+    }
+
+    public static function get_core() {
+        $stored = get_option(self::OPTION_CORE, array());
+        return wp_parse_args($stored, self::core_defaults());
+    }
+
+    public static function update_core(array $patch) {
+        $current = self::get_core();
+        update_option(self::OPTION_CORE, array_merge($current, $patch), false);
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // ANTI-SPAM
+    // ─────────────────────────────────────────────────────────
+    public static function antispam_defaults() {
+        return array(
+            'enabled'         => '1',
+            'honeypot'        => '1',
+            'time_trap'       => '1',
+            'time_trap_min_s' => 2,
+            'rate_limit'      => '1',
+            'rate_limit_max'  => 3,    // 3 submits/min por IP
+            'blocklist_emails'=> "",   // regex separado por linha
+            'blocklist_words' => "",   // palavras separadas por linha (em qualquer field)
+        );
+    }
+    public static function get_antispam() {
+        return wp_parse_args(get_option(self::OPTION_ANTISPAM, array()), self::antispam_defaults());
+    }
+    public static function update_antispam(array $patch) {
+        $current = self::get_antispam();
+        update_option(self::OPTION_ANTISPAM, array_merge($current, $patch), false);
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // FIELD MAPPING (per form)
+    //   structure: array(form_id => array(cf7_field => canonical_field))
+    // ─────────────────────────────────────────────────────────
+    public static function get_field_mappings() {
+        $v = get_option(self::OPTION_FIELD_MAP, array());
+        return is_array($v) ? $v : array();
+    }
+    public static function set_field_mapping_for_form($form_id, array $mapping) {
+        $all = self::get_field_mappings();
+        $all[(int) $form_id] = $mapping;
+        update_option(self::OPTION_FIELD_MAP, $all, false);
+    }
+    public static function get_field_mapping_for_form($form_id) {
+        $all = self::get_field_mappings();
+        $key = (int) $form_id;
+        return isset($all[$key]) ? $all[$key] : array();
+    }
+
+    // Campos canônicos que o CRM (cf7-processor) reconhece. Plugin mapeia
+    // campos do CF7 pra esses nomes antes do POST.
+    public static function canonical_fields() {
+        return array(
+            'your-name'           => 'Nome',
+            'your-email'          => 'Email',
+            'Telefone'            => 'Telefone',
+            'empresa'             => 'Empresa',
+            'cargo'               => 'Cargo',
+            'Numero-funcionarios' => 'Nº de funcionários',
+            'nicho'               => 'Nicho / Segmento',
+            'site-empresa'        => 'Site da empresa',
+            'Investimento'        => 'Investimento atual',
+            'urgencia para começar' => 'Urgência',
+        );
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // CAPI META (Conversion API server-side)
+    // ─────────────────────────────────────────────────────────
+    public static function capi_meta_defaults() {
+        return array(
+            'enabled'        => '0',
+            'pixel_id'       => '',
+            'access_token'   => '',
+            'test_event_code'=> '',
+            'send_page_view' => '1', // dispara PageView a cada page load
+            'send_lead'      => '1', // dispara Lead no CF7 submit
+        );
+    }
+    public static function get_capi_meta() {
+        return wp_parse_args(get_option(self::OPTION_CAPI_META, array()), self::capi_meta_defaults());
+    }
+    public static function update_capi_meta(array $patch) {
+        $current = self::get_capi_meta();
+        update_option(self::OPTION_CAPI_META, array_merge($current, $patch), false);
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // GA4
+    // ─────────────────────────────────────────────────────────
+    public static function ga4_defaults() {
+        return array(
+            'enabled'         => '0',
+            'measurement_id'  => '',
+            'api_secret'      => '',
+            'send_page_view'  => '1',
+            'send_lead'       => '1',
+        );
+    }
+    public static function get_ga4() {
+        return wp_parse_args(get_option(self::OPTION_GA4, array()), self::ga4_defaults());
+    }
+    public static function update_ga4(array $patch) {
+        $current = self::get_ga4();
+        update_option(self::OPTION_GA4, array_merge($current, $patch), false);
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // CROSS-DOMAIN
+    // ─────────────────────────────────────────────────────────
+    public static function cross_domain_defaults() {
+        return array(
+            'enabled'  => '0',
+            'domains'  => "", // 1 hostname por linha
+        );
+    }
+    public static function get_cross_domain() {
+        return wp_parse_args(get_option(self::OPTION_CROSS_DOMAIN, array()), self::cross_domain_defaults());
+    }
+    public static function update_cross_domain(array $patch) {
+        $current = self::get_cross_domain();
+        update_option(self::OPTION_CROSS_DOMAIN, array_merge($current, $patch), false);
+    }
+
+    public function register_settings() {
+        // Cada classe tab registra o próprio handler de save via admin-post.
+        // Aqui só placeholder por enquanto — settings API tradicional usa
+        // register_setting; preferimos handlers próprios pra cada tab.
+    }
+}
