@@ -137,12 +137,15 @@ class AdSpirit_Ga4 {
 
     public function render_tab() {
         $c = AdSpirit_Settings::get_ga4();
-        AdSpirit_Menu::form_open('ga4');
+        $status_badge = $c['enabled'] === '1' ? '<span class="as-badge ok">Ativo</span>' : '<span class="as-badge muted">Desligado</span>';
         ?>
-        <h2>Google Analytics 4 (server-side)</h2>
-        <p class="description">
-            Dispara eventos GA4 via Measurement Protocol v2 direto do servidor. Funciona em paralelo ao gtag.js client-side se quiser dedupe.
+        <h2 class="as-section"><span class="as-kicker-inline">GA4</span>Measurement Protocol v2 server-side</h2>
+        <p class="as-section-help">
+            Dispara eventos GA4 direto do servidor. Funciona em paralelo ao gtag.js client-side — eventos com mesmo <code>event_id</code> são deduplicados pelo GA4.
         </p>
+
+        <?php AdSpirit_Menu::card_open('Credenciais GA4', 'Measurement ID e API Secret você gera em <em>GA4 Admin → Data Streams → Measurement Protocol</em>', $status_badge); ?>
+        <?php AdSpirit_Menu::form_open('ga4'); ?>
 
         <table class="form-table">
             <tr>
@@ -183,8 +186,9 @@ class AdSpirit_Ga4 {
                 </td>
             </tr>
         </table>
+        <?php AdSpirit_Menu::form_close('Salvar GA4'); ?>
+        <?php AdSpirit_Menu::card_close(); ?>
         <?php
-        AdSpirit_Menu::form_close('Salvar GA4');
     }
 
     public function handle_save($post) {

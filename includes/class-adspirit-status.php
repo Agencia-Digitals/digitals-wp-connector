@@ -46,26 +46,27 @@ class AdSpirit_Status {
 
         ?>
         <?php if ($next_action): ?>
-            <div class="notice notice-info" style="border-left-color:#2563eb;">
-                <p><strong>Próxima ação:</strong> <?php echo wp_kses_post($next_action); ?></p>
+            <div class="as-notice info">
+                <div class="as-notice-kicker">Próxima ação</div>
+                <p><?php echo wp_kses_post($next_action); ?></p>
             </div>
         <?php endif; ?>
 
-        <h2>Onboarding</h2>
-        <p class="description">Checklist do que falta pra ferramenta estar 100% conectada e enviando leads.</p>
+        <h2 class="as-section"><span class="as-kicker-inline">Onboarding</span>Conectar o site ao CRM</h2>
+        <p class="as-section-help">Checklist do que falta pra ferramenta estar 100% conectada e enviando leads.</p>
 
-        <ul class="checklist">
+        <ul class="as-checklist">
             <?php foreach ($checklist as $item): ?>
                 <li>
                     <span class="icon <?php echo esc_attr($item['status']); ?>">
-                        <?php echo $item['status'] === 'done' ? '✓' : ($item['status'] === 'fail' ? '✗' : '○'); ?>
+                        <?php echo self::status_icon($item['status']); ?>
                     </span>
                     <div class="body">
                         <div class="title"><?php echo esc_html($item['title']); ?></div>
                         <div class="desc"><?php echo wp_kses_post($item['desc']); ?></div>
                         <?php if (!empty($item['cta_url']) && $item['status'] !== 'done'): ?>
                             <div class="cta">
-                                <a href="<?php echo esc_url($item['cta_url']); ?>" class="button button-secondary">
+                                <a href="<?php echo esc_url($item['cta_url']); ?>" class="button button-primary">
                                     <?php echo esc_html($item['cta_label'] ?? 'Configurar'); ?>
                                 </a>
                             </div>
@@ -75,48 +76,48 @@ class AdSpirit_Status {
             <?php endforeach; ?>
         </ul>
 
-        <h2>Métricas (últimos 30 dias)</h2>
-        <div class="metric-grid">
-            <div class="metric">
+        <h2 class="as-section"><span class="as-kicker-inline">Performance</span>Métricas dos últimos 30 dias</h2>
+        <div class="as-metric-grid">
+            <div class="as-metric">
                 <div class="label">CF7 → CRM enviados</div>
                 <div class="value"><?php echo esc_html($metrics['cf7_sent_30d']); ?></div>
                 <div class="sub"><?php echo esc_html($metrics['cf7_sent_24h']); ?> nas últimas 24h</div>
             </div>
-            <div class="metric">
+            <div class="as-metric">
                 <div class="label">Falhas no envio</div>
-                <div class="value" style="color:<?php echo $metrics['cf7_failed_30d'] > 0 ? '#b91c1c' : '#15803d'; ?>;"><?php echo esc_html($metrics['cf7_failed_30d']); ?></div>
+                <div class="value <?php echo $metrics['cf7_failed_30d'] > 0 ? 'danger' : ''; ?>"><?php echo esc_html($metrics['cf7_failed_30d']); ?></div>
                 <div class="sub"><?php echo esc_html($metrics['cf7_failed_24h']); ?> nas últimas 24h</div>
             </div>
-            <div class="metric">
+            <div class="as-metric">
                 <div class="label">Taxa de sucesso</div>
                 <div class="value"><?php echo esc_html($metrics['success_rate']); ?>%</div>
                 <div class="sub"><?php echo $metrics['cf7_sent_30d'] + $metrics['cf7_failed_30d']; ?> tentativas</div>
             </div>
-            <div class="metric">
+            <div class="as-metric">
                 <div class="label">Bloqueios anti-spam</div>
                 <div class="value"><?php echo esc_html($metrics['antispam_blocked_30d']); ?></div>
                 <div class="sub"><?php echo esc_html($metrics['antispam_blocked_24h']); ?> nas últimas 24h</div>
             </div>
-            <div class="metric">
-                <div class="label">Última submissão enviada</div>
-                <div class="value" style="font-size:16px;"><?php echo esc_html($metrics['last_cf7_at_human'] ?: 'nunca'); ?></div>
+            <div class="as-metric">
+                <div class="label">Última submissão</div>
+                <div class="value text"><?php echo esc_html($metrics['last_cf7_at_human'] ?: 'nunca'); ?></div>
                 <div class="sub"><?php echo esc_html($metrics['last_cf7_at_iso'] ?: ''); ?></div>
             </div>
-            <div class="metric">
+            <div class="as-metric">
                 <div class="label">Último erro</div>
-                <div class="value" style="font-size:14px; color:<?php echo $metrics['last_error'] ? '#b91c1c' : '#15803d'; ?>;">
-                    <?php echo esc_html($metrics['last_error'] ?: '—'); ?>
+                <div class="value text <?php echo $metrics['last_error'] ? 'danger' : ''; ?>" style="font-size:13px;">
+                    <?php echo esc_html($metrics['last_error'] ?: 'nenhum'); ?>
                 </div>
             </div>
         </div>
 
-        <h2>Forms detectados</h2>
+        <h2 class="as-section"><span class="as-kicker-inline">Forms</span>Detectados no site</h2>
         <?php if (empty($forms)): ?>
-            <div class="notice notice-warning inline">
+            <div class="as-notice warn">
                 <p>Nenhum form CF7 encontrado. Crie um em <code>Contact → Forms</code>.</p>
             </div>
         <?php else: ?>
-            <table class="widefat striped">
+            <table class="as-table">
                 <thead>
                     <tr>
                         <th>ID</th>
@@ -134,13 +135,13 @@ class AdSpirit_Status {
                             <td><?php echo esc_html(count($form['fields'])); ?> campos</td>
                             <td>
                                 <?php if ($form['mapped_count'] > 0): ?>
-                                    <span class="badge ok"><?php echo esc_html($form['mapped_count']); ?> mapeados</span>
+                                    <span class="as-badge ok"><?php echo esc_html($form['mapped_count']); ?> mapeados</span>
                                 <?php else: ?>
-                                    <span class="badge warn">não mapeado</span>
+                                    <span class="as-badge warn">não mapeado</span>
                                 <?php endif; ?>
                             </td>
                             <td>
-                                <a href="<?php echo esc_url(admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=forms&form_id=' . $form['id'])); ?>" class="button button-secondary">
+                                <a href="<?php echo esc_url(admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=forms&form_id=' . $form['id'])); ?>" class="button">
                                     Mapear campos
                                 </a>
                             </td>
@@ -150,15 +151,15 @@ class AdSpirit_Status {
             </table>
         <?php endif; ?>
 
-        <h2>Ambiente</h2>
-        <table class="widefat striped" style="max-width:720px;">
+        <h2 class="as-section"><span class="as-kicker-inline">Ambiente</span>O que está rodando no servidor</h2>
+        <table class="as-table" style="max-width:720px;">
             <tr>
                 <th style="width:240px;">Contact Form 7</th>
                 <td>
                     <?php if ($env['cf7_installed']): ?>
-                        <span class="badge ok">Ativo</span> v<?php echo esc_html($env['cf7_version']); ?>
+                        <span class="as-badge ok">Ativo</span> v<?php echo esc_html($env['cf7_version']); ?>
                     <?php else: ?>
-                        <span class="badge danger">Não instalado</span>
+                        <span class="as-badge danger">Não instalado</span>
                     <?php endif; ?>
                 </td>
             </tr>
@@ -166,21 +167,21 @@ class AdSpirit_Status {
                 <th>WP Armour (anti-spam externo)</th>
                 <td>
                     <?php if ($env['wp_armour']): ?>
-                        <span class="badge ok">Ativo</span>
-                        <span class="description">— o anti-spam embutido neste plugin pode rodar em paralelo, em sequência.</span>
+                        <span class="as-badge ok">Ativo</span>
+                        <span class="as-field-help" style="display:inline; margin-left:8px;">— roda em paralelo com o anti-spam embutido.</span>
                     <?php else: ?>
-                        <span class="badge muted">Não detectado</span>
-                        <span class="description">— anti-spam embutido cobre o caso de uso comum.</span>
+                        <span class="as-badge muted">Não detectado</span>
+                        <span class="as-field-help" style="display:inline; margin-left:8px;">— anti-spam embutido cobre o caso comum.</span>
                     <?php endif; ?>
                 </td>
             </tr>
             <tr>
                 <th>WordPress</th>
-                <td>v<?php echo esc_html(get_bloginfo('version')); ?></td>
+                <td><code>v<?php echo esc_html(get_bloginfo('version')); ?></code></td>
             </tr>
             <tr>
                 <th>PHP</th>
-                <td>v<?php echo esc_html(PHP_VERSION); ?></td>
+                <td><code>v<?php echo esc_html(PHP_VERSION); ?></code></td>
             </tr>
             <tr>
                 <th>Endpoint configurado</th>
@@ -188,8 +189,8 @@ class AdSpirit_Status {
             </tr>
         </table>
 
-        <h2>Resiliência</h2>
-        <p class="description">Camadas de proteção que garantem que esse plugin nunca derruba o site, mesmo se algo der errado.</p>
+        <h2 class="as-section"><span class="as-kicker-inline">Resiliência</span>Proteções ativas</h2>
+        <p class="as-section-help">Camadas que garantem que este plugin nunca derruba o site, mesmo se algo der errado.</p>
         <?php
         $safe_mode = class_exists('AdSpirit_Safe_Bootstrap') && AdSpirit_Safe_Bootstrap::is_safe_mode();
         $crashes = class_exists('AdSpirit_Crash_Tracker') ? AdSpirit_Crash_Tracker::get_log() : array();
@@ -199,16 +200,16 @@ class AdSpirit_Status {
             if (($c['at'] ?? 0) >= $window) $recent_crashes++;
         }
         ?>
-        <table class="widefat striped" style="max-width:720px;">
+        <table class="as-table" style="max-width:720px;">
             <tr>
                 <th style="width:240px;">Modo de operação</th>
                 <td>
                     <?php if ($safe_mode): ?>
-                        <span class="badge danger">Safe Mode</span>
-                        <span class="description">— features desligadas, site intocado</span>
+                        <span class="as-badge danger">Safe Mode</span>
+                        <span class="as-field-help" style="display:inline; margin-left:8px;">features desligadas, site intocado</span>
                     <?php else: ?>
-                        <span class="badge ok">Normal</span>
-                        <span class="description">— todas as features ativas</span>
+                        <span class="as-badge ok">Normal</span>
+                        <span class="as-field-help" style="display:inline; margin-left:8px;">todas as features ativas</span>
                     <?php endif; ?>
                 </td>
             </tr>
@@ -216,13 +217,13 @@ class AdSpirit_Status {
                 <th>Crashes capturados (24h)</th>
                 <td>
                     <?php if ($recent_crashes === 0): ?>
-                        <span class="badge ok">0</span>
-                        <span class="description">— nenhuma exceção silenciada</span>
+                        <span class="as-badge ok">0</span>
+                        <span class="as-field-help" style="display:inline; margin-left:8px;">nenhuma exceção silenciada</span>
                     <?php else: ?>
-                        <span class="badge <?php echo $recent_crashes >= 3 ? 'danger' : 'warn'; ?>"><?php echo esc_html($recent_crashes); ?></span>
-                        <a href="<?php echo esc_url(admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=logs')); ?>">ver logs</a>
+                        <span class="as-badge <?php echo $recent_crashes >= 3 ? 'danger' : 'warn'; ?>"><?php echo esc_html($recent_crashes); ?></span>
+                        <a href="<?php echo esc_url(admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=logs')); ?>" style="margin-left:8px;">ver logs</a>
                         <?php if ($recent_crashes >= 3): ?>
-                            <span class="description">— acima do threshold, Safe Mode pode ter sido ativado</span>
+                            <span class="as-field-help" style="display:inline; margin-left:8px;">acima do threshold, Safe Mode pode ter sido ativado</span>
                         <?php endif; ?>
                     <?php endif; ?>
                 </td>
@@ -230,20 +231,20 @@ class AdSpirit_Status {
             <tr>
                 <th>Auto-recuperação</th>
                 <td>
-                    <span class="badge ok">Ativa</span>
-                    <span class="description">— se 3+ erros em 5min, plugin entra em Safe Mode automaticamente</span>
+                    <span class="as-badge ok">Ativa</span>
+                    <span class="as-field-help" style="display:inline; margin-left:8px;">se 3+ erros em 5 min, plugin entra em Safe Mode automaticamente</span>
                 </td>
             </tr>
             <tr>
                 <th>Compatibilidade mínima</th>
-                <td>WP <code>6.0+</code> · PHP <code>7.4+</code> — checado no boot e na ativação</td>
+                <td>WP <code>6.0+</code> · PHP <code>7.4+</code> — validado no boot e na ativação</td>
             </tr>
         </table>
 
-        <h2>Testar conexão</h2>
-        <p class="description">Faz GET no endpoint validando brand slug + secret. Não cria lead.</p>
-        <button type="button" class="button button-primary" id="adspirit-test-btn">Testar conexão agora</button>
-        <pre class="json test-result" id="adspirit-test-result" style="display:none;"></pre>
+        <h2 class="as-section"><span class="as-kicker-inline">Teste</span>Conexão com o CRM</h2>
+        <p class="as-section-help">Faz <code>GET</code> no endpoint validando brand slug + secret. Não cria lead.</p>
+        <button type="button" class="button button-primary" id="adspirit-test-btn"><?php echo self::icon('zap'); ?> Testar conexão agora</button>
+        <pre class="as-test-result" id="adspirit-test-result" style="display:none;"></pre>
 
         <script>
         (function() {
@@ -421,6 +422,46 @@ class AdSpirit_Status {
         );
     }
 
+    /**
+     * SVG inline line-style (Lucide-ish). Mantém-se consistente com
+     * o design system do CRM (sem emojis).
+     */
+    public static function icon($name, $size = 14) {
+        $size = (int) $size;
+        $stroke = 1.75;
+        $common = 'fill="none" stroke="currentColor" stroke-width="' . $stroke . '" stroke-linecap="round" stroke-linejoin="round"';
+        switch ($name) {
+            case 'check':
+                return '<svg width="' . $size . '" height="' . $size . '" viewBox="0 0 24 24" ' . $common . '><polyline points="20 6 9 17 4 12"></polyline></svg>';
+            case 'circle':
+                return '<svg width="' . $size . '" height="' . $size . '" viewBox="0 0 24 24" ' . $common . '><circle cx="12" cy="12" r="9"></circle></svg>';
+            case 'x':
+                return '<svg width="' . $size . '" height="' . $size . '" viewBox="0 0 24 24" ' . $common . '><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
+            case 'zap':
+                return '<svg width="' . $size . '" height="' . $size . '" viewBox="0 0 24 24" ' . $common . '><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>';
+            case 'arrow-right':
+                return '<svg width="' . $size . '" height="' . $size . '" viewBox="0 0 24 24" ' . $common . '><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>';
+            case 'alert':
+                return '<svg width="' . $size . '" height="' . $size . '" viewBox="0 0 24 24" ' . $common . '><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>';
+            case 'shield':
+                return '<svg width="' . $size . '" height="' . $size . '" viewBox="0 0 24 24" ' . $common . '><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>';
+            case 'copy':
+                return '<svg width="' . $size . '" height="' . $size . '" viewBox="0 0 24 24" ' . $common . '><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+        }
+        return '';
+    }
+
+    /**
+     * Ícone do status do item no checklist: done/todo/fail.
+     */
+    public static function status_icon($status) {
+        switch ($status) {
+            case 'done': return self::icon('check', 14);
+            case 'fail': return self::icon('x', 14);
+            default:     return self::icon('circle', 14);
+        }
+    }
+
     public function ajax_test_connection() {
         if (!current_user_can(AdSpirit_Menu::CAPABILITY)) {
             wp_send_json(array('ok' => false, 'error' => 'forbidden'), 403);
@@ -470,11 +511,12 @@ class AdSpirit_Status {
 // Conexão CRM tab
 add_action('adspirit_connector_render_tab_connection', AdSpirit_Safe_Hook::action(function() {
     $s = AdSpirit_Settings::get_core();
-    AdSpirit_Menu::form_open('connection');
     ?>
-    <h2>Conexão com o CRM</h2>
-    <p class="description">Cole aqui os valores que o CRM gerou em <code>/settings/integrations/tracking → Plugin WordPress</code>.</p>
+    <h2 class="as-section"><span class="as-kicker-inline">Conexão</span>Credenciais do CRM</h2>
+    <p class="as-section-help">Cole aqui os valores que o CRM gerou em <code>/settings/integrations/tracking → Plugin WordPress</code>. Cada cliente tem slug e secret únicos.</p>
 
+    <?php AdSpirit_Menu::card_open('Endpoint + autenticação', 'Brand slug + secret são gerados no painel do CRM e únicos por marca'); ?>
+    <?php AdSpirit_Menu::form_open('connection'); ?>
     <table class="form-table">
         <tr>
             <th><label for="adspirit_endpoint_url">Endpoint URL</label></th>
@@ -512,15 +554,16 @@ add_action('adspirit_connector_render_tab_connection', AdSpirit_Safe_Hook::actio
                     <input type="checkbox" name="cf7_enabled" value="1" <?php checked($s['cf7_enabled'], '1'); ?>>
                     Enviar submissões do Contact Form 7 pro CRM
                 </label><br>
-                <label>
+                <label style="margin-top:8px; display:inline-flex;">
                     <input type="checkbox" name="pixel_enabled" value="1" <?php checked($s['pixel_enabled'], '1'); ?>>
-                    Injetar pixel de tracking no &lt;head&gt;
+                    Injetar pixel de tracking no <code>&lt;head&gt;</code>
                 </label>
             </td>
         </tr>
     </table>
+    <?php AdSpirit_Menu::form_close('Salvar conexão'); ?>
+    <?php AdSpirit_Menu::card_close(); ?>
     <?php
-    AdSpirit_Menu::form_close('Salvar conexão');
 }, 'connection_tab'));
 
 add_action('adspirit_connector_save_connection', AdSpirit_Safe_Hook::action(function($post) {

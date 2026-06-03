@@ -115,39 +115,537 @@ class AdSpirit_Menu {
 
     public function enqueue_assets($hook) {
         if (strpos((string) $hook, self::PAGE_SLUG) === false) return;
-        // Inline pra simplicidade (1 arquivo CSS pequeno).
+        // Design system do AdSpirit dentro do wp-admin. Tudo escopado em
+        // .adspirit-app pra não vazar pra outros plugins.
         $css = '
-        .adspirit-wrap { max-width: 1100px; }
-        .adspirit-wrap h1 { display:flex; align-items:center; gap:12px; }
-        .adspirit-wrap .badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600; vertical-align:middle; }
-        .adspirit-wrap .badge.ok { background:#dcfce7; color:#15803d; }
-        .adspirit-wrap .badge.warn { background:#fef3c7; color:#a16207; }
-        .adspirit-wrap .badge.danger { background:#fee2e2; color:#b91c1c; }
-        .adspirit-wrap .badge.muted { background:#e5e7eb; color:#374151; }
-        .adspirit-wrap .nav-tab-wrapper { margin-bottom: 18px; }
-        .adspirit-wrap .checklist { list-style:none; margin:0; padding:0; }
-        .adspirit-wrap .checklist li { padding:10px 14px; border:1px solid #e5e7eb; border-radius:6px; margin-bottom:8px; display:flex; align-items:flex-start; gap:12px; background:#fff; }
-        .adspirit-wrap .checklist .icon { font-size:18px; line-height:1; margin-top:2px; }
-        .adspirit-wrap .checklist .icon.done { color:#15803d; }
-        .adspirit-wrap .checklist .icon.todo { color:#a16207; }
-        .adspirit-wrap .checklist .icon.fail { color:#b91c1c; }
-        .adspirit-wrap .checklist .body { flex:1; }
-        .adspirit-wrap .checklist .title { font-weight:600; }
-        .adspirit-wrap .checklist .desc { font-size:13px; color:#4b5563; margin-top:2px; }
-        .adspirit-wrap .checklist .cta { margin-top:8px; }
-        .adspirit-wrap .metric-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:12px; margin: 16px 0; }
-        .adspirit-wrap .metric { background:#fff; border:1px solid #e5e7eb; border-radius:6px; padding:14px; }
-        .adspirit-wrap .metric .label { font-size:11px; color:#6b7280; text-transform:uppercase; letter-spacing:0.06em; font-weight:600; }
-        .adspirit-wrap .metric .value { font-size:24px; font-weight:600; margin-top:4px; }
-        .adspirit-wrap .metric .sub { font-size:12px; color:#6b7280; margin-top:2px; }
-        .adspirit-wrap pre.json { background:#f3f4f6; padding:12px; border-radius:6px; max-width: 900px; overflow:auto; }
-        .adspirit-wrap .form-table th { width: 240px; }
-        .adspirit-wrap .field-map-row { display:grid; grid-template-columns: 1fr 24px 1fr; gap:10px; align-items:center; margin-bottom:6px; }
-        .adspirit-wrap .field-map-row select { width:100%; }
-        .adspirit-wrap .test-result { margin-top:10px; }
-        .adspirit-wrap details { border:1px solid #e5e7eb; border-radius:6px; padding:10px 14px; background:#f9fafb; margin: 8px 0; }
-        .adspirit-wrap summary { cursor:pointer; font-weight:600; }
-        ';
+/* ============================================================
+   AdSpirit Connector — design system (mirror do CRM)
+   ============================================================ */
+.adspirit-app {
+  --as-accent: #00B7B7;
+  --as-accent-soft: #E6F7F7;
+  --as-accent-hover: #009999;
+  --as-ink: #0F1419;
+  --as-ink-soft: #3A4550;
+  --as-ink-faint: #8A95A0;
+  --as-line: #E5EAEE;
+  --as-bg: #FFFFFF;
+  --as-bg-card: #F8FAFC;
+  --as-bg-subtle: #F3F6F9;
+  --as-bg-warning: #FFF8E1;
+  --as-bg-danger: #FFF0F0;
+  --as-bg-success: #DCFCE7;
+  --as-warning: #B07900;
+  --as-danger: #C73838;
+  --as-success: #15803D;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  color: var(--as-ink);
+  font-size: 13.5px;
+  line-height: 1.55;
+  max-width: 1100px;
+  margin-right: 20px;
+  padding: 8px 0 32px;
+}
+.adspirit-app * { box-sizing: border-box; }
+
+/* ---------- Header ---------- */
+.adspirit-app .as-header { margin: 4px 0 18px; }
+.adspirit-app .as-kicker {
+  display: inline-block;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--as-accent);
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.adspirit-app h1.as-title {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  color: var(--as-ink);
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  line-height: 1.1;
+}
+.adspirit-app h1.as-title .accent { color: var(--as-accent); font-weight: 700; }
+.adspirit-app .as-version {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: var(--as-bg-subtle);
+  color: var(--as-ink-soft);
+  border: 1px solid var(--as-line);
+  padding: 3px 8px;
+  border-radius: 3px;
+  font-family: ui-monospace, "SF Mono", Monaco, Consolas, monospace;
+}
+.adspirit-app .as-lede {
+  font-size: 13.5px;
+  color: var(--as-ink-faint);
+  margin: 6px 0 0;
+  max-width: 680px;
+}
+
+/* ---------- Nav tabs (replace wp-admin nav-tab-wrapper) ---------- */
+.adspirit-app .as-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--as-line);
+  margin: 18px 0 24px;
+  flex-wrap: wrap;
+}
+.adspirit-app .as-tabs a {
+  padding: 10px 16px;
+  font-size: 13px;
+  color: var(--as-ink-soft);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  font-weight: 500;
+  transition: color 0.12s, border-color 0.12s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.adspirit-app .as-tabs a:hover { color: var(--as-ink); }
+.adspirit-app .as-tabs a:focus { outline: none; box-shadow: none; }
+.adspirit-app .as-tabs a.active {
+  color: var(--as-accent);
+  border-bottom-color: var(--as-accent);
+  font-weight: 600;
+}
+
+/* ---------- Section title (outside cards) ---------- */
+.adspirit-app h2.as-section {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--as-ink);
+  margin: 28px 0 12px;
+  padding: 0;
+  border: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.adspirit-app h2.as-section .as-kicker-inline {
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--as-accent);
+  font-weight: 700;
+  background: var(--as-accent-soft);
+  padding: 3px 7px;
+  border-radius: 3px;
+}
+.adspirit-app .as-section-help {
+  font-size: 12.5px;
+  color: var(--as-ink-faint);
+  margin: -8px 0 14px;
+  max-width: 720px;
+}
+
+/* ---------- Cards ---------- */
+.adspirit-app .as-card {
+  border: 1px solid var(--as-line);
+  border-radius: 10px;
+  background: var(--as-bg);
+  margin: 0 0 16px;
+  overflow: hidden;
+}
+.adspirit-app .as-card-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--as-line);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: linear-gradient(180deg, #FCFDFE 0%, var(--as-bg) 100%);
+}
+.adspirit-app .as-card-header h3 {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--as-ink);
+  margin: 0;
+  padding: 0;
+}
+.adspirit-app .as-card-header .as-card-sub {
+  font-size: 11.5px;
+  color: var(--as-ink-faint);
+  margin-top: 2px;
+}
+.adspirit-app .as-card-body { padding: 18px; }
+.adspirit-app .as-card-body.tight { padding: 12px 18px; }
+
+/* ---------- Buttons ---------- */
+.adspirit-app .button,
+.adspirit-app .button-secondary,
+.adspirit-app input[type="submit"].button {
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 7px 13px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1.2;
+  height: auto;
+  min-height: 0;
+  background: var(--as-bg);
+  border: 1px solid var(--as-line);
+  color: var(--as-ink-soft);
+  text-shadow: none;
+  box-shadow: none;
+  vertical-align: middle;
+}
+.adspirit-app .button:hover,
+.adspirit-app .button-secondary:hover {
+  background: var(--as-bg-subtle);
+  border-color: var(--as-ink-faint);
+  color: var(--as-ink);
+}
+.adspirit-app .button.button-primary,
+.adspirit-app .button-primary,
+.adspirit-app input[type="submit"].button-primary {
+  background: var(--as-accent-soft);
+  border-color: var(--as-accent);
+  color: var(--as-accent);
+}
+.adspirit-app .button.button-primary:hover,
+.adspirit-app .button-primary:hover,
+.adspirit-app input[type="submit"].button-primary:hover {
+  background: var(--as-accent);
+  border-color: var(--as-accent);
+  color: white;
+}
+.adspirit-app .button.button-danger {
+  background: var(--as-bg-danger);
+  border-color: var(--as-danger);
+  color: var(--as-danger);
+}
+.adspirit-app .button.button-danger:hover {
+  background: var(--as-danger);
+  color: white;
+}
+.adspirit-app .button:focus { outline: none; box-shadow: 0 0 0 3px rgba(0,183,183,0.25); }
+
+/* ---------- Inputs ---------- */
+.adspirit-app input[type="text"],
+.adspirit-app input[type="url"],
+.adspirit-app input[type="password"],
+.adspirit-app input[type="email"],
+.adspirit-app input[type="number"],
+.adspirit-app textarea,
+.adspirit-app select {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 7px 11px;
+  border: 1px solid var(--as-line);
+  border-radius: 6px;
+  background: var(--as-bg);
+  color: var(--as-ink);
+  box-shadow: none;
+  transition: border-color 0.12s, box-shadow 0.12s;
+  min-height: 0;
+  line-height: 1.4;
+}
+.adspirit-app input:focus,
+.adspirit-app textarea:focus,
+.adspirit-app select:focus {
+  outline: none;
+  border-color: var(--as-accent);
+  box-shadow: 0 0 0 3px rgba(0,183,183,0.18);
+}
+.adspirit-app input[type="checkbox"],
+.adspirit-app input[type="radio"] {
+  accent-color: var(--as-accent);
+  margin-right: 6px;
+}
+.adspirit-app textarea { padding: 10px 12px; line-height: 1.5; }
+.adspirit-app input.regular-text, .adspirit-app input.large-text { width: 100%; max-width: 480px; }
+.adspirit-app textarea.large-text { width: 100%; max-width: 720px; }
+
+/* ---------- form-table override ---------- */
+.adspirit-app .form-table { margin: 0; border-collapse: collapse; }
+.adspirit-app .form-table th {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--as-ink);
+  padding: 14px 16px 14px 0;
+  width: 240px;
+  vertical-align: top;
+}
+.adspirit-app .form-table td {
+  padding: 12px 0;
+  vertical-align: top;
+}
+.adspirit-app .form-table p.description {
+  font-size: 12px;
+  color: var(--as-ink-faint);
+  margin: 6px 0 0;
+  line-height: 1.5;
+}
+.adspirit-app .form-table label { font-size: 13px; color: var(--as-ink-soft); }
+.adspirit-app .form-table tr { border-bottom: 1px solid var(--as-line); }
+.adspirit-app .form-table tr:last-child { border-bottom: 0; }
+
+/* ---------- Badges (outlined per design system) ---------- */
+.adspirit-app .as-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 3px;
+  border: 1px solid;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.adspirit-app .as-badge.ok { background: var(--as-bg-success); color: var(--as-success); border-color: var(--as-success); }
+.adspirit-app .as-badge.warn { background: var(--as-bg-warning); color: var(--as-warning); border-color: var(--as-warning); }
+.adspirit-app .as-badge.danger { background: var(--as-bg-danger); color: var(--as-danger); border-color: var(--as-danger); }
+.adspirit-app .as-badge.accent { background: var(--as-accent-soft); color: var(--as-accent); border-color: var(--as-accent); }
+.adspirit-app .as-badge.muted { background: var(--as-bg-subtle); color: var(--as-ink-soft); border-color: var(--as-line); }
+
+/* ---------- Code/mono ---------- */
+.adspirit-app code {
+  font-family: ui-monospace, "SF Mono", Monaco, Consolas, monospace;
+  font-size: 11.5px;
+  background: var(--as-bg-subtle);
+  color: var(--as-ink);
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--as-line);
+}
+.adspirit-app pre {
+  font-family: ui-monospace, "SF Mono", Monaco, Consolas, monospace;
+  font-size: 12px;
+  background: var(--as-bg-subtle);
+  color: var(--as-ink);
+  padding: 12px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--as-line);
+  line-height: 1.55;
+  overflow-x: auto;
+  max-width: 900px;
+}
+
+/* ---------- Notices (replace wp-admin .notice) ---------- */
+.adspirit-app .as-notice {
+  border-left: 3px solid;
+  padding: 12px 16px;
+  border-radius: 0 6px 6px 0;
+  background: var(--as-bg-subtle);
+  margin: 0 0 16px;
+}
+.adspirit-app .as-notice.info { border-left-color: var(--as-accent); background: var(--as-accent-soft); }
+.adspirit-app .as-notice.info .as-notice-kicker { color: var(--as-accent); }
+.adspirit-app .as-notice.warn { border-left-color: var(--as-warning); background: var(--as-bg-warning); }
+.adspirit-app .as-notice.warn .as-notice-kicker { color: var(--as-warning); }
+.adspirit-app .as-notice.danger { border-left-color: var(--as-danger); background: var(--as-bg-danger); }
+.adspirit-app .as-notice.danger .as-notice-kicker { color: var(--as-danger); }
+.adspirit-app .as-notice .as-notice-kicker {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.adspirit-app .as-notice .as-notice-title { font-weight: 600; color: var(--as-ink); margin: 0 0 4px; font-size: 13.5px; }
+.adspirit-app .as-notice p { margin: 4px 0; font-size: 12.5px; color: var(--as-ink-soft); }
+.adspirit-app .as-notice p:last-child { margin-bottom: 0; }
+
+/* ---------- Metric grid ---------- */
+.adspirit-app .as-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin: 0 0 18px;
+}
+.adspirit-app .as-metric {
+  background: var(--as-bg);
+  border: 1px solid var(--as-line);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+.adspirit-app .as-metric .label {
+  font-size: 10px;
+  color: var(--as-ink-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+}
+.adspirit-app .as-metric .value {
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--as-ink);
+  margin-top: 4px;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  font-family: ui-monospace, "SF Mono", Monaco, Consolas, monospace;
+}
+.adspirit-app .as-metric .value.text { font-family: inherit; font-size: 16px; }
+.adspirit-app .as-metric .value.danger { color: var(--as-danger); }
+.adspirit-app .as-metric .value.warn { color: var(--as-warning); }
+.adspirit-app .as-metric .sub { font-size: 11.5px; color: var(--as-ink-faint); margin-top: 3px; }
+
+/* ---------- Checklist ---------- */
+.adspirit-app .as-checklist {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+}
+.adspirit-app .as-checklist li {
+  padding: 14px 16px;
+  border: 1px solid var(--as-line);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  display: flex;
+  gap: 12px;
+  background: var(--as-bg);
+}
+.adspirit-app .as-checklist .icon {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+}
+.adspirit-app .as-checklist .icon.done {
+  background: var(--as-accent-soft);
+  color: var(--as-accent);
+  border: 1.5px solid var(--as-accent);
+}
+.adspirit-app .as-checklist .icon.todo {
+  background: var(--as-bg-subtle);
+  color: var(--as-ink-faint);
+  border: 1.5px dashed var(--as-ink-faint);
+}
+.adspirit-app .as-checklist .icon.fail {
+  background: var(--as-bg-danger);
+  color: var(--as-danger);
+  border: 1.5px solid var(--as-danger);
+}
+.adspirit-app .as-checklist .body { flex: 1; min-width: 0; }
+.adspirit-app .as-checklist .title { font-weight: 600; color: var(--as-ink); font-size: 13.5px; }
+.adspirit-app .as-checklist .desc { font-size: 12.5px; color: var(--as-ink-soft); margin-top: 3px; line-height: 1.5; }
+.adspirit-app .as-checklist .cta { margin-top: 10px; }
+
+/* ---------- Tables ---------- */
+.adspirit-app table.widefat,
+.adspirit-app table.as-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--as-bg);
+  border: 1px solid var(--as-line);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: none;
+}
+.adspirit-app table.widefat thead,
+.adspirit-app table.as-table thead {
+  background: var(--as-bg-subtle);
+}
+.adspirit-app table.widefat th,
+.adspirit-app table.as-table th {
+  text-align: left;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--as-ink-faint);
+  padding: 10px 14px;
+  font-weight: 700;
+  border-bottom: 1px solid var(--as-line);
+}
+.adspirit-app table.widefat td,
+.adspirit-app table.as-table td {
+  padding: 11px 14px;
+  border-top: 1px solid var(--as-line);
+  font-size: 12.5px;
+  color: var(--as-ink);
+  vertical-align: top;
+}
+.adspirit-app table.widefat tbody tr:first-child td,
+.adspirit-app table.as-table tbody tr:first-child td { border-top: 0; }
+.adspirit-app table.widefat.striped tbody tr:nth-child(even) { background: rgba(228,234,240,0.20); }
+
+/* ---------- Form scaffolding ---------- */
+.adspirit-app .as-field { margin-bottom: 14px; }
+.adspirit-app .as-field-label {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--as-ink-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+}
+.adspirit-app .as-field-help {
+  font-size: 11.5px;
+  color: var(--as-ink-faint);
+  margin: 5px 0 0;
+  line-height: 1.5;
+}
+
+/* ---------- Details (collapsible) ---------- */
+.adspirit-app details {
+  border: 1px solid var(--as-line);
+  border-radius: 8px;
+  padding: 12px 16px;
+  background: var(--as-bg-card);
+  margin: 12px 0;
+}
+.adspirit-app summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 12.5px;
+  color: var(--as-ink);
+}
+
+/* ---------- Misc wp-admin overrides ---------- */
+.adspirit-app .wrap { padding: 0; }
+.adspirit-app .notice {
+  padding: 12px 16px;
+  margin: 0 0 16px;
+  border-radius: 0 6px 6px 0;
+  border-left-width: 3px;
+  background: var(--as-bg-subtle);
+}
+.adspirit-app .notice-info { border-left-color: var(--as-accent); background: var(--as-accent-soft); }
+.adspirit-app .notice-warning { border-left-color: var(--as-warning); background: var(--as-bg-warning); }
+.adspirit-app .notice-error { border-left-color: var(--as-danger); background: var(--as-bg-danger); }
+.adspirit-app .notice-success { border-left-color: var(--as-success); background: var(--as-bg-success); }
+.adspirit-app .description { color: var(--as-ink-faint); font-size: 12px; }
+.adspirit-app .submit { padding: 16px 0 0; margin: 16px 0 0; border-top: 1px solid var(--as-line); }
+
+/* ---------- Test result box ---------- */
+.adspirit-app .as-test-result { margin-top: 12px; max-width: 720px; }
+
+/* ---------- Field mapping grid ---------- */
+.adspirit-app .as-field-map-row { padding: 10px 0; border-bottom: 1px solid var(--as-line); }
+.adspirit-app .as-field-map-row:last-child { border-bottom: 0; }
+
+/* ---------- Spacers ---------- */
+.adspirit-app hr.as-hr { border: 0; border-top: 1px solid var(--as-line); margin: 24px 0; }
+';
         wp_register_style('adspirit-connector-inline', false);
         wp_enqueue_style('adspirit-connector-inline');
         wp_add_inline_style('adspirit-connector-inline', $css);
@@ -161,22 +659,26 @@ class AdSpirit_Menu {
         if (!isset($tabs[$current_tab])) $current_tab = 'overview';
 
         ?>
-        <div class="wrap adspirit-wrap">
-            <h1>
-                AdSpirit Connector
-                <span class="badge muted">v<?php echo esc_html(ADSPIRIT_CONNECTOR_VERSION); ?></span>
-            </h1>
+        <div class="wrap adspirit-app">
+            <header class="as-header">
+                <span class="as-kicker">Agência Digitals · Plataforma de operação</span>
+                <h1 class="as-title">
+                    AdSpirit<span class="accent">®</span> Connector
+                    <span class="as-version">v<?php echo esc_html(ADSPIRIT_CONNECTOR_VERSION); ?></span>
+                </h1>
+                <p class="as-lede">Conecta o WordPress ao CRM AdSpirit em real-time. Configurado pelo painel — sem editar código nem env do servidor.</p>
+            </header>
 
             <?php settings_errors(); ?>
 
-            <h2 class="nav-tab-wrapper">
+            <nav class="as-tabs">
                 <?php foreach ($tabs as $slug => $label): ?>
                     <a href="<?php echo esc_url(admin_url('admin.php?page=' . self::PAGE_SLUG . '&tab=' . $slug)); ?>"
-                       class="nav-tab <?php echo $current_tab === $slug ? 'nav-tab-active' : ''; ?>">
+                       class="<?php echo $current_tab === $slug ? 'active' : ''; ?>">
                         <?php echo esc_html($label); ?>
                     </a>
                 <?php endforeach; ?>
-            </h2>
+            </nav>
 
             <?php
             // Safe Mode banner — sempre visível no topo se ativo
@@ -223,18 +725,17 @@ class AdSpirit_Menu {
             'adspirit_exit_safe_mode'
         );
         ?>
-        <div class="notice notice-error" style="border-left-color:#b91c1c;">
-            <h3 style="margin:6px 0;">Safe Mode ativo — features do plugin desligadas</h3>
+        <div class="as-notice danger">
+            <div class="as-notice-kicker">Safe Mode ativo</div>
+            <p class="as-notice-title">Features do plugin estão desligadas — site segue intocado</p>
             <p>
-                Motivo: <code><?php echo esc_html($reason ?: 'manual'); ?></code>
-                <?php if ($at): ?>
-                    · ativado <?php echo esc_html(human_time_diff($at, time()) . ' atrás'); ?>
-                <?php endif; ?>
+                <strong>Motivo:</strong> <code><?php echo esc_html($reason ?: 'manual'); ?></code>
+                <?php if ($at): ?>· ativado <?php echo esc_html(human_time_diff($at, time()) . ' atrás'); ?><?php endif; ?>
             </p>
             <p>
-                Enquanto Safe Mode estiver ligado, o plugin NÃO envia leads pro CRM, NÃO dispara Meta CAPI/GA4, NÃO injeta scripts. Site fica intocado. A aba "Logs" mostra os erros que levaram aqui.
+                Enquanto Safe Mode estiver ligado, o plugin não envia leads pro CRM, não dispara Meta CAPI/GA4 e não injeta scripts. A aba <em>Logs</em> mostra exatamente o que aconteceu.
             </p>
-            <p>
+            <p style="margin-top:12px;">
                 <a href="<?php echo esc_url($exit_url); ?>" class="button button-primary">Sair do Safe Mode</a>
                 <a href="<?php echo esc_url(admin_url('admin.php?page=' . self::PAGE_SLUG . '&tab=logs')); ?>" class="button">Ver logs</a>
             </p>
@@ -283,8 +784,37 @@ class AdSpirit_Menu {
 
     public static function form_close($submit_label = 'Salvar') {
         ?>
-            <?php submit_button($submit_label); ?>
+            <p class="submit">
+                <button type="submit" class="button button-primary"><?php echo esc_html($submit_label); ?></button>
+            </p>
         </form>
+        <?php
+    }
+
+    /**
+     * Helper pra abrir card AdSpirit. Uso:
+     *   AdSpirit_Menu::card_open('Anti-spam', 'Subtítulo opcional');
+     *   ... conteúdo
+     *   AdSpirit_Menu::card_close();
+     */
+    public static function card_open($title, $subtitle = '', $right_html = '') {
+        ?>
+        <section class="as-card">
+            <header class="as-card-header">
+                <div>
+                    <h3><?php echo esc_html($title); ?></h3>
+                    <?php if ($subtitle): ?><div class="as-card-sub"><?php echo wp_kses_post($subtitle); ?></div><?php endif; ?>
+                </div>
+                <?php if ($right_html): echo $right_html; endif; ?>
+            </header>
+            <div class="as-card-body">
+        <?php
+    }
+
+    public static function card_close() {
+        ?>
+            </div>
+        </section>
         <?php
     }
 }

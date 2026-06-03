@@ -155,15 +155,15 @@ class AdSpirit_Capi_Meta {
 
     public function render_tab() {
         $c = AdSpirit_Settings::get_capi_meta();
-        AdSpirit_Menu::form_open('capi-meta');
+        $status_badge = $c['enabled'] === '1' ? '<span class="as-badge ok">Ativo</span>' : '<span class="as-badge muted">Desligado</span>';
         ?>
-        <h2>Meta Conversion API (server-side)</h2>
-        <p class="description">
-            Dispara eventos pro Facebook/Meta direto do servidor — sobrevive a ad-blockers e bate mais conversões. Pra cada CF7 submit dispara um evento <code>Lead</code>; pra cada page load, um <code>PageView</code>.
+        <h2 class="as-section"><span class="as-kicker-inline">Meta CAPI</span>Conversion API server-side</h2>
+        <p class="as-section-help">
+            Dispara eventos pro Meta direto do servidor — sobrevive a ad-blockers e bate mais conversões. <code>Lead</code> em cada CF7 submit, <code>PageView</code> em cada page load. Quando configurado em paralelo ao pixel client-side, o <code>event_id</code> compartilhado garante que o Meta deduplica automaticamente.
         </p>
-        <p class="description">
-            Configure também o pixel client-side normalmente (gtag/Meta Pixel script). O plugin envia <code>event_id</code> igual nos dois lados, Meta dedupa automaticamente.
-        </p>
+
+        <?php AdSpirit_Menu::card_open('Credenciais + eventos', 'Pixel ID e Access Token você gera no Events Manager do Meta', $status_badge); ?>
+        <?php AdSpirit_Menu::form_open('capi-meta'); ?>
 
         <table class="form-table">
             <tr>
@@ -211,8 +211,9 @@ class AdSpirit_Capi_Meta {
                 </td>
             </tr>
         </table>
+        <?php AdSpirit_Menu::form_close('Salvar Meta CAPI'); ?>
+        <?php AdSpirit_Menu::card_close(); ?>
         <?php
-        AdSpirit_Menu::form_close('Salvar Meta CAPI');
     }
 
     public function handle_save($post) {

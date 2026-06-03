@@ -64,7 +64,7 @@ class AdSpirit_Field_Mapping {
 
     public function render_tab() {
         if (!class_exists('WPCF7_ContactForm')) {
-            echo '<div class="notice notice-warning"><p>Contact Form 7 não está instalado. Sem isso não há forms pra mapear.</p></div>';
+            echo '<div class="as-notice warn"><p>Contact Form 7 não está instalado. Sem isso não há forms pra mapear.</p></div>';
             return;
         }
 
@@ -75,7 +75,7 @@ class AdSpirit_Field_Mapping {
         ));
 
         if (empty($forms)) {
-            echo '<div class="notice notice-warning"><p>Nenhum form CF7 criado. Crie um em <code>Contact → Forms</code>.</p></div>';
+            echo '<div class="as-notice warn"><p>Nenhum form CF7 criado. Crie um em <code>Contact → Forms</code>.</p></div>';
             return;
         }
 
@@ -87,21 +87,18 @@ class AdSpirit_Field_Mapping {
         if (!$selected_form) $selected_form = $forms[0];
 
         ?>
-        <h2>Forms / Field mapping</h2>
-        <p class="description">Cada cliente tem campos com nomes diferentes (<code>nome</code> vs <code>your-name</code>). Mapeie aqui pra que o CRM reconheça cada campo independente do nome usado no form.</p>
+        <h2 class="as-section"><span class="as-kicker-inline">Field mapping</span>Forms detectados</h2>
+        <p class="as-section-help">Cada cliente tem nomes de campo diferentes (<code>nome</code> vs <code>your-name</code>). Mapeie aqui pra que o CRM reconheça cada campo independente do nome usado no form.</p>
 
-        <h3>Selecionar form</h3>
-        <p>
+        <div style="display:flex; flex-wrap:wrap; gap:6px; margin: 0 0 18px;">
         <?php foreach ($forms as $f): ?>
             <a href="<?php echo esc_url(admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=forms&form_id=' . $f->id())); ?>"
-               class="button <?php echo $f->id() === $selected_form->id() ? 'button-primary' : 'button-secondary'; ?>"
-               style="margin-right:6px;margin-bottom:6px;">
-                <?php echo esc_html($f->title()); ?> <code style="margin-left:6px;opacity:0.7;">#<?php echo esc_html($f->id()); ?></code>
+               class="button <?php echo $f->id() === $selected_form->id() ? 'button-primary' : ''; ?>">
+                <?php echo esc_html($f->title()); ?>
+                <code style="margin-left:6px; opacity:0.7; padding:0 4px;">#<?php echo esc_html($f->id()); ?></code>
             </a>
         <?php endforeach; ?>
-        </p>
-
-        <hr>
+        </div>
 
         <?php $this->render_mapping_form($selected_form); ?>
         <?php
@@ -126,60 +123,60 @@ class AdSpirit_Field_Mapping {
 
         AdSpirit_Menu::form_open('forms');
         ?>
-        <input type="hidden" name="form_id" value="<?php echo esc_attr($form_id); ?>">
+        <?php AdSpirit_Menu::card_open('Mapeamento — ' . esc_html($form->title()), 'Form ID <code>#' . esc_html($form_id) . '</code> · ' . count($cf7_fields) . ' campos detectados', '<button type="button" class="button button-primary" form="adspirit-mapping-form" onclick="adspiritApplySuggestions()">Aplicar sugestões</button>'); ?>
+        <form id="adspirit-mapping-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+            <input type="hidden" name="action" value="adspirit_save">
+            <input type="hidden" name="adspirit_tab" value="forms">
+            <?php wp_nonce_field('adspirit_forms_save', '_adspirit_nonce'); ?>
+            <input type="hidden" name="form_id" value="<?php echo esc_attr($form_id); ?>">
 
-        <h3>Mapeamento — <?php echo esc_html($form->title()); ?> <code>#<?php echo esc_html($form_id); ?></code></h3>
-
-        <p>
-            <button type="button" class="button" onclick="adspiritApplySuggestions()">Aplicar sugestões</button>
-            <span class="description" style="margin-left:8px;">Preenche os mapeamentos baseado em heurística de nome.</span>
-        </p>
-
-        <table class="widefat striped">
-            <thead>
-                <tr>
-                    <th style="width:280px;">Campo canonical (CRM)</th>
-                    <th style="width:80px;">Sugestão</th>
-                    <th>Campo neste form CF7</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($canonical as $can_key => $can_label): ?>
-                    <?php
-                        $current = isset($existing[$can_key]) ? $existing[$can_key] : '';
-                        $suggestion = isset($suggestions[$can_key]) ? $suggestions[$can_key] : '';
-                    ?>
+            <table class="as-table">
+                <thead>
                     <tr>
-                        <td>
-                            <strong><?php echo esc_html($can_label); ?></strong>
-                            <br><code><?php echo esc_html($can_key); ?></code>
-                        </td>
-                        <td>
-                            <?php if ($suggestion): ?>
-                                <code data-canonical="<?php echo esc_attr($can_key); ?>" data-suggestion="<?php echo esc_attr($suggestion); ?>">
-                                    <?php echo esc_html($suggestion); ?>
-                                </code>
-                            <?php else: ?>
-                                <span class="description">—</span>
-                            <?php endif; ?>
-                        </td>
-                        <td>
-                            <select name="mapping[<?php echo esc_attr($can_key); ?>]" class="adspirit-mapping-select">
-                                <option value="">— não mapeado —</option>
-                                <?php foreach ($cf7_fields as $f): ?>
-                                    <option value="<?php echo esc_attr($f['name']); ?>" <?php selected($current, $f['name']); ?>>
-                                        <?php echo esc_html($f['name']); ?>
-                                        <?php if ($f['type']): ?>
-                                            (<?php echo esc_html($f['type']); ?>)
-                                        <?php endif; ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </td>
+                        <th style="width:280px;">Campo no CRM</th>
+                        <th style="width:140px;">Sugestão</th>
+                        <th>Campo neste form CF7</th>
                     </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
+                </thead>
+                <tbody>
+                    <?php foreach ($canonical as $can_key => $can_label): ?>
+                        <?php
+                            $current = isset($existing[$can_key]) ? $existing[$can_key] : '';
+                            $suggestion = isset($suggestions[$can_key]) ? $suggestions[$can_key] : '';
+                        ?>
+                        <tr>
+                            <td>
+                                <strong style="color:var(--as-ink); display:block;"><?php echo esc_html($can_label); ?></strong>
+                                <code style="font-size:10.5px; margin-top:2px; display:inline-block;"><?php echo esc_html($can_key); ?></code>
+                            </td>
+                            <td>
+                                <?php if ($suggestion): ?>
+                                    <code data-canonical="<?php echo esc_attr($can_key); ?>" data-suggestion="<?php echo esc_attr($suggestion); ?>" style="color:var(--as-accent); border-color:var(--as-accent);">
+                                        <?php echo esc_html($suggestion); ?>
+                                    </code>
+                                <?php else: ?>
+                                    <span class="as-field-help">sem sugestão</span>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <select name="mapping[<?php echo esc_attr($can_key); ?>]" style="width:100%; max-width:340px;">
+                                    <option value="">— não mapeado —</option>
+                                    <?php foreach ($cf7_fields as $f): ?>
+                                        <option value="<?php echo esc_attr($f['name']); ?>" <?php selected($current, $f['name']); ?>>
+                                            <?php echo esc_html($f['name']); ?><?php if ($f['type']): ?> · <?php echo esc_html($f['type']); endif; ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+
+            <p class="submit">
+                <button type="submit" class="button button-primary">Salvar mapeamento</button>
+            </p>
+        </form>
 
         <script>
         function adspiritApplySuggestions() {
@@ -194,18 +191,16 @@ class AdSpirit_Field_Mapping {
             });
         }
         </script>
-        <?php
-        AdSpirit_Menu::form_close('Salvar mapeamento');
 
-        ?>
-        <details style="margin-top:16px;">
+        <details>
             <summary>Campos detectados neste form (<?php echo count($cf7_fields); ?>)</summary>
-            <ul>
+            <ul style="margin: 10px 0 0; padding-left: 20px;">
                 <?php foreach ($cf7_fields as $f): ?>
-                    <li><code><?php echo esc_html($f['name']); ?></code> — type: <code><?php echo esc_html($f['type']); ?></code></li>
+                    <li style="margin-bottom: 4px; font-size: 12.5px;"><code><?php echo esc_html($f['name']); ?></code> · type <code><?php echo esc_html($f['type']); ?></code></li>
                 <?php endforeach; ?>
             </ul>
         </details>
+        <?php AdSpirit_Menu::card_close(); ?>
         <?php
     }
 

@@ -215,12 +215,13 @@ class AdSpirit_Anti_Spam {
         $c = AdSpirit_Settings::get_antispam();
         $log = get_option(AdSpirit_Settings::OPTION_ANTISPAM_LOG, array());
         if (!is_array($log)) $log = array();
-
-        AdSpirit_Menu::form_open('antispam');
+        $status_badge = $c['enabled'] === '1' ? '<span class="as-badge ok">Ativo</span>' : '<span class="as-badge muted">Desligado</span>';
         ?>
-        <h2>Anti-spam</h2>
-        <p class="description">4 camadas independentes. Roda em sequência — qualquer uma que rejeite, bloqueia. Compatível com WP Armour / outros plugins (eles também filtram em paralelo).</p>
+        <h2 class="as-section"><span class="as-kicker-inline">Anti-spam</span>4 camadas independentes</h2>
+        <p class="as-section-help">Roda em sequência — qualquer camada que rejeite, bloqueia. Compatível com WP Armour e outros plugins de spam (rodam em paralelo).</p>
 
+        <?php AdSpirit_Menu::card_open('Configuração das camadas', 'Cada toggle é independente — você pode ligar só o que quiser', $status_badge); ?>
+        <?php AdSpirit_Menu::form_open('antispam'); ?>
         <table class="form-table">
             <tr>
                 <th><label>Status geral</label></th>
@@ -249,7 +250,7 @@ class AdSpirit_Anti_Spam {
                         <input type="checkbox" name="time_trap" value="1" <?php checked($c['time_trap'], '1'); ?>>
                         Rejeitar submits muito rápidos
                     </label>
-                    <p class="description">Mínimo: <input type="number" name="time_trap_min_s" min="1" max="30" value="<?php echo esc_attr($c['time_trap_min_s']); ?>" class="small-text"> segundos entre carregar a página e submeter. Bots costumam disparar em menos de 1s.</p>
+                    <p class="description">Mínimo: <input type="number" name="time_trap_min_s" min="1" max="30" value="<?php echo esc_attr($c['time_trap_min_s']); ?>" style="width:60px;"> segundos entre carregar a página e submeter. Bots costumam disparar em menos de 1s.</p>
                 </td>
             </tr>
             <tr>
@@ -259,33 +260,32 @@ class AdSpirit_Anti_Spam {
                         <input type="checkbox" name="rate_limit" value="1" <?php checked($c['rate_limit'], '1'); ?>>
                         Limitar submits do mesmo IP
                     </label>
-                    <p class="description">Máximo: <input type="number" name="rate_limit_max" min="1" max="20" value="<?php echo esc_attr($c['rate_limit_max']); ?>" class="small-text"> submits/minuto.</p>
+                    <p class="description">Máximo: <input type="number" name="rate_limit_max" min="1" max="20" value="<?php echo esc_attr($c['rate_limit_max']); ?>" style="width:60px;"> submits/minuto.</p>
                 </td>
             </tr>
             <tr>
                 <th><label for="blocklist_emails">Blocklist de emails (regex)</label></th>
                 <td>
-                    <textarea id="blocklist_emails" name="blocklist_emails" rows="5" class="large-text code"><?php echo esc_textarea($c['blocklist_emails']); ?></textarea>
+                    <textarea id="blocklist_emails" name="blocklist_emails" rows="5" class="large-text"><?php echo esc_textarea($c['blocklist_emails']); ?></textarea>
                     <p class="description">Um regex por linha. Ex.: <code>@example\.ru$</code> bloqueia qualquer @example.ru. <code>^(test|spam)</code> bloqueia emails começando com test/spam.</p>
                 </td>
             </tr>
             <tr>
                 <th><label for="blocklist_words">Blocklist de palavras</label></th>
                 <td>
-                    <textarea id="blocklist_words" name="blocklist_words" rows="5" class="large-text code"><?php echo esc_textarea($c['blocklist_words']); ?></textarea>
+                    <textarea id="blocklist_words" name="blocklist_words" rows="5" class="large-text"><?php echo esc_textarea($c['blocklist_words']); ?></textarea>
                     <p class="description">Uma palavra por linha. Match case-insensitive em QUALQUER campo do form. Útil pra bloquear spam de tópicos específicos.</p>
                 </td>
             </tr>
         </table>
-        <?php
-        AdSpirit_Menu::form_close('Salvar anti-spam');
+        <?php AdSpirit_Menu::form_close('Salvar anti-spam'); ?>
+        <?php AdSpirit_Menu::card_close(); ?>
 
-        ?>
-        <h2>Últimos bloqueios (até 100)</h2>
+        <h2 class="as-section"><span class="as-kicker-inline">Histórico</span>Últimos bloqueios</h2>
         <?php if (empty($log)): ?>
-            <p>Nenhum bloqueio registrado ainda.</p>
+            <div class="as-notice info"><p>Nenhum bloqueio registrado ainda. O plugin grava aqui quando alguma camada acima rejeita uma submissão.</p></div>
         <?php else: ?>
-            <table class="widefat striped">
+            <table class="as-table">
                 <thead>
                     <tr>
                         <th>Quando</th>
@@ -298,7 +298,7 @@ class AdSpirit_Anti_Spam {
                     <?php foreach ($log as $entry): ?>
                         <tr>
                             <td><?php echo esc_html($entry['at']); ?></td>
-                            <td><code><?php echo esc_html($entry['code']); ?></code></td>
+                            <td><span class="as-badge muted"><?php echo esc_html($entry['code']); ?></span></td>
                             <td><?php echo esc_html($entry['message']); ?></td>
                             <td><code><?php echo esc_html($entry['ip']); ?></code></td>
                         </tr>

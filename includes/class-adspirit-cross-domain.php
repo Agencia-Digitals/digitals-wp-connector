@@ -122,15 +122,15 @@ class AdSpirit_Cross_Domain {
 
     public function render_tab() {
         $c = AdSpirit_Settings::get_cross_domain();
-        AdSpirit_Menu::form_open('cross-domain');
+        $status_badge = $c['enabled'] === '1' ? '<span class="as-badge ok">Ativo</span>' : '<span class="as-badge muted">Desligado</span>';
         ?>
-        <h2>Cross-domain link decoration</h2>
-        <p class="description">
-            Quando o cliente tem múltiplos domínios próprios (landing.com → checkout.io), o pixel perde o visitor ao navegar entre eles. Esta camada decora links com <code>?dos_vid=&lt;id&gt;</code> pra preservar continuidade.
+        <h2 class="as-section"><span class="as-kicker-inline">Cross-domain</span>Decoration de links entre TLDs próprios</h2>
+        <p class="as-section-help">
+            Quando o cliente tem múltiplos domínios próprios (landing.com → checkout.io), o pixel perde continuidade do visitor ao navegar entre eles. Esta camada decora links de saída com <code>?dos_vid=&lt;id&gt;</code> automaticamente. Sincroniza com <code>linked_domains</code> em <code>tracking_install</code> no CRM — ideal manter idêntico nos dois lados.
         </p>
-        <p class="description">
-            <strong>Sincroniza com</strong> a config <code>linked_domains</code> em <code>tracking_install</code> do CRM — ideal manter os mesmos domínios nos dois lados.
-        </p>
+
+        <?php AdSpirit_Menu::card_open('Configuração', 'Lista de hostnames próprios do cliente — não inclua redes sociais ou destinos de terceiros', $status_badge); ?>
+        <?php AdSpirit_Menu::form_open('cross-domain'); ?>
 
         <table class="form-table">
             <tr>
@@ -150,8 +150,9 @@ class AdSpirit_Cross_Domain {
                 </td>
             </tr>
         </table>
+        <?php AdSpirit_Menu::form_close('Salvar cross-domain'); ?>
+        <?php AdSpirit_Menu::card_close(); ?>
         <?php
-        AdSpirit_Menu::form_close('Salvar cross-domain');
     }
 
     public function handle_save($post) {
