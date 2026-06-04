@@ -143,7 +143,26 @@ class AdSpirit_Anti_Spam {
             set_transient($key, $count + 1, 60);
         }
 
-        // (4) Blocklist
+        // (4) User-Agent check — bots costumam mandar UA vazio ou claramente
+        //     malicioso. Cobertura equivalente ao WP Armour.
+        if (($cfg['ua_check'] ?? '1') === '1') {
+            $ua = isset($_SERVER['HTTP_USER_AGENT']) ? trim((string) $_SERVER['HTTP_USER_AGENT']) : '';
+            if ($ua === '') {
+                $this->reject($result, 'ua_empty', 'User-Agent vazio — assinatura comum de bot.');
+                return $result;
+            }
+            // Bloqueia UAs claramente automatizados que ignoram cabeçalhos
+            // padrão de browser. Lista conservadora pra não falsos positivos.
+            $bad_ua_signals = array('python-requests', 'curl/', 'wget/', 'Go-http-client', 'libwww-perl');
+            foreach ($bad_ua_signals as $sig) {
+                if (stripos($ua, $sig) !== false) {
+                    $this->reject($result, 'ua_bot', 'User-Agent de cliente HTTP automatizado: ' . $sig);
+                    return $result;
+                }
+            }
+        }
+
+        // (5) Blocklist
         if (!empty($cfg['blocklist_emails']) || !empty($cfg['blocklist_words'])) {
             $email = isset($_POST['your-email']) ? strtolower(trim((string) $_POST['your-email'])) : '';
             $patterns = preg_split('/\r?\n/', trim((string) $cfg['blocklist_emails']));
@@ -218,7 +237,7 @@ class AdSpirit_Anti_Spam {
         $status_badge = $c['enabled'] === '1' ? '<span class="as-badge ok">Ativo</span>' : '<span class="as-badge muted">Desligado</span>';
         ?>
         <h2 class="as-section"><span class="as-kicker-inline">Anti-spam</span>4 camadas independentes</h2>
-        <p class="as-section-help">Roda em sequência — qualquer camada que rejeite, bloqueia. Compatível com WP Armour e outros plugins de spam (rodam em paralelo).</p>
+        <p class="as-section-help">5 camadas independentes rodando em sequência — qualquer uma que rejeite, bloqueia. <strong>Substitui o WP Armour</strong> e similares: honeypot + time-trap + rate-limit por IP + User-Agent check + blocklists cobrem todo o escopo deles, com a vantagem do rate-limit (que o WP Armour não tem).</p>
 
         <?php AdSpirit_Menu::card_open('Configuração das camadas', 'Cada toggle é independente — você pode ligar só o que quiser', $status_badge); ?>
         <?php AdSpirit_Menu::form_open('antispam'); ?>
@@ -261,6 +280,16 @@ class AdSpirit_Anti_Spam {
                         Limitar submits do mesmo IP
                     </label>
                     <p class="description">Máximo: <input type="number" name="rate_limit_max" min="1" max="20" value="<?php echo esc_attr($c['rate_limit_max']); ?>" style="width:60px;"> submits/minuto.</p>
+                </td>
+            </tr>
+            <tr>
+                <th><label>User-Agent check</label></th>
+                <td>
+                    <label>
+                        <input type="checkbox" name="ua_check" value="1" <?php checked($c['ua_check'] ?? '1', '1'); ?>>
+                        Bloquear clientes HTTP automatizados
+                    </label>
+                    <p class="description">Rejeita submits com User-Agent vazio ou claramente automatizado (<code>curl</code>, <code>python-requests</code>, <code>wget</code>, etc). Esta é a cobertura que o WP Armour faz — substituível por este toggle.</p>
                 </td>
             </tr>
             <tr>
@@ -317,6 +346,7 @@ class AdSpirit_Anti_Spam {
         $patch['time_trap_min_s'] = max(1, intval($post['time_trap_min_s'] ?? 2));
         $patch['rate_limit']      = !empty($post['rate_limit']) ? '1' : '0';
         $patch['rate_limit_max']  = max(1, intval($post['rate_limit_max'] ?? 3));
+        $patch['ua_check']        = !empty($post['ua_check']) ? '1' : '0';
         $patch['blocklist_emails']= sanitize_textarea_field((string) ($post['blocklist_emails'] ?? ''));
         $patch['blocklist_words'] = sanitize_textarea_field((string) ($post['blocklist_words'] ?? ''));
         AdSpirit_Settings::update_antispam($patch);

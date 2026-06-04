@@ -128,6 +128,7 @@ class AdSpirit_Settings {
             'time_trap_min_s' => 2,
             'rate_limit'      => '1',
             'rate_limit_max'  => 3,    // 3 submits/min por IP
+            'ua_check'        => '1',  // bloqueia User-Agent vazio/suspeito (assinatura bot)
             'blocklist_emails'=> "",   // regex separado por linha
             'blocklist_words' => "",   // palavras separadas por linha (em qualquer field)
         );

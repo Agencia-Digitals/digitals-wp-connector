@@ -167,11 +167,11 @@ class AdSpirit_Status {
                 <th>WP Armour (anti-spam externo)</th>
                 <td>
                     <?php if ($env['wp_armour']): ?>
-                        <span class="as-badge ok">Ativo</span>
-                        <span class="as-field-help" style="display:inline; margin-left:8px;">— roda em paralelo com o anti-spam embutido.</span>
+                        <span class="as-badge warn">Redundante</span>
+                        <span class="as-field-help" style="display:inline; margin-left:8px;">— pode desinstalar: o anti-spam embutido cobre 100% do escopo + rate-limit.</span>
                     <?php else: ?>
-                        <span class="as-badge muted">Não detectado</span>
-                        <span class="as-field-help" style="display:inline; margin-left:8px;">— anti-spam embutido cobre o caso comum.</span>
+                        <span class="as-badge ok">Não necessário</span>
+                        <span class="as-field-help" style="display:inline; margin-left:8px;">— anti-spam embutido cobre tudo que o WP Armour faz.</span>
                     <?php endif; ?>
                 </td>
             </tr>

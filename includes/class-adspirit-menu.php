@@ -84,8 +84,16 @@ class AdSpirit_Menu {
     }
 
     public function register_menu() {
-        // Menu top-level com ícone de antena
-        $icon = 'dashicons-rss';
+        // Ícone proprietário AdSpirit — 3 barras ascendentes geométricas
+        // representando sinal/conversões crescentes. SVG inline com fill
+        // dinâmico (WP recolore conforme tema escuro/claro do menu).
+        $svg = '<svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">'
+             . '<rect x="2.5" y="13.5" width="3" height="3.5" rx="0.8" fill="black"/>'
+             . '<rect x="8.5" y="8.5" width="3" height="8.5" rx="0.8" fill="black"/>'
+             . '<rect x="14.5" y="3" width="3" height="14" rx="0.8" fill="black"/>'
+             . '<circle cx="16" cy="1.5" r="1.2" fill="black"/>'
+             . '</svg>';
+        $icon = 'data:image/svg+xml;base64,' . base64_encode($svg);
 
         add_menu_page(
             'AdSpirit Connector',
@@ -148,47 +156,68 @@ class AdSpirit_Menu {
 }
 .adspirit-app * { box-sizing: border-box; }
 
-/* ---------- Header ---------- */
-.adspirit-app .as-header { margin: 4px 0 18px; }
+/* ---------- Header (cinematic/premium typography) ---------- */
+/* Inspiração: login AdSpirit / stripe.com/login / rauno.me — wordmark
+   thin (weight 200) com letter-spacing negativo apertado, ® minúsculo
+   superscript em accent, sense of calm + premium. */
+.adspirit-app .as-header { margin: 8px 0 24px; }
 .adspirit-app .as-kicker {
   display: inline-block;
   font-size: 10px;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.28em;
   text-transform: uppercase;
   color: var(--as-accent);
-  font-weight: 700;
-  margin-bottom: 6px;
+  font-weight: 600;
+  margin-bottom: 14px;
 }
 .adspirit-app h1.as-title {
-  font-size: 28px;
-  font-weight: 600;
-  letter-spacing: -0.025em;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Helvetica Neue", Arial, sans-serif;
+  font-size: 44px;
+  font-weight: 200;
+  letter-spacing: -0.045em;
   color: var(--as-ink);
   margin: 0;
   padding: 0;
   display: flex;
   align-items: center;
-  gap: 14px;
-  line-height: 1.1;
+  gap: 18px;
+  line-height: 1.05;
 }
-.adspirit-app h1.as-title .accent { color: var(--as-accent); font-weight: 700; }
+.adspirit-app h1.as-title .wordmark {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 14px;
+}
+.adspirit-app h1.as-title .brand { font-weight: 300; }
+.adspirit-app h1.as-title .reg {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--as-accent);
+  vertical-align: super;
+  margin-left: 2px;
+  letter-spacing: 0;
+}
+.adspirit-app h1.as-title .product { font-weight: 200; color: var(--as-ink-soft); }
 .adspirit-app .as-version {
   font-size: 10.5px;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   background: var(--as-bg-subtle);
-  color: var(--as-ink-soft);
+  color: var(--as-ink-faint);
   border: 1px solid var(--as-line);
-  padding: 3px 8px;
+  padding: 4px 9px;
   border-radius: 3px;
   font-family: ui-monospace, "SF Mono", Monaco, Consolas, monospace;
+  align-self: center;
 }
 .adspirit-app .as-lede {
-  font-size: 13.5px;
+  font-size: 14px;
   color: var(--as-ink-faint);
-  margin: 6px 0 0;
-  max-width: 680px;
+  margin: 12px 0 0;
+  max-width: 720px;
+  font-weight: 300;
+  letter-spacing: -0.005em;
 }
 
 /* ---------- Nav tabs (replace wp-admin nav-tab-wrapper) ---------- */
@@ -661,12 +690,15 @@ class AdSpirit_Menu {
         ?>
         <div class="wrap adspirit-app">
             <header class="as-header">
-                <span class="as-kicker">Agência Digitals · Plataforma de operação</span>
+                <div class="as-kicker">Agência Digitals · Plataforma de operação</div>
                 <h1 class="as-title">
-                    AdSpirit<span class="accent">®</span> Connector
+                    <span class="wordmark">
+                        <span class="brand">AdSpirit<span class="reg">®</span></span>
+                        <span class="product">Connector</span>
+                    </span>
                     <span class="as-version">v<?php echo esc_html(ADSPIRIT_CONNECTOR_VERSION); ?></span>
                 </h1>
-                <p class="as-lede">Conecta o WordPress ao CRM AdSpirit em real-time. Configurado pelo painel — sem editar código nem env do servidor.</p>
+                <p class="as-lede">Conecta o WordPress ao CRM AdSpirit em real-time. Tudo configurado pelo painel — sem editar código nem env do servidor.</p>
             </header>
 
             <?php settings_errors(); ?>
