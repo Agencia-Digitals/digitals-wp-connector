@@ -162,7 +162,20 @@ class AdSpirit_Anti_Spam {
             }
         }
 
-        // (5) Blocklist
+        // (5) Reverse text trap — texto sem stopwords PT-BR + entropia alta
+        if (($cfg['reverse_trap'] ?? '1') === '1' && class_exists('AdSpirit_Quickwins')) {
+            $all_text = '';
+            foreach ($_POST as $k => $v) {
+                if (strpos($k, '_adspirit_') === 0) continue; // ignora nossos meta
+                if (is_string($v)) $all_text .= ' ' . $v;
+            }
+            if (AdSpirit_Quickwins::is_suspicious_text($all_text)) {
+                $this->reject($result, 'reverse_text', 'Texto com alta entropia + sem palavras comuns — provável bot.');
+                return $result;
+            }
+        }
+
+        // (6) Blocklist
         if (!empty($cfg['blocklist_emails']) || !empty($cfg['blocklist_words'])) {
             $email = isset($_POST['your-email']) ? strtolower(trim((string) $_POST['your-email'])) : '';
             $patterns = preg_split('/\r?\n/', trim((string) $cfg['blocklist_emails']));

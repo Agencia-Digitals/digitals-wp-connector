@@ -66,6 +66,7 @@ class AdSpirit_Settings {
         return array(
             'endpoint_url'  => 'https://crm.agenciadigitals.com.br',
             'brand_slug'    => '',
+            'brand_name'    => '',
             'secret'        => '',
             'pixel_token'   => '',
             'cf7_enabled'   => '1',

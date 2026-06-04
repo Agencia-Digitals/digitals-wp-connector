@@ -3,7 +3,7 @@
  * Plugin Name:       AdSpirit Connector
  * Plugin URI:        https://crm.agenciadigitals.com.br
  * Description:       Conecta o site WordPress ao CRM AdSpirit (Digitals). CF7 real-time, anti-spam, field mapping, CAPI Meta, GA4 server-side, cross-domain decoration. Configurado via wp-admin.
- * Version:           1.4.0
+ * Version:           2.0.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Tested up to:      6.7
@@ -19,7 +19,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('ADSPIRIT_CONNECTOR_VERSION', '1.4.0');
+define('ADSPIRIT_CONNECTOR_VERSION', '2.0.0');
 define('ADSPIRIT_CONNECTOR_FILE', __FILE__);
 define('ADSPIRIT_CONNECTOR_DIR', plugin_dir_path(__FILE__));
 define('ADSPIRIT_CONNECTOR_URL', plugin_dir_url(__FILE__));
@@ -61,9 +61,11 @@ AdSpirit_Crash_Tracker::instance();
 // continuar.
 adspirit_connector_safe_require('includes/class-adspirit-settings.php');
 adspirit_connector_safe_require('includes/class-adspirit-menu.php');
+adspirit_connector_safe_require('includes/class-adspirit-connect.php');
 adspirit_connector_safe_require('includes/class-adspirit-status.php');
 adspirit_connector_safe_require('includes/class-adspirit-health-checker.php');
 adspirit_connector_safe_require('includes/class-adspirit-logs.php');
+adspirit_connector_safe_require('includes/class-adspirit-telemetry.php');
 adspirit_connector_safe_require('includes/class-adspirit-cf7-handler.php');
 adspirit_connector_safe_require('includes/class-adspirit-anti-spam.php');
 adspirit_connector_safe_require('includes/class-adspirit-field-mapping.php');
@@ -71,6 +73,11 @@ adspirit_connector_safe_require('includes/class-adspirit-pixel-injector.php');
 adspirit_connector_safe_require('includes/class-adspirit-capi-meta.php');
 adspirit_connector_safe_require('includes/class-adspirit-ga4.php');
 adspirit_connector_safe_require('includes/class-adspirit-cross-domain.php');
+adspirit_connector_safe_require('includes/class-adspirit-lgpd-popup.php');
+adspirit_connector_safe_require('includes/class-adspirit-quickwins.php');
+adspirit_connector_safe_require('includes/class-adspirit-form.php');
+adspirit_connector_safe_require('includes/class-adspirit-form-adapters.php');
+adspirit_connector_safe_require('includes/class-adspirit-integrations.php');
 
 /**
  * Bootstrap on plugins_loaded.
@@ -85,6 +92,7 @@ function adspirit_connector_init() {
     // Sempre inicializa
     if (class_exists('AdSpirit_Settings')) AdSpirit_Settings::instance();
     if (class_exists('AdSpirit_Menu'))     AdSpirit_Menu::instance();
+    if (class_exists('AdSpirit_Connect'))  AdSpirit_Connect::instance();
     if (class_exists('AdSpirit_Status'))   AdSpirit_Status::instance();
     if (class_exists('AdSpirit_Logs'))     AdSpirit_Logs::instance();
     if (class_exists('AdSpirit_Health_Checker')) AdSpirit_Health_Checker::instance();
@@ -95,12 +103,18 @@ function adspirit_connector_init() {
     }
 
     if (class_exists('AdSpirit_Anti_Spam'))      AdSpirit_Anti_Spam::instance();
+    if (class_exists('AdSpirit_Telemetry'))      AdSpirit_Telemetry::instance();
     if (class_exists('AdSpirit_Field_Mapping'))  AdSpirit_Field_Mapping::instance();
     if (class_exists('AdSpirit_Cf7_Handler'))    AdSpirit_Cf7_Handler::instance();
     if (class_exists('AdSpirit_Pixel_Injector')) AdSpirit_Pixel_Injector::instance();
     if (class_exists('AdSpirit_Capi_Meta'))      AdSpirit_Capi_Meta::instance();
     if (class_exists('AdSpirit_Ga4'))            AdSpirit_Ga4::instance();
     if (class_exists('AdSpirit_Cross_Domain'))   AdSpirit_Cross_Domain::instance();
+    if (class_exists('AdSpirit_Lgpd_Popup'))     AdSpirit_Lgpd_Popup::instance();
+    if (class_exists('AdSpirit_Quickwins'))      AdSpirit_Quickwins::instance();
+    if (class_exists('AdSpirit_Form'))           AdSpirit_Form::instance();
+    if (class_exists('AdSpirit_Form_Adapters'))  AdSpirit_Form_Adapters::instance();
+    if (class_exists('AdSpirit_Integrations'))   AdSpirit_Integrations::instance();
 }
 add_action('plugins_loaded', 'adspirit_connector_init');
 

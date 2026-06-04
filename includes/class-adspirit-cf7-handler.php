@@ -79,6 +79,14 @@ class AdSpirit_Cf7_Handler {
         $form_id = $contact_form->id();
         $data = AdSpirit_Field_Mapping::apply($form_id, $raw_data);
 
+        // 1.5) Local dedup — bloqueia mesmo email 2x em 60s (anti double-submit)
+        if (class_exists('AdSpirit_Integrations')
+            && !empty($data['your-email'])
+            && AdSpirit_Integrations::is_dedup((string) $data['your-email'])) {
+            self::log('skipped', 0, 'local_dedup_60s');
+            return;
+        }
+
         // 2) Augmenta com cf7_time + cf7_url (timestamps + referrer)
         $data['cf7_time'] = current_time('c');
         $url = '';
@@ -89,6 +97,20 @@ class AdSpirit_Cf7_Handler {
             $url = esc_url_raw(wp_unslash($_SERVER['HTTP_REFERER']));
         }
         $data['cf7_url'] = $url;
+
+        // 2.5) Telemetria — junta com pixel (visitor_id) + browser + server
+        if (class_exists('AdSpirit_Telemetry')) {
+            $data['_adspirit_telemetry'] = AdSpirit_Telemetry::collect_from_post(
+                'contact_form_7',
+                (string) $form_id,
+                $url
+            );
+            // Email classification helper
+            if (!empty($data['your-email'])) {
+                $data['_adspirit_telemetry']['email_type'] =
+                    AdSpirit_Telemetry::classify_email((string) $data['your-email']);
+            }
+        }
 
         // 3) ID idempotente
         $submission_id = sprintf(
@@ -125,6 +147,11 @@ class AdSpirit_Cf7_Handler {
                 'form_id' => $form_id,
                 'fields'  => array_keys($data),
             ));
+        }
+
+        // Fanout pra webhooks externos (Zapier/Make/n8n)
+        if (class_exists('AdSpirit_Integrations')) {
+            AdSpirit_Integrations::fanout($data);
         }
 
         // 5) Paralelo: dispara Meta CAPI Lead + GA4 generate_lead

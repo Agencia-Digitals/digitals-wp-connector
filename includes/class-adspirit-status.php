@@ -511,13 +511,99 @@ class AdSpirit_Status {
 // Conexão CRM tab
 add_action('adspirit_connector_render_tab_connection', AdSpirit_Safe_Hook::action(function() {
     $s = AdSpirit_Settings::get_core();
-    ?>
-    <h2 class="as-section"><span class="as-kicker-inline">Conexão</span>Credenciais do CRM</h2>
-    <p class="as-section-help">Cole aqui os valores que o CRM gerou em <code>/settings/integrations/tracking → Plugin WordPress</code>. Cada cliente tem slug e secret únicos.</p>
+    $connected = class_exists('AdSpirit_Connect') && AdSpirit_Connect::is_connected();
+    $error = isset($_GET['connect_error']) ? sanitize_text_field((string) $_GET['connect_error']) : '';
+    $disconnected = !empty($_GET['disconnected']);
 
-    <?php AdSpirit_Menu::card_open('Endpoint + autenticação', 'Brand slug + secret são gerados no painel do CRM e únicos por marca'); ?>
-    <?php AdSpirit_Menu::form_open('connection'); ?>
-    <table class="form-table">
+    if ($error): ?>
+        <div class="as-notice danger">
+            <div class="as-notice-kicker">Erro de conexão</div>
+            <p><?php echo esc_html(urldecode($error)); ?></p>
+        </div>
+    <?php endif; ?>
+
+    <?php if ($disconnected): ?>
+        <div class="as-notice info">
+            <div class="as-notice-kicker">Desconectado</div>
+            <p>Credenciais removidas. Plugin não envia leads até reconectar.</p>
+        </div>
+    <?php endif; ?>
+
+    <?php if ($connected): ?>
+        <h2 class="as-section"><span class="as-kicker-inline">Conexão</span>Status</h2>
+        <p class="as-section-help">Plugin conectado ao AdSpirit. Pra trocar de brand ou rotacionar credenciais, desconecte e reconecte.</p>
+
+        <?php AdSpirit_Menu::card_open('Conectado', 'Credenciais salvas no banco do WordPress', '<span class="as-badge ok">Online</span>'); ?>
+        <table class="form-table">
+            <tr>
+                <th>Marca</th>
+                <td>
+                    <strong style="font-size:14px; color:var(--as-ink);"><?php echo esc_html($s['brand_name'] ?: $s['brand_slug']); ?></strong>
+                    <span class="as-field-help" style="display:inline; margin-left:8px;">slug <code><?php echo esc_html($s['brand_slug']); ?></code></span>
+                </td>
+            </tr>
+            <tr>
+                <th>Endpoint</th>
+                <td><code><?php echo esc_html($s['endpoint_url']); ?></code></td>
+            </tr>
+            <tr>
+                <th>Pixel token</th>
+                <td><code><?php echo esc_html($s['pixel_token']); ?></code></td>
+            </tr>
+            <tr>
+                <th>Secret CF7</th>
+                <td><code><?php echo esc_html(substr($s['secret'], 0, 8) . str_repeat('•', 32) . substr($s['secret'], -4)); ?></code></td>
+            </tr>
+            <tr>
+                <th>Features</th>
+                <td>
+                    <span class="as-badge <?php echo $s['cf7_enabled'] === '1' ? 'ok' : 'muted'; ?>">CF7 → CRM <?php echo $s['cf7_enabled'] === '1' ? 'ativo' : 'desligado'; ?></span>
+                    <span class="as-badge <?php echo $s['pixel_enabled'] === '1' ? 'ok' : 'muted'; ?>" style="margin-left:6px;">Pixel <?php echo $s['pixel_enabled'] === '1' ? 'ativo' : 'desligado'; ?></span>
+                </td>
+            </tr>
+        </table>
+        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin-top:16px;">
+            <input type="hidden" name="action" value="adspirit_disconnect">
+            <?php wp_nonce_field('adspirit_disconnect'); ?>
+            <button type="submit" class="button button-danger">Desconectar</button>
+        </form>
+        <?php AdSpirit_Menu::card_close(); ?>
+
+        <?php AdSpirit_Menu::card_open('Configuração avançada', 'Editar valores manualmente — use só pra debug ou caso especial'); ?>
+        <?php AdSpirit_Menu::form_open('connection'); ?>
+        <table class="form-table"><?php
+    else:
+    ?>
+        <h2 class="as-section"><span class="as-kicker-inline">Conectar</span>Vincular este WordPress ao AdSpirit</h2>
+        <p class="as-section-help">Em 2 cliques você conecta o plugin ao CRM. Você loga uma vez no AdSpirit, autoriza, e tudo vem configurado automaticamente — sem copy/paste de tokens.</p>
+
+        <?php AdSpirit_Menu::card_open('Conexão automática', 'Recomendado — você é redirecionado pro AdSpirit, autoriza, volta conectado'); ?>
+        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+            <input type="hidden" name="action" value="adspirit_connect_start">
+            <?php wp_nonce_field('adspirit_connect_start'); ?>
+            <table class="form-table">
+                <tr>
+                    <th><label for="adspirit_endpoint">URL do AdSpirit</label></th>
+                    <td>
+                        <input type="url" id="adspirit_endpoint" name="endpoint_url" value="<?php echo esc_attr($s['endpoint_url']); ?>" class="regular-text" required>
+                        <p class="description">Default: <code>https://crm.agenciadigitals.com.br</code>. Mudar só pra ambiente de teste.</p>
+                    </td>
+                </tr>
+            </table>
+            <p class="submit">
+                <button type="submit" class="button button-primary" style="font-size:13.5px; padding:9px 18px;">Conectar ao AdSpirit →</button>
+            </p>
+        </form>
+        <p class="as-field-help">Você vai ser levado pro CRM em uma nova aba. Após autorizar, retorna pra cá e tudo já estará configurado.</p>
+        <?php AdSpirit_Menu::card_close(); ?>
+
+        <details style="margin-top:20px;">
+            <summary>Configurar manualmente (avançado)</summary>
+        <?php AdSpirit_Menu::card_open('Credenciais', 'Cola os 4 valores gerados no painel do CRM'); ?>
+        <?php AdSpirit_Menu::form_open('connection'); ?>
+        <table class="form-table"><?php
+    endif;
+    ?>
         <tr>
             <th><label for="adspirit_endpoint_url">Endpoint URL</label></th>
             <td>
@@ -563,6 +649,7 @@ add_action('adspirit_connector_render_tab_connection', AdSpirit_Safe_Hook::actio
     </table>
     <?php AdSpirit_Menu::form_close('Salvar conexão'); ?>
     <?php AdSpirit_Menu::card_close(); ?>
+    <?php if (!$connected): ?></details><?php endif; ?>
     <?php
 }, 'connection_tab'));
 
