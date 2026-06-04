@@ -75,7 +75,41 @@ class AdSpirit_Settings {
 
     public static function get_core() {
         $stored = get_option(self::OPTION_CORE, array());
-        return wp_parse_args($stored, self::core_defaults());
+        $merged = wp_parse_args($stored, self::core_defaults());
+        // Defesa: se user colou a URL completa do endpoint (com path
+        // /api/webhooks/contact-form-7), strip pra evitar duplicar o path
+        // no dispatcher. Salva no DB normalizado pra próxima leitura.
+        $normalized = self::normalize_endpoint_url((string) ($merged['endpoint_url'] ?? ''));
+        if ($normalized !== $merged['endpoint_url']) {
+            $merged['endpoint_url'] = $normalized;
+        }
+        return $merged;
+    }
+
+    /**
+     * Aceita "https://crm.x.com" OR "https://crm.x.com/" OR
+     * "https://crm.x.com/api/webhooks/contact-form-7" e devolve sempre
+     * a base sem trailing slash.
+     */
+    public static function normalize_endpoint_url($url) {
+        $url = trim((string) $url);
+        if ($url === '') return '';
+        $url = rtrim($url, '/');
+        // Strip caminhos comuns que o user pode ter colado por engano
+        $paths_to_strip = array(
+            '/api/webhooks/contact-form-7',
+            '/api/webhooks/contact-form-7/',
+            '/api/webhooks',
+            '/api',
+        );
+        foreach ($paths_to_strip as $path) {
+            if (substr($url, -strlen($path)) === $path) {
+                $url = substr($url, 0, -strlen($path));
+                $url = rtrim($url, '/');
+                break;
+            }
+        }
+        return $url;
     }
 
     public static function update_core(array $patch) {

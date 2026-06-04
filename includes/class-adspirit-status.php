@@ -569,7 +569,10 @@ add_action('adspirit_connector_render_tab_connection', AdSpirit_Safe_Hook::actio
 add_action('adspirit_connector_save_connection', AdSpirit_Safe_Hook::action(function($post) {
     $patch = array();
     if (isset($post['endpoint_url'])) {
-        $patch['endpoint_url'] = esc_url_raw(rtrim((string) $post['endpoint_url'], '/'));
+        // Normaliza: strip path se user colou URL completa (com /api/webhooks/...).
+        $patch['endpoint_url'] = esc_url_raw(
+            AdSpirit_Settings::normalize_endpoint_url((string) $post['endpoint_url'])
+        );
     }
     if (isset($post['brand_slug'])) {
         $patch['brand_slug'] = sanitize_text_field(trim((string) $post['brand_slug']));
