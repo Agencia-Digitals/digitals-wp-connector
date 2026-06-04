@@ -1,177 +1,138 @@
-# AdSpirit Connector
+# AdSpirit Connector — v2.0.0
 
-Plugin WordPress oficial da [Agência Digitals](https://agenciadigitals.com.br) que conecta o site ao CRM **AdSpirit**. Tudo num lugar: envio de leads em real-time, anti-spam embutido, field mapping per-form, Meta Conversion API server-side, GA4 server-side e cross-domain decoration. Configurado via wp-admin, sem editar código.
+Plugin WordPress oficial da [Agência Digitals](https://agenciadigitals.com.br) que conecta o site ao CRM **AdSpirit**. Substitui ~10 plugins (CF7 webhook, WP Armour, Insert Headers and Footers, pixel injection, Schema.org, dedup, CSV export, etc) em um único pacote configurado pelo painel.
 
-## Garantia: nunca derruba o site
+## Click-to-Connect — setup em 30 segundos
 
-Defense-in-depth em 10 camadas pra que esse plugin **nunca** consiga quebrar o site WordPress, mesmo se algo der errado:
+```
+1. Instala o ZIP no WP (Plugins → Adicionar novo → Enviar)
+2. WP → AdSpirit → Conexão CRM → "Conectar ao AdSpirit"
+3. Loga no CRM, autoriza
+4. Volta conectado — brand_slug, secret, pixel_token, endpoint gravados auto
+```
 
-1. **Plugin header declara requisitos** — WP bloqueia ativação automaticamente se PHP < 7.4 ou WP < 6.0
-2. **Activation valida runtime** — se incompatível, plugin se desativa sozinho com mensagem clara, site fica intocado
-3. **Safe Mode global** — option que desliga TODAS as features (frontend + hooks). UI continua acessível pra admin sair do modo
-4. **Auto-recuperação** — `register_shutdown_function` detecta fatal errors do plugin. Se 3+ em 5min → Safe Mode automático
-5. **Cada hook em try/catch** — `AdSpirit_Safe_Hook::wrap` envelopa cada callback. Exception é logada em `error_log` + crash tracker, nunca propaga
-6. **Existence checks defensivos** — `class_exists('WPCF7_Submission')`, etc, antes de usar. CF7 desinstalado? Degrada silenciosamente
-7. **Admin pages output-buffered** — fatal numa tab descarta o buffer, mostra notice clean, resto do wp-admin funciona
-8. **HTTP fire-and-forget** — todos os `wp_remote_post` com `blocking=false` + `timeout=8`. CRM caiu? WP não espera
-9. **Hooks frontend só renderizam se config válida** — pixel/cross-domain checam settings antes de qualquer output
-10. **Erros só pra admin** — visitante do site nunca vê mensagem do plugin. Logs no `error_log` do servidor + UI admin
+Zero copy/paste de tokens. Mesma simplicidade de "conectar GitHub" no Vercel.
 
-**Recuperação manual:** se algo der muito errado, basta abrir wp-admin → AdSpirit → Visão geral. Se Safe Mode estiver ativo, aparece banner vermelho com botão "Sair do Safe Mode" + link pra logs.
-
-**Aba "Logs" mostra:**
-- Crashes capturados (componente, mensagem, arquivo:linha, timestamp)
-- Submissões CF7 (sent/error/skipped)
-- Bloqueios anti-spam
-
-## O que o plugin faz
+## 30+ features incluídas
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ AdSpirit Connector                                              │
-│ ├── Visão geral         ← checklist de onboarding + métricas    │
-│ ├── Conexão CRM         ← endpoint, brand slug, secret, pixel   │
-│ ├── Forms / Field map   ← mapeia campos CF7 → canonical CRM     │
-│ ├── Anti-spam           ← honeypot + time-trap + RL + blocklist │
+│ AdSpirit Connector v2.0.0                                       │
+│ ├── Visão geral         ← checklist + métricas + test event     │
+│ ├── Conexão CRM         ← 1 botão "Conectar" + status conectado │
+│ ├── Forms / Mapping     ← [adspirit_form] + 5 plugins suportados│
+│ ├── Anti-spam           ← 6 camadas embutidas (substitui Armour)│
 │ ├── Meta CAPI           ← Lead + PageView server-side           │
-│ ├── Google Analytics 4  ← generate_lead + page_view (MP v2)     │
-│ ├── Cross-domain        ← decorar links com ?dos_vid pra n TLDs │
-│ └── Logs                ← 100 últimas entradas (CF7 + anti-spam)│
+│ ├── Google Analytics 4  ← MP v2 server-side                     │
+│ ├── Cross-domain        ← link decoration cross-TLD             │
+│ ├── Webhook out         ← fanout Zapier/Make/n8n                │
+│ ├── Consentimento       ← LGPD popup editável + granular        │
+│ └── Logs                ← CF7 + anti-spam + crashes + CSV export│
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Features
+### Detalhe por categoria
 
-| Tab | O que faz |
-|---|---|
-| **Visão geral** | Checklist visual do que falta (CF7 instalado? Slug configurado? Secret? Mapping? Primeira submissão?). Próxima ação destacada. Métricas 24h/7d/30d: enviados, falhas, bloqueios, taxa de sucesso. Forms CF7 detectados com link rápido pra mapping. Botão "Testar conexão" no topo. |
-| **Conexão CRM** | Endpoint URL, brand slug, secret CF7 (mascarado, gerado uma vez no painel do CRM), pixel token opcional. Toggles pra ativar CF7 webhook e pixel injection. |
-| **Forms / Field map** | Auto-discover de todos os forms CF7. Pra cada form, mapeamento dropdown de cada campo canonical (Nome, Email, Telefone, Empresa, Cargo, Nº funcionários, Nicho, Site, Investimento, Urgência) → campo do form. Botão "Aplicar sugestões" usa heurística de nome (your-name, name, nome → tudo vira Nome). |
-| **Anti-spam** | 4 camadas, cada uma com toggle:<br>• **Honeypot** — campo invisível injetado em todo form<br>• **Time-trap** — rejeita submits em menos de N segundos<br>• **Rate-limit por IP** — máximo X submits/min<br>• **Blocklist** — regex de email + palavras-chave em qualquer campo<br>Stats e log de bloqueios visível. Compatível com WP Armour e outros. |
-| **Meta CAPI** | Pixel ID + Access Token + test_event_code. Dispara <code>Lead</code> em cada CF7 submit e <code>PageView</code> a cada page load (throttle 60s). Event ID compartilhado com pixel client-side = dedupe automático. Hash SHA-256 de email/phone, captura _fbc/_fbp cookies, client_ip_address, user_agent. |
-| **GA4** | Measurement ID + API Secret. Dispara <code>generate_lead</code> e <code>page_view</code> (throttle 30s/URL). Client ID lido do cookie _ga (parse) ou fallback IP+UA. Measurement Protocol v2. |
-| **Cross-domain** | Lista de hostnames "afiliados". JS injetado decora `<a>` que apontam pros domínios com `?dos_vid=<id>` (cookie `adspirit_vid`). MutationObserver pega links injetados dinamicamente (popups, AJAX). |
-| **Logs** | 100 últimas entradas: CF7 dispatches (sent/error/skipped) e bloqueios anti-spam. Botão limpar log. |
+**Conexão (Click-to-Connect)** — OAuth-like flow. Cliente loga no CRM (SSO Digitals), autoriza, plugin recebe credenciais e grava nas options. CSRF state + nonce single-use TTL 5min.
+
+**Captura de leads (5 fontes)**
+- Contact Form 7 (hook `wpcf7_mail_sent`)
+- Gravity Forms (`gform_after_submission`)
+- WPForms (`wpforms_process_complete`)
+- Elementor Forms (`elementor_pro/forms/new_record`)
+- Fluent Forms (`fluentform_submission_inserted`)
+- + Shortcode próprio `[adspirit_form]` multi-step nativo com progress bar, localStorage persistence e telemetria por step.
+
+**Telemetria (30+ campos)** — server + client side. Browser parse (Chrome/Safari/Firefox + Windows/macOS/iOS/Android), IP, locale, timezone, behavior (tempo na página + no form + fields visitados), WP context (post_id, post_type), cookies de atribuição (_fbp, _fbc, _ga, _gid). Linka com pixel via cookie `adspirit_vid` — CRM herda toda a jornada multi-touch.
+
+**Anti-spam (6 camadas — substitui WP Armour)**
+1. Honeypot injetado em todos os forms
+2. Time-trap (rejeita submits < N segundos)
+3. Rate-limit por IP
+4. User-Agent check (bloqueia curl/python-requests/wget)
+5. Reverse text trap (entropia alta + sem stopwords PT-BR)
+6. Blocklist regex emails + palavras
+
+**Meta CAPI server-side** — Pixel ID + Access Token + test event code. Eventos Lead (CF7 submit) + PageView (page load throttled). Hash SHA-256, cookies _fbc/_fbp, event_id idempotente pra dedupe com pixel client-side.
+
+**GA4 server-side** — Measurement Protocol v2. Eventos generate_lead + page_view. Client ID parseado do cookie _ga.
+
+**Cross-domain decoration** — JS injetado no wp_footer decora `<a>` cross-TLD com `?dos_vid=<id>`. MutationObserver pega links dinâmicos.
+
+**LGPD popup** — banner minimalista design AdSpirit. 3 opções (aceitar tudo / essenciais / personalizar com 3 categorias granulares: tracking, analytics, marketing). Cookie `adspirit_consent` 365d. Editor com preview ao vivo. Pixel/CAPI/GA4 respeitam o consent.
+
+**Quick wins**
+- Auto-update via GitHub Releases (sem token, repo público)
+- Test event button → POSTa lead mock + arquiva automático
+- Email de saúde diário (alerta se 0 leads em 24h em dia útil)
+
+**Integrações extras**
+- WooCommerce: order completed → deal won, processing → lead, refunded → deal lost
+- Webhook out genérico (Zapier/Make/n8n)
+- CSV export de logs
+- Schema.org LD+JSON automático (@Organization + ContactPoint)
+- Local dedup 60s por email (anti double-submit)
+- Site Health: contribui check no painel WP
+- WP-CLI: `wp adspirit test|safe-mode|logs`
+
+## Defense-in-depth — nunca derruba o site
+
+10 camadas de proteção:
+
+1. Plugin header declara `Requires PHP 7.4` + `Requires WP 6.0` → WP bloqueia ativação se incompatível
+2. Activation hook valida runtime + auto-desativa se falhar
+3. Safe Mode global (manual ou automático após 3 crashes/5min)
+4. `register_shutdown_function` captura fatal errors do plugin
+5. Todo `add_action`/`add_filter` wrapped em try/catch (Safe_Hook)
+6. Defensive `class_exists` antes de dependências externas
+7. Admin pages com `ob_start` + try/catch
+8. HTTP fire-and-forget (`blocking=false` + `timeout=8`)
+9. Hooks frontend só renderizam se config válida
+10. Visitor do site nunca vê erro do plugin
 
 ## Instalação
 
-1. Baixe `adspirit-connector-v1.1.0.zip` (gerado via `bash build.sh`).
-2. wp-admin → **Plugins → Adicionar novo → Enviar plugin** → seleciona ZIP → **Instalar agora** → **Ativar**.
-3. Menu lateral esquerdo: **AdSpirit** (ícone de antena).
-4. Comece pela aba **Visão geral** — o checklist vai te guiar.
+1. Baixe `adspirit-connector-v2.0.0.zip` em [releases](https://github.com/agenciadigitals/digitals-wp-connector/releases) ou direto no painel do CRM
+2. wp-admin → **Plugins → Adicionar novo → Enviar plugin** → seleciona ZIP → **Instalar** → **Ativar**
+3. Menu lateral esquerdo: **AdSpirit**
+4. Aba "Conexão CRM" → clica **"Conectar ao AdSpirit"** → autoriza → pronto
 
-## Setup mínimo (3 minutos)
+## Updates
 
-1. **Aba "Conexão CRM"**: cole endpoint, brand slug, secret. (Esses vêm de `/settings/integrations/tracking → Plugin WordPress` no CRM, todos copiáveis com 1 clique.)
-2. **Aba "Visão geral"**: clica em **Testar conexão**. Deve retornar `{"ok": true}`.
-3. **Aba "Forms / Field mapping"**: seleciona o form principal, clica **Aplicar sugestões**, salva.
-4. Submete um form CF7 de teste no site. Em até 5s aparece em `/leads` no CRM.
-
-Opcionais (em qualquer ordem):
-- Aba **Anti-spam**: deixa todas as camadas ativas (defaults seguros).
-- Aba **Meta CAPI**: cola Pixel ID + Access Token.
-- Aba **GA4**: cola Measurement ID + API Secret.
-- Aba **Cross-domain**: lista os domínios afiliados.
+GitHub Releases via plugin-update-checker built-in. WP avisa "Update available" como qualquer plugin oficial — 1 clique pra atualizar. Settings preservadas.
 
 ## Arquitetura interna
 
 ```
 digitals-wp-connector/
-├── digitals-connector.php                    ← main + bootstrap
+├── digitals-connector.php             ← bootstrap (safe loading + DI)
 ├── includes/
-│   ├── class-adspirit-settings.php           ← data layer (options I/O)
-│   ├── class-adspirit-menu.php               ← top-level menu + tabs router
-│   ├── class-adspirit-status.php             ← Overview tab + ajax test
-│   ├── class-adspirit-health-checker.php     ← agrega métricas
-│   ├── class-adspirit-cf7-handler.php        ← wpcf7_mail_sent hook
-│   ├── class-adspirit-anti-spam.php          ← 4 camadas + tab UI
-│   ├── class-adspirit-field-mapping.php      ← discover + mapping per-form
-│   ├── class-adspirit-pixel-injector.php     ← wp_head script
-│   ├── class-adspirit-capi-meta.php          ← Graph API events
-│   ├── class-adspirit-ga4.php                ← Measurement Protocol v2
-│   ├── class-adspirit-cross-domain.php       ← link decoration JS
-│   └── class-adspirit-logs.php               ← Logs tab
+│   ├── class-adspirit-safe-bootstrap.php  ← version check + Safe Mode
+│   ├── class-adspirit-crash-tracker.php   ← shutdown handler + auto safe mode
+│   ├── class-adspirit-safe-hook.php       ← try/catch wrappers
+│   ├── class-adspirit-settings.php        ← data layer
+│   ├── class-adspirit-menu.php            ← top-level menu + tabs router
+│   ├── class-adspirit-connect.php         ← Click-to-Connect (OAuth-like)
+│   ├── class-adspirit-status.php          ← Visão geral + Conexão CRM tabs
+│   ├── class-adspirit-health-checker.php  ← agrega métricas
+│   ├── class-adspirit-logs.php            ← logs UI + crashes
+│   ├── class-adspirit-telemetry.php       ← coletor server + client
+│   ├── class-adspirit-cf7-handler.php     ← wpcf7_mail_sent hook
+│   ├── class-adspirit-anti-spam.php       ← 6 camadas + UI
+│   ├── class-adspirit-field-mapping.php   ← discover + mapping per-form
+│   ├── class-adspirit-pixel-injector.php  ← <script> no <head>
+│   ├── class-adspirit-capi-meta.php       ← Graph API events
+│   ├── class-adspirit-ga4.php             ← Measurement Protocol v2
+│   ├── class-adspirit-cross-domain.php    ← link decoration JS
+│   ├── class-adspirit-lgpd-popup.php      ← consent banner + editor
+│   ├── class-adspirit-quickwins.php       ← auto-update + test event + saúde
+│   ├── class-adspirit-form.php            ← [adspirit_form] shortcode
+│   ├── class-adspirit-form-adapters.php   ← Gravity/WPForms/Elementor/Fluent
+│   └── class-adspirit-integrations.php    ← Woo + webhook out + Schema + Site Health + WP-CLI
 ├── README.md
 └── build.sh
 ```
 
-### Tabs registradas via filtro
-
-```php
-apply_filters('adspirit_connector_tabs', $tabs);
-```
-
-Cada feature registra sua tab + render + save via:
-
-```php
-add_action('adspirit_connector_render_tab_<slug>', $callback);
-add_action('adspirit_connector_save_<slug>', $callback);
-```
-
-Modular — adicionar feature nova = adicionar 1 classe, sem mexer no menu.
-
-### CF7 pipeline
-
-```
-Visitante submete CF7
-    ↓ wpcf7_validate (priority 5)
-AdSpirit Anti-Spam: 4 camadas
-    ✗ Bloqueia → log + CF7 mostra erro genérico
-    ✓ Passa
-    ↓ wpcf7_mail_sent (priority 99, depois de n8n@10)
-AdSpirit Cf7 Handler:
-  1. Aplica field mapping (form_id → canonical names)
-  2. Augmenta com cf7_time + cf7_url
-  3. Gera submission_id idempotente (form-time-hash)
-  4. POST → CRM (fire-and-forget, blocking=false)
-  5. Dispara Meta CAPI Lead (paralelo, fire-and-forget)
-  6. Dispara GA4 generate_lead (paralelo, fire-and-forget)
-  7. Log circular
-```
-
-Cada dispatch externo é independente — se Meta CAPI cair, CRM e GA4 ainda recebem.
-
-## Updates
-
-v1.1.0 distribui ZIP manual. v1.2 vai adicionar [plugin-update-checker](https://github.com/YahnisElsts/plugin-update-checker) apontando pras releases deste repo no GitHub. WP vai notificar "Update available" como qualquer plugin oficial.
-
-Por enquanto, pra atualizar:
-1. Baixa o ZIP novo.
-2. wp-admin → Plugins → Desativa o atual.
-3. Plugins → Adicionar novo → Enviar plugin → seleciona ZIP novo → confirma substituir → Ativa.
-4. Settings preservadas (deactivate não toca em options).
-
-## Desenvolvimento
-
-Sem build step. Edita PHP direto, recarrega no WP.
-
-### Build ZIP
-
-```bash
-bash build.sh
-```
-
-Gera `dist/adspirit-connector-v<version>.zip` com a estrutura correta (pasta raiz `adspirit-connector/`).
-
-### Testar localmente
-
-[Local](https://localwp.com/) ou Docker (`wordpress:latest` + `mariadb`). Subir um CRM dev em `localhost:3000` e apontar o plugin pra ele.
-
-## Segurança
-
-- Capability check em todos os entrypoints (`manage_options`).
-- Nonces em forms + ajax.
-- Sanitização de input + escape de output (esc_html, esc_attr, esc_url).
-- HTTPS enforced no endpoint URL (`esc_url_raw` rejeita esquemas inválidos).
-- Secret no DB sem encrypt — WordPress core não oferece encrypt nativo. Acesso restrito a admins. Pra segurança extra: use [Security Headers](https://wordpress.org/plugins/secupress/) e restrinja acesso ao wp-admin.
-
-## Roadmap
-
-- **v1.2**: plugin-update-checker, logs com paginação, export CSV.
-- **v1.3**: Gravity Forms support.
-- **v1.4**: WooCommerce orders → CRM deals.
-- **v2.0**: self-onboarding via CRM wizard, OAuth-style install token, marketplace WP.
-
 ## Licença
 
-Proprietário — propriedade da Agência Digitals. Distribuição interna ou licenciada via AdSpirit standalone.
+Proprietário — Agência Digitals.

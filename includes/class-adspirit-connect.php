@@ -72,7 +72,11 @@ class AdSpirit_Connect {
             . 'return_url=' . urlencode($return_url)
             . '&state=' . urlencode($state);
 
-        wp_safe_redirect($crm_url);
+        // wp_redirect (não safe_redirect) — URL é externa (CRM). safe_redirect
+        // só permite o próprio host por default e jogaria pra admin_url('/').
+        // Validação de host já foi feita acima via normalize_endpoint_url +
+        // confirmação de que o CRM responde no exchange.
+        wp_redirect($crm_url);
         exit;
     }
 

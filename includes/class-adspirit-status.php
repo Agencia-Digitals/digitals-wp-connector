@@ -44,7 +44,34 @@ class AdSpirit_Status {
         $forms = $this->discover_cf7_forms();
         $env = $this->detect_environment();
 
+        // Feedback do test event (redirect de send_test_event)
+        $test_result = isset($_GET['test_result']) ? sanitize_key((string) $_GET['test_result']) : '';
+        $connected_just = !empty($_GET['connected']);
         ?>
+        <?php if ($connected_just): ?>
+            <div class="as-notice info">
+                <div class="as-notice-kicker">Conectado</div>
+                <p>Plugin vinculado ao AdSpirit com sucesso. Brand <strong><?php echo esc_html($core['brand_name'] ?: $core['brand_slug']); ?></strong>. Já pode submeter formulários.</p>
+            </div>
+        <?php endif; ?>
+        <?php if ($test_result): ?>
+            <?php if ($test_result === 'sucesso'): ?>
+                <div class="as-notice info">
+                    <div class="as-notice-kicker">Teste enviado</div>
+                    <p>Lead de teste foi aceito pelo CRM (HTTP 200) e arquivado automaticamente. Confira em <a href="<?php echo esc_url($core['endpoint_url']); ?>/leads?archived=1" target="_blank">/leads</a> no CRM.</p>
+                </div>
+            <?php elseif ($test_result === 'config_incompleta'): ?>
+                <div class="as-notice warn">
+                    <div class="as-notice-kicker">Config faltando</div>
+                    <p>Conecte o plugin primeiro (aba Conexão CRM).</p>
+                </div>
+            <?php else: ?>
+                <div class="as-notice danger">
+                    <div class="as-notice-kicker">Falha no teste</div>
+                    <p>CRM retornou: <code><?php echo esc_html($test_result); ?></code>. Veja os logs.</p>
+                </div>
+            <?php endif; ?>
+        <?php endif; ?>
         <?php if ($next_action): ?>
             <div class="as-notice info">
                 <div class="as-notice-kicker">Próxima ação</div>
@@ -243,8 +270,15 @@ class AdSpirit_Status {
 
         <h2 class="as-section"><span class="as-kicker-inline">Teste</span>Conexão com o CRM</h2>
         <p class="as-section-help">Faz <code>GET</code> no endpoint validando brand slug + secret. Não cria lead.</p>
-        <button type="button" class="button button-primary" id="adspirit-test-btn"><?php echo self::icon('zap'); ?> Testar conexão agora</button>
-        <pre class="as-test-result" id="adspirit-test-result" style="display:none;"></pre>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button type="button" class="button button-primary" id="adspirit-test-btn"><?php echo self::icon('zap'); ?> Testar conexão agora</button>
+            <form method="get" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline;">
+                <input type="hidden" name="action" value="adspirit_send_test_event">
+                <?php wp_nonce_field('adspirit_send_test_event'); ?>
+                <button type="submit" class="button">Disparar lead de teste</button>
+            </form>
+        </div>
+        <pre class="as-test-result" id="adspirit-test-result" style="display:none; margin-top:12px;"></pre>
 
         <script>
         (function() {
