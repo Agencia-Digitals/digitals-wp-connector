@@ -57,6 +57,14 @@ class AdSpirit_Settings {
         if (false === get_option(self::OPTION_FIELD_MAP)) {
             add_option(self::OPTION_FIELD_MAP, array());
         }
+        // v2.2 Behavioral tracker — defaults só se classe carregou
+        if (class_exists('AdSpirit_Behavioral') && false === get_option('adspirit_connector_behavioral')) {
+            add_option('adspirit_connector_behavioral', AdSpirit_Behavioral::defaults());
+        }
+        // v2.2 Clarity — defaults só se classe carregou
+        if (class_exists('AdSpirit_Clarity') && false === get_option(AdSpirit_Clarity::OPTION_CLARITY)) {
+            add_option(AdSpirit_Clarity::OPTION_CLARITY, AdSpirit_Clarity::defaults());
+        }
     }
 
     // ─────────────────────────────────────────────────────────

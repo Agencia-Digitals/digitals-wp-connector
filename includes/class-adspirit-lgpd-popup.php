@@ -88,6 +88,19 @@ class AdSpirit_Lgpd_Popup {
         return self::has_consent('tracking') || self::has_consent('all');
     }
 
+    /**
+     * v2.2 — usados pelo behavioral tracker (frontend signals) e pelo
+     * loader do Microsoft Clarity. Mantêm `has_consent()` como source-of-truth
+     * pra evitar duplicação de regra de cookie.
+     */
+    public static function has_analytics_consent() {
+        return self::has_consent('analytics') || self::has_consent('all');
+    }
+
+    public static function has_behavioral_consent() {
+        return self::has_consent('tracking') || self::has_consent('all');
+    }
+
     public function inject_popup() {
         if (is_admin()) return;
         $c = self::get_settings();

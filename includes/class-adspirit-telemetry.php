@@ -92,10 +92,22 @@ class AdSpirit_Telemetry {
               t.pages_in_session = history.length;
             } catch(e) {}
 
+            // Behavior summary (escrito pelo behavior tracker em sessionStorage)
+            // Lido como JSON cru aqui e ressubmetido como string no submit.
+            function readBehavior() {
+              try {
+                var raw = sessionStorage.getItem('adspirit_bhv_v1') || '';
+                if (!raw) return '';
+                // cap em 16KB (alinhado com server-side BEHAVIOR_PAYLOAD_MAX_BYTES)
+                if (raw.length > 16384) return '';
+                return raw;
+              } catch(e) { return ''; }
+            }
+
             // Hook em CF7 submit: popula campos hidden com a telemetria
             // antes de enviar, pra plugin server-side ler dos $_POST.
             function attachHidden() {
-              document.querySelectorAll('form.wpcf7-form, form.adspirit-form').forEach(function(form) {
+              document.querySelectorAll('form.wpcf7-form, form.adspirit-form, .gform_wrapper form, form.wpforms-form').forEach(function(form) {
                 if (form.dataset.adspiritAttached) return;
                 form.dataset.adspiritAttached = '1';
                 var fields = ['visitor_id', 'session_id', 'fbp', 'fbc', 'ga', 'gid', 'gcl_au',
@@ -126,6 +138,11 @@ class AdSpirit_Telemetry {
                   var l = document.createElement('input');
                   l.type = 'hidden'; l.name = '_adspirit_t_pages_in_session'; l.value = String(t.pages_in_session || 1);
                   form.appendChild(l);
+                  // Behavior summary (JSON string lido de sessionStorage no momento do submit).
+                  var bhv = document.createElement('input');
+                  bhv.type = 'hidden'; bhv.name = '_adspirit_t_behavior';
+                  bhv.value = readBehavior();
+                  form.appendChild(bhv);
                 });
               });
             }
@@ -163,6 +180,21 @@ class AdSpirit_Telemetry {
 
         $current_post = get_post();
         $current_user = wp_get_current_user();
+
+        // Behavior summary (escrito pelo tracker JS em sessionStorage; injetado no
+        // submit via hidden input _adspirit_t_behavior). Cap em 16KB (alinhado com
+        // BEHAVIOR_PAYLOAD_MAX_BYTES no /api/track e default no admin).
+        // Em falha de decode, ignora silenciosamente (não derruba o submit).
+        $behavior_v1 = null;
+        if (isset($_POST['_adspirit_t_behavior'])) {
+            $raw_bhv = (string) wp_unslash($_POST['_adspirit_t_behavior']);
+            if ($raw_bhv !== '' && strlen($raw_bhv) <= 16384) {
+                $decoded = json_decode($raw_bhv, true);
+                if (is_array($decoded)) {
+                    $behavior_v1 = $decoded;
+                }
+            }
+        }
 
         return array(
             // Linkage pixel
@@ -212,6 +244,10 @@ class AdSpirit_Telemetry {
             'screen' => $get('screen'),
             'viewport' => $get('viewport'),
             'connection_type' => $get('connection_type'),
+
+            // Behavior summary (v1) — emitido pelo tracker JS em sessionStorage.
+            // null se ausente, inválido ou >16KB. CRM trata como opcional.
+            'behavior_v1' => $behavior_v1,
         );
     }
 
