@@ -680,6 +680,11 @@ add_action('adspirit_connector_render_tab_connection', AdSpirit_Safe_Hook::actio
                 </label>
             </td>
         </tr>
+        <?php
+        // Feature 35 (lead score preview) e features futuras se plugam aqui
+        // sem editar este arquivo — filter render_extra concatena <tr>s.
+        echo apply_filters('adspirit_connector_connection_render_extra', '');
+        ?>
     </table>
     <?php AdSpirit_Menu::form_close('Salvar conexão'); ?>
     <?php AdSpirit_Menu::card_close(); ?>
@@ -711,6 +716,9 @@ add_action('adspirit_connector_save_connection', AdSpirit_Safe_Hook::action(func
     }
     $patch['cf7_enabled']   = !empty($post['cf7_enabled']) ? '1' : '0';
     $patch['pixel_enabled'] = !empty($post['pixel_enabled']) ? '1' : '0';
+    // Feature 35 + futuras: filter pra cada feature contribuir patches
+    // sem editar este handler.
+    $patch = apply_filters('adspirit_connector_connection_save_extra', $patch, $post);
     AdSpirit_Settings::update_core($patch);
     add_settings_error(AdSpirit_Settings::OPTION_CORE, 'saved', 'Conexão salva.', 'updated');
 }, 'connection_save'));

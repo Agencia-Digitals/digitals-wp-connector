@@ -212,7 +212,9 @@ class AdSpirit_Field_Mapping {
         $out = array();
         $field_names = array_map(function($f){ return $f['name']; }, $cf7_fields);
 
-        $aliases = array(
+        // Aliases default — feature 36 (Field_Mapping_Sync) injeta extras
+        // vindos do CRM via filter `adspirit_field_mapping_aliases`.
+        $aliases = apply_filters('adspirit_field_mapping_aliases', array(
             'your-name'           => array('your-name', 'name', 'nome', 'fullname', 'full-name', 'nome-completo'),
             'your-email'          => array('your-email', 'email', 'e-mail', 'mail', 'seu-email'),
             'Telefone'            => array('Telefone', 'telefone', 'phone', 'tel', 'celular', 'whatsapp', 'numero', 'fone'),
@@ -223,7 +225,7 @@ class AdSpirit_Field_Mapping {
             'site-empresa'        => array('site-empresa', 'website', 'site', 'url'),
             'Investimento'        => array('Investimento', 'investimento', 'budget', 'orcamento'),
             'urgencia para começar' => array('urgencia para começar', 'urgencia', 'urgency', 'prazo'),
-        );
+        ));
 
         foreach ($canonical as $can_key => $_label) {
             $candidates = $aliases[$can_key] ?? array($can_key);

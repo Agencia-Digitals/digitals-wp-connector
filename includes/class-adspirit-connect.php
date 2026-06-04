@@ -154,6 +154,9 @@ class AdSpirit_Connect {
             'brand_name' => (string) ($data['brand_name'] ?? ''),
         ));
 
+        // Fires field-mapping-sync e qualquer outra feature que reage à conexão
+        do_action('adspirit_connector_connected');
+
         // Redirect pra Visão geral com mensagem de sucesso
         $back = add_query_arg(
             array('page' => AdSpirit_Menu::PAGE_SLUG, 'tab' => 'overview', 'connected' => '1'),

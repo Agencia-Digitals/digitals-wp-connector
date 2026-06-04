@@ -68,7 +68,8 @@ class AdSpirit_Form {
     }
 
     public function render_shortcode($atts) {
-        $atts = shortcode_atts(array('id' => 'default'), $atts);
+        // 3º arg ativa filter `shortcode_atts_adspirit_form` que A/B test usa
+        $atts = shortcode_atts(array('id' => 'default', 'variant' => ''), $atts, 'adspirit_form');
         $forms = self::get_forms();
         $form = isset($forms[$atts['id']]) ? $forms[$atts['id']] : self::default_form_config();
 
@@ -106,6 +107,7 @@ class AdSpirit_Form {
             .adspirit-form .error { padding:10px 12px; background:#FFF0F0; color:#C73838; border-radius:6px; font-size:12.5px; margin-bottom:12px; }
         </style>
         <form class="adspirit-form" data-form-id="<?php echo esc_attr($atts['id']); ?>" id="<?php echo esc_attr($form_uid); ?>">
+            <input type="hidden" name="_adspirit_nonce" value="<?php echo esc_attr(wp_create_nonce('adspirit_form_submit')); ?>">
             <div class="progress">
                 <?php foreach ($steps as $i => $_): ?>
                     <span class="<?php echo $i === 0 ? 'current' : ''; ?>"></span>
@@ -271,6 +273,23 @@ class AdSpirit_Form {
     }
 
     public function handle_submit() {
+        // Validate nonce: bloqueia POSTs externos / replay attacks
+        $nonce = isset($_POST['_adspirit_nonce']) ? sanitize_text_field((string) $_POST['_adspirit_nonce']) : '';
+        if (!$nonce || !wp_verify_nonce($nonce, 'adspirit_form_submit')) {
+            wp_send_json(array('ok' => false, 'error' => 'nonce_invalido'), 403);
+        }
+
+        // Rate limit: 5 submissions/min por IP (CF7 já protege via cookie,
+        // mas anônimos podem disparar AJAX direto)
+        $ip = isset($_SERVER['REMOTE_ADDR']) ? (string) $_SERVER['REMOTE_ADDR'] : '0.0.0.0';
+        if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) $ip = (string) $_SERVER['HTTP_CF_CONNECTING_IP'];
+        $rl_key = 'adspirit_form_rl_' . md5($ip);
+        $count = (int) get_transient($rl_key);
+        if ($count >= 5) {
+            wp_send_json(array('ok' => false, 'error' => 'rate_limit'), 429);
+        }
+        set_transient($rl_key, $count + 1, 60);
+
         $core = AdSpirit_Settings::get_core();
         if (empty($core['brand_slug']) || empty($core['secret'])) {
             wp_send_json(array('ok' => false, 'error' => 'plugin não conectado'));
@@ -303,6 +322,10 @@ class AdSpirit_Form {
             }
             $payload['_adspirit_telemetry'] = $tel;
         }
+
+        // Hook pra A/B test, lead score preview e outros injetarem metadata
+        // antes do envio pro CRM
+        $payload = apply_filters('adspirit_form_submit_payload', $payload, $form_id);
 
         $endpoint = rtrim($core['endpoint_url'], '/') . '/api/webhooks/contact-form-7';
         $response = wp_remote_post($endpoint, array(

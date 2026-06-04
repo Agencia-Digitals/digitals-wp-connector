@@ -3,7 +3,7 @@
  * Plugin Name:       AdSpirit Connector
  * Plugin URI:        https://crm.agenciadigitals.com.br
  * Description:       Conecta o site WordPress ao CRM AdSpirit (Digitals). CF7 real-time, anti-spam, field mapping, CAPI Meta, GA4 server-side, cross-domain decoration. Configurado via wp-admin.
- * Version:           2.0.1
+ * Version:           2.1.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Tested up to:      6.7
@@ -19,7 +19,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('ADSPIRIT_CONNECTOR_VERSION', '2.0.1');
+define('ADSPIRIT_CONNECTOR_VERSION', '2.1.0');
 define('ADSPIRIT_CONNECTOR_FILE', __FILE__);
 define('ADSPIRIT_CONNECTOR_DIR', plugin_dir_path(__FILE__));
 define('ADSPIRIT_CONNECTOR_URL', plugin_dir_url(__FILE__));
@@ -78,6 +78,13 @@ adspirit_connector_safe_require('includes/class-adspirit-quickwins.php');
 adspirit_connector_safe_require('includes/class-adspirit-form.php');
 adspirit_connector_safe_require('includes/class-adspirit-form-adapters.php');
 adspirit_connector_safe_require('includes/class-adspirit-integrations.php');
+// v2.1 features
+adspirit_connector_safe_require('includes/class-adspirit-ab-test.php');
+adspirit_connector_safe_require('includes/class-adspirit-customerio.php');
+adspirit_connector_safe_require('includes/class-adspirit-mailchimp.php');
+adspirit_connector_safe_require('includes/class-adspirit-lead-score.php');
+adspirit_connector_safe_require('includes/class-adspirit-field-mapping-sync.php');
+adspirit_connector_safe_require('includes/class-adspirit-magic-install.php');
 
 /**
  * Bootstrap on plugins_loaded.
@@ -115,7 +122,23 @@ function adspirit_connector_init() {
     if (class_exists('AdSpirit_Form'))           AdSpirit_Form::instance();
     if (class_exists('AdSpirit_Form_Adapters'))  AdSpirit_Form_Adapters::instance();
     if (class_exists('AdSpirit_Integrations'))   AdSpirit_Integrations::instance();
+    // v2.1 features
+    if (class_exists('AdSpirit_Ab_Test'))            AdSpirit_Ab_Test::instance();
+    if (class_exists('AdSpirit_Customerio'))         AdSpirit_Customerio::instance();
+    if (class_exists('AdSpirit_Mailchimp'))          AdSpirit_Mailchimp::instance();
+    if (class_exists('AdSpirit_Lead_Score'))         AdSpirit_Lead_Score::instance();
+    if (class_exists('AdSpirit_Field_Mapping_Sync')) AdSpirit_Field_Mapping_Sync::instance();
 }
+
+/**
+ * SEMPRE-on: magic-link install precisa rodar mesmo em Safe Mode pra
+ * completar onboarding. Registrado em hook separado a parte da feature
+ * activation (que pode ser desligada por Safe Mode).
+ */
+function adspirit_connector_init_always() {
+    if (class_exists('AdSpirit_Magic_Install')) AdSpirit_Magic_Install::instance();
+}
+add_action('plugins_loaded', 'adspirit_connector_init_always', 5);
 add_action('plugins_loaded', 'adspirit_connector_init');
 
 /**

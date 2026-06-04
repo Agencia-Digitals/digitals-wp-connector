@@ -157,6 +157,17 @@ class AdSpirit_Cf7_Handler {
         // 5) Paralelo: dispara Meta CAPI Lead + GA4 generate_lead
         AdSpirit_Capi_Meta::send_lead_for_submission($submission_id, $data, $url);
         AdSpirit_Ga4::send_lead_for_submission($submission_id, $data, $url);
+
+        // 6) Passthroughs dedicados (Customer.io + Mailchimp)
+        if (class_exists('AdSpirit_Customerio')) {
+            AdSpirit_Customerio::dispatch_for_payload($data);
+        }
+        if (class_exists('AdSpirit_Mailchimp')) {
+            AdSpirit_Mailchimp::dispatch_for_payload($data);
+        }
+
+        // 7) Hook genérico pra extensions custom
+        do_action('adspirit_connector_cf7_dispatched', $data, $form_id);
     }
 
     public static function log($status, $http_code, $error = null, array $extra = array()) {

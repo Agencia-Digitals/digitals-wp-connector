@@ -84,16 +84,22 @@ class AdSpirit_Menu {
     }
 
     public function register_menu() {
-        // Ícone proprietário AdSpirit — 3 barras ascendentes geométricas
-        // representando sinal/conversões crescentes. SVG inline com fill
-        // dinâmico (WP recolore conforme tema escuro/claro do menu).
-        $svg = '<svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">'
-             . '<rect x="2.5" y="13.5" width="3" height="3.5" rx="0.8" fill="black"/>'
-             . '<rect x="8.5" y="8.5" width="3" height="8.5" rx="0.8" fill="black"/>'
-             . '<rect x="14.5" y="3" width="3" height="14" rx="0.8" fill="black"/>'
-             . '<circle cx="16" cy="1.5" r="1.2" fill="black"/>'
-             . '</svg>';
-        $icon = 'data:image/svg+xml;base64,' . base64_encode($svg);
+        // Logo proprietária AdSpirit (mesmo SVG do favicon do CRM).
+        // WP recolore SVG conforme tema do menu (light/dark) usando fill
+        // 'black' — não trocar pelo accent direto aqui.
+        $svg_path = ADSPIRIT_CONNECTOR_DIR . 'assets/adspirit-mark.svg';
+        $svg = is_readable($svg_path) ? file_get_contents($svg_path) : '';
+        if ($svg) {
+            // Strip xml declaration pra data-uri funcionar limpo
+            $svg = preg_replace('/<\?xml[^>]+\?>\s*/i', '', $svg);
+            // Garante fill=black pra WP recolorir
+            $svg = preg_replace('/style="enable-background:[^"]*"/i', '', $svg);
+            $icon = 'data:image/svg+xml;base64,' . base64_encode($svg);
+        } else {
+            // Fallback minimalista se assets/ não carregou
+            $fallback = '<svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="6" fill="black"/></svg>';
+            $icon = 'data:image/svg+xml;base64,' . base64_encode($fallback);
+        }
 
         add_menu_page(
             'AdSpirit Connector',

@@ -40,7 +40,7 @@ class AdSpirit_Lgpd_Popup {
             'adspirit_connector_save_lgpd',
             AdSpirit_Safe_Hook::action(array($this, 'handle_save'), 'lgpd_save')
         );
-        add_filter('adspirit_connector_tabs', array($this, 'add_tab'));
+        add_filter('adspirit_connector_tabs', AdSpirit_Safe_Hook::filter(array($this, 'add_tab'), 'lgpd_tab_register'));
     }
 
     public function add_tab($tabs) {

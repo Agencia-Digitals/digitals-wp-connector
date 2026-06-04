@@ -35,6 +35,10 @@ mkdir -p "${TARGET}"
 cp digitals-connector.php "${TARGET}/"
 cp README.md "${TARGET}/"
 cp -r includes "${TARGET}/"
+# Assets (favicon AdSpirit + futuros recursos)
+if [ -d assets ]; then
+  cp -r assets "${TARGET}/"
+fi
 
 # Cria ZIP
 cd "${DIST}"

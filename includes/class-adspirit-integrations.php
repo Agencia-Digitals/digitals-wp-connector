@@ -49,17 +49,26 @@ class AdSpirit_Integrations {
             AdSpirit_Safe_Hook::action(array($this, 'export_csv'), 'csv_export'));
 
         // Webhook out tab + save
-        add_filter('adspirit_connector_tabs', array($this, 'add_webhook_tab'));
+        add_filter('adspirit_connector_tabs', AdSpirit_Safe_Hook::filter(array($this, 'add_webhook_tab'), 'integrations_webhook_tab'));
         add_action('adspirit_connector_render_tab_webhook-out',
             AdSpirit_Safe_Hook::action(array($this, 'render_webhook_tab'), 'webhook_tab'));
         add_action('adspirit_connector_save_webhook-out',
             AdSpirit_Safe_Hook::action(array($this, 'save_webhook'), 'webhook_save'));
 
         // Site Health
-        add_filter('site_status_tests', array($this, 'add_site_health_tests'));
+        add_filter('site_status_tests', AdSpirit_Safe_Hook::filter(array($this, 'add_site_health_tests'), 'integrations_site_health'));
 
-        // WP-CLI
+        // WP-CLI — registra via cli_init pra garantir ordem correta de boot.
+        // Antes estava no construct (plugins_loaded), mas alguns contextos
+        // de wp-cli iteram comandos antes desse hook. cli_init é o ponto
+        // oficial pra registro.
         if (defined('WP_CLI') && WP_CLI) {
+            add_action('cli_init', array($this, 'register_cli_commands'));
+        }
+    }
+
+    public function register_cli_commands() {
+        if (class_exists('AdSpirit_CLI_Commands')) {
             \WP_CLI::add_command('adspirit', 'AdSpirit_CLI_Commands');
         }
     }
@@ -130,6 +139,8 @@ class AdSpirit_Integrations {
         $core = AdSpirit_Settings::get_core();
         $brand = $core['brand_name'] ?: $core['brand_slug'] ?: get_bloginfo('name');
         $logo = function_exists('get_site_icon_url') ? get_site_icon_url() : '';
+        if (!$logo) $logo = ADSPIRIT_CONNECTOR_URL . 'assets/adspirit-mark.svg';
+
         $schema = array(
             '@context' => 'https://schema.org',
             '@type' => 'Organization',
@@ -137,7 +148,40 @@ class AdSpirit_Integrations {
             'url' => home_url('/'),
         );
         if ($logo) $schema['logo'] = $logo;
-        echo "\n<script type=\"application/ld+json\">" . wp_json_encode($schema) . "</script>\n";
+
+        // ContactPoint — telefone + email da config do plugin (vem do CRM
+        // via Click-to-Connect / setting manual). Aceita JSON array.
+        $contact_points = get_option('adspirit_connector_schema_contact_points', '');
+        if ($contact_points) {
+            $cps = is_string($contact_points) ? json_decode($contact_points, true) : $contact_points;
+            if (is_array($cps) && !empty($cps)) {
+                $schema['contactPoint'] = array();
+                foreach ($cps as $cp) {
+                    $entry = array('@type' => 'ContactPoint', 'contactType' => $cp['type'] ?? 'customer service');
+                    if (!empty($cp['phone'])) $entry['telephone'] = $cp['phone'];
+                    if (!empty($cp['email'])) $entry['email'] = $cp['email'];
+                    if (!empty($cp['area'])) $entry['areaServed'] = $cp['area'];
+                    if (!empty($cp['language'])) $entry['availableLanguage'] = $cp['language'];
+                    $schema['contactPoint'][] = $entry;
+                }
+            }
+        }
+
+        // sameAs — perfis sociais da brand (one URL per line)
+        $social_raw = (string) get_option('adspirit_connector_schema_social', '');
+        if ($social_raw) {
+            $urls = array_filter(array_map('trim', preg_split('/\r?\n/', $social_raw)));
+            $urls = array_filter($urls, function($u) { return filter_var($u, FILTER_VALIDATE_URL); });
+            if (!empty($urls)) {
+                $schema['sameAs'] = array_values($urls);
+            }
+        }
+
+        // wp_json_encode não escapa </script> dentro de strings. Sem isso
+        // brand_name = "</script><script>evil()</script>" injetaria.
+        $json = wp_json_encode($schema, JSON_UNESCAPED_SLASHES);
+        $json = str_replace('</', '<\\/', $json);
+        echo "\n<script type=\"application/ld+json\">" . $json . "</script>\n";
     }
 
     // ==================== LOCAL DEDUP ====================
