@@ -52,6 +52,12 @@ class AdSpirit_Menu {
             'admin_enqueue_scripts',
             AdSpirit_Safe_Hook::action(array($this, 'enqueue_assets'), 'menu_assets')
         );
+        // Ícone do menu adaptativo (recolore como os dashicons) — CSS global,
+        // todas as páginas do admin (o menu está sempre visível).
+        add_action(
+            'admin_head',
+            AdSpirit_Safe_Hook::action(array($this, 'print_menu_icon_css'), 'menu_icon_css')
+        );
         add_action(
             'admin_post_adspirit_exit_safe_mode',
             AdSpirit_Safe_Hook::action(array($this, 'handle_exit_safe_mode'), 'exit_safe_mode')
@@ -83,23 +89,83 @@ class AdSpirit_Menu {
         return apply_filters('adspirit_connector_tabs', $tabs);
     }
 
-    public function register_menu() {
-        // Logo proprietária AdSpirit (mesmo SVG do favicon do CRM).
-        // WP recolore SVG conforme tema do menu (light/dark) usando fill
-        // 'black' — não trocar pelo accent direto aqui.
+    /**
+     * Agrupamento das tabs em temas (nível 1) com sub-tabs (nível 2).
+     * Features continuam registrando tabs flat via `adspirit_connector_tabs`;
+     * aqui só mapeamos slug → grupo. Tabs registradas que não estão em nenhum
+     * grupo caem num grupo "Mais" automático (nada some).
+     */
+    public static function tab_groups() {
+        return apply_filters('adspirit_connector_tab_groups', array(
+            'geral'       => array('label' => 'Geral',       'tabs' => array('overview', 'connection')),
+            'captura'     => array('label' => 'Captura',     'tabs' => array('forms', 'antispam', 'lgpd')),
+            'tracking'    => array('label' => 'Tracking',    'tabs' => array('capi-meta', 'ga4', 'cross-domain', 'behavioral', 'clarity')),
+            'integracoes' => array('label' => 'Integrações', 'tabs' => array('customerio', 'mailchimp', 'webhook-out', 'ab-tests')),
+            'sistema'     => array('label' => 'Sistema',     'tabs' => array('logs')),
+        ));
+    }
+
+    /**
+     * Monta os grupos só com as tabs que de fato existem (registradas),
+     * preservando ordem. Tabs órfãs (sem grupo) vão pra "Mais".
+     * Retorna [ group_key => ['label'=>..., 'tabs'=> [slug=>label]] ].
+     */
+    public static function grouped_tabs() {
+        $tabs = self::tabs();
+        $groups = self::tab_groups();
+        $out = array();
+        $seen = array();
+        foreach ($groups as $gkey => $g) {
+            $sub = array();
+            foreach ($g['tabs'] as $slug) {
+                if (isset($tabs[$slug])) { $sub[$slug] = $tabs[$slug]; $seen[$slug] = true; }
+            }
+            if ($sub) $out[$gkey] = array('label' => $g['label'], 'tabs' => $sub);
+        }
+        $orphans = array();
+        foreach ($tabs as $slug => $label) {
+            if (empty($seen[$slug])) $orphans[$slug] = $label;
+        }
+        if ($orphans) $out['mais'] = array('label' => 'Mais', 'tabs' => $orphans);
+        return $out;
+    }
+
+    /** Data-URI do SVG da marca (limpo), usado no ícone e na máscara CSS. */
+    private static function mark_data_uri() {
         $svg_path = ADSPIRIT_CONNECTOR_DIR . 'assets/adspirit-mark.svg';
         $svg = is_readable($svg_path) ? file_get_contents($svg_path) : '';
-        if ($svg) {
-            // Strip xml declaration pra data-uri funcionar limpo
-            $svg = preg_replace('/<\?xml[^>]+\?>\s*/i', '', $svg);
-            // Garante fill=black pra WP recolorir
-            $svg = preg_replace('/style="enable-background:[^"]*"/i', '', $svg);
-            $icon = 'data:image/svg+xml;base64,' . base64_encode($svg);
+        if (!$svg) {
+            $svg = '<svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="6"/></svg>';
         } else {
-            // Fallback minimalista se assets/ não carregou
-            $fallback = '<svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="6" fill="black"/></svg>';
-            $icon = 'data:image/svg+xml;base64,' . base64_encode($fallback);
+            $svg = preg_replace('/<\?xml[^>]+\?>\s*/i', '', $svg);
+            $svg = preg_replace('/style="enable-background:[^"]*"/i', '', $svg);
         }
+        return 'data:image/svg+xml;base64,' . base64_encode($svg);
+    }
+
+    /**
+     * CSS global do ícone do menu. WP NÃO recolore um SVG passado como
+     * data-URI (vira background-image e mantém o preto). Pra adaptar como os
+     * dashicons: desenha o ícone via mask + background-color:currentColor —
+     * currentColor herda a cor que o WP já aplica no `.wp-menu-image:before`
+     * (cinza padrão → branco no hover/ativo, por esquema de cor).
+     */
+    public function print_menu_icon_css() {
+        $mask = self::mark_data_uri();
+        $sel = '#toplevel_page_' . self::PAGE_SLUG . ' .wp-menu-image';
+        echo '<style id="adspirit-menu-icon">'
+            . $sel . '{background-image:none!important;}'
+            . $sel . '::before{content:"";display:block;width:20px;height:20px;margin:7px auto 0;'
+            . 'background-color:currentColor;'
+            . '-webkit-mask:url(\'' . $mask . '\') no-repeat center/20px 20px;'
+            . 'mask:url(\'' . $mask . '\') no-repeat center/20px 20px;}'
+            . '</style>';
+    }
+
+    public function register_menu() {
+        // Fallback: WP mostra esse base64 se o CSS do ícone não carregar.
+        // O visual real (adaptativo) vem de print_menu_icon_css().
+        $icon = self::mark_data_uri();
 
         add_menu_page(
             'AdSpirit Connector',
@@ -108,7 +174,7 @@ class AdSpirit_Menu {
             self::PAGE_SLUG,
             array($this, 'render_page'),
             $icon,
-            58 // posição: entre Comments(25) e Appearance(60)
+            3 // logo abaixo do Painel (Dashboard=2), acima de Posts(5)
         );
 
         // Submenus = um por tab pra deep linking
@@ -226,6 +292,52 @@ class AdSpirit_Menu {
   letter-spacing: -0.005em;
 }
 
+/* ---------- Header bar (título + ações no topo) ---------- */
+.adspirit-app .as-header-bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.adspirit-app .as-header-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding-top: 8px;
+}
+.adspirit-app .as-header-actions form { margin: 0; padding: 0; }
+
+/* ---------- Grupos de tabs (nível 1) — segmented pill ---------- */
+.adspirit-app .as-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  background: var(--as-bg-subtle);
+  border: 1px solid var(--as-line);
+  border-radius: 10px;
+  padding: 4px;
+  margin: 22px 0 16px;
+}
+.adspirit-app .as-groups a {
+  padding: 7px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--as-ink-soft);
+  text-decoration: none;
+  border-radius: 7px;
+  white-space: nowrap;
+  transition: background 0.12s, color 0.12s;
+}
+.adspirit-app .as-groups a:hover { color: var(--as-ink); }
+.adspirit-app .as-groups a:focus { outline: none; box-shadow: none; }
+.adspirit-app .as-groups a.active {
+  background: var(--as-bg);
+  color: var(--as-accent);
+  box-shadow: 0 1px 2px rgba(15,20,25,0.08);
+}
+
 /* ---------- Nav tabs (replace wp-admin nav-tab-wrapper) ---------- */
 .adspirit-app .as-tabs {
   display: flex;
@@ -234,6 +346,8 @@ class AdSpirit_Menu {
   margin: 18px 0 24px;
   flex-wrap: wrap;
 }
+/* sub-tabs (nível 2) — encostadas no grupo acima */
+.adspirit-app .as-subtabs { margin-top: 0; margin-bottom: 22px; }
 .adspirit-app .as-tabs a {
   padding: 10px 16px;
   font-size: 13px;
@@ -693,30 +807,67 @@ class AdSpirit_Menu {
         $current_tab = isset($_GET['tab']) ? sanitize_key((string) $_GET['tab']) : 'overview';
         if (!isset($tabs[$current_tab])) $current_tab = 'overview';
 
+        // Agrupamento (nível 1) + descoberta do grupo da tab atual.
+        $grouped = self::grouped_tabs();
+        $current_group = null;
+        foreach ($grouped as $gkey => $g) {
+            if (isset($g['tabs'][$current_tab])) { $current_group = $gkey; break; }
+        }
+        if ($current_group === null && $grouped) {
+            $current_group = array_key_first($grouped);
+        }
+
         ?>
         <div class="wrap adspirit-app">
             <header class="as-header">
-                <div class="as-kicker">Agência Digitals · Plataforma de operação</div>
-                <h1 class="as-title">
-                    <span class="wordmark">
-                        <span class="brand">AdSpirit<span class="reg">®</span></span>
-                        <span class="product">Connector</span>
-                    </span>
-                    <span class="as-version">v<?php echo esc_html(ADSPIRIT_CONNECTOR_VERSION); ?></span>
-                </h1>
+                <div class="as-header-bar">
+                    <div>
+                        <div class="as-kicker">Agência Digitals · Plataforma de operação</div>
+                        <h1 class="as-title">
+                            <span class="wordmark">
+                                <span class="brand">AdSpirit<span class="reg">®</span></span>
+                                <span class="product">Connector</span>
+                            </span>
+                            <span class="as-version">v<?php echo esc_html(ADSPIRIT_CONNECTOR_VERSION); ?></span>
+                        </h1>
+                    </div>
+                    <div class="as-header-actions">
+                        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                            <input type="hidden" name="action" value="adspirit_force_update_check">
+                            <?php wp_nonce_field('adspirit_force_update_check'); ?>
+                            <button type="submit" class="button" title="Limpa cache + checa o GitHub agora (não espera o ciclo de 6h)">Verificar atualizações</button>
+                        </form>
+                        <a href="<?php echo esc_url(admin_url('admin.php?page=' . self::PAGE_SLUG . '&tab=connection')); ?>" class="button">Conexão CRM</a>
+                    </div>
+                </div>
                 <p class="as-lede">Conecta o WordPress ao CRM AdSpirit em real-time. Tudo configurado pelo painel — sem editar código nem env do servidor.</p>
             </header>
 
             <?php settings_errors(); ?>
 
-            <nav class="as-tabs">
-                <?php foreach ($tabs as $slug => $label): ?>
+            <?php // Nível 1 — grupos de temas ?>
+            <nav class="as-groups">
+                <?php foreach ($grouped as $gkey => $g):
+                    $first_slug = array_key_first($g['tabs']); ?>
+                    <a href="<?php echo esc_url(admin_url('admin.php?page=' . self::PAGE_SLUG . '&tab=' . $first_slug)); ?>"
+                       class="<?php echo $current_group === $gkey ? 'active' : ''; ?>">
+                        <?php echo esc_html($g['label']); ?>
+                    </a>
+                <?php endforeach; ?>
+            </nav>
+
+            <?php // Nível 2 — sub-tabs do grupo atual (só se o grupo tem mais de 1) ?>
+            <?php $sub = isset($grouped[$current_group]['tabs']) ? $grouped[$current_group]['tabs'] : array(); ?>
+            <?php if (count($sub) > 1): ?>
+            <nav class="as-tabs as-subtabs">
+                <?php foreach ($sub as $slug => $label): ?>
                     <a href="<?php echo esc_url(admin_url('admin.php?page=' . self::PAGE_SLUG . '&tab=' . $slug)); ?>"
                        class="<?php echo $current_tab === $slug ? 'active' : ''; ?>">
                         <?php echo esc_html($label); ?>
                     </a>
                 <?php endforeach; ?>
             </nav>
+            <?php endif; ?>
 
             <?php
             // Safe Mode banner — sempre visível no topo se ativo
