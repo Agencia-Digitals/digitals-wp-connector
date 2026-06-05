@@ -35,6 +35,10 @@ class AdSpirit_Quickwins {
         add_action('admin_post_adspirit_send_test_event',
             AdSpirit_Safe_Hook::action(array($this, 'send_test_event'), 'qw_test_event'));
 
+        // 2b. Force update check (zera transient + dispara re-check WP)
+        add_action('admin_post_adspirit_force_update_check',
+            AdSpirit_Safe_Hook::action(array($this, 'force_update_check'), 'qw_force_check'));
+
         // 4. Email health cron
         add_action('init', AdSpirit_Safe_Hook::action(array($this, 'schedule_cron'), 'qw_schedule'));
         add_action(self::HEALTH_CRON_HOOK,
@@ -125,6 +129,30 @@ class AdSpirit_Quickwins {
             'zip' => $zip ?: ((string) ($data['zipball_url'] ?? '')),
             'body' => (string) ($data['body'] ?? ''),
         );
+    }
+
+    // ========== 1b. FORCE UPDATE CHECK ==========
+
+    /**
+     * Limpa o transient interno + transients WP de updates e dispara
+     * wp_update_plugins() pra forçar re-check imediato (sem esperar
+     * o ciclo de 6h). Redireciona pra tela de Atualizações.
+     */
+    public function force_update_check() {
+        if (!current_user_can(AdSpirit_Menu::CAPABILITY)) wp_die('forbidden', 403);
+        check_admin_referer('adspirit_force_update_check');
+
+        // Limpa o cache interno do plugin
+        delete_transient(self::UPDATE_TRANSIENT);
+        // Limpa o cache do WP (forçar re-check do pre_set_site_transient_update_plugins)
+        delete_site_transient('update_plugins');
+        // Dispara o re-check imediatamente
+        if (function_exists('wp_update_plugins')) {
+            wp_update_plugins();
+        }
+        // Redireciona pra tela de atualizações do WP
+        wp_safe_redirect(admin_url('update-core.php'));
+        exit;
     }
 
     // ========== 2. TEST EVENT ==========

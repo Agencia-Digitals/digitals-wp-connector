@@ -277,6 +277,11 @@ class AdSpirit_Status {
                 <?php wp_nonce_field('adspirit_send_test_event'); ?>
                 <button type="submit" class="button">Disparar lead de teste</button>
             </form>
+            <form method="get" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline;">
+                <input type="hidden" name="action" value="adspirit_force_update_check">
+                <?php wp_nonce_field('adspirit_force_update_check'); ?>
+                <button type="submit" class="button" title="Limpa cache + checa GitHub agora (não espera ciclo de 6h)">Verificar atualizações agora</button>
+            </form>
         </div>
         <pre class="as-test-result" id="adspirit-test-result" style="display:none; margin-top:12px;"></pre>
 
