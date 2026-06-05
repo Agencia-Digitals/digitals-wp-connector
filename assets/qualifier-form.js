@@ -6,6 +6,9 @@
 (function () {
   'use strict';
 
+  if (window.__adspiritQfInit) return;
+  window.__adspiritQfInit = true;
+
   var CFG = window.AdSpiritQualifierCfg || {};
   var STORAGE_KEY = 'adspirit_qf_v1';
 
@@ -359,7 +362,8 @@
   }
 
   function showError(msg, el) {
-    var errEl = document.getElementById('adspirit-qf-error');
+    var root = document.querySelector('.adspirit-qualifier-root:not([hidden])');
+    var errEl = root ? root.querySelector('#adspirit-qf-error') : null;
     if (errEl) {
       errEl.textContent = msg;
       errEl.classList.add('visible');
@@ -371,6 +375,7 @@
 
   // --- NAV ---
   function next() {
+    if (submitting) return;
     var root = document.querySelector('.adspirit-qualifier-root');
     var v = validateCurrent(root);
     if (!v.ok) { showError(v.msg, v.focus); return; }
@@ -396,6 +401,8 @@
 
   // --- SUBMIT ---
   function submitToServer() {
+    if (submitting) return;
+    submitting = true;
     var nextBtn = document.querySelector('[data-action="next"]');
     if (nextBtn) {
       nextBtn.setAttribute('disabled', 'disabled');
@@ -408,9 +415,21 @@
       formData.append('fields[' + k + ']', state.responses[k] || '');
     });
 
-    fetch(CFG.ajax_url, { method: 'POST', body: formData, credentials: 'same-origin' })
-      .then(function (r) { return r.json(); })
+    var controller = new AbortController();
+    window.__adspiritQfAbortController = controller;
+    var timeoutId = setTimeout(function () { controller.abort(); }, 15000);
+
+    fetch(CFG.ajax_url, { method: 'POST', body: formData, credentials: 'same-origin', signal: controller.signal })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        var ct = r.headers.get('content-type') || '';
+        if (ct.indexOf('application/json') === -1) throw new Error('not_json');
+        return r.json();
+      })
       .then(function (json) {
+        clearTimeout(timeoutId);
+        submitting = false;
+        if (window.__adspiritQfAbortController === controller) window.__adspiritQfAbortController = null;
         if (!json || !json.success) {
           showError((json && json.data && json.data.error) ? ('Erro: ' + json.data.error) : 'Erro ao enviar. Tente novamente.', null);
           if (nextBtn) {
@@ -426,6 +445,9 @@
         render();
       })
       .catch(function () {
+        clearTimeout(timeoutId);
+        submitting = false;
+        if (window.__adspiritQfAbortController === controller) window.__adspiritQfAbortController = null;
         showError('Falha de conexão. Tente novamente.', null);
         if (nextBtn) {
           nextBtn.removeAttribute('disabled');
@@ -436,11 +458,13 @@
 
   // --- COUNTDOWN ---
   var countdownTimer = null;
+  var submitting = false;
   function startCountdown(seconds, redirectUrl) {
     if (countdownTimer) clearInterval(countdownTimer);
     var remaining = seconds;
-    var num = document.getElementById('adspirit-qf-num');
-    var ring = document.getElementById('adspirit-qf-ring');
+    var root = document.querySelector('.adspirit-qualifier-root:not([hidden])');
+    var num = root ? root.querySelector('#adspirit-qf-num') : null;
+    var ring = root ? root.querySelector('#adspirit-qf-ring') : null;
     if (!num || !ring) return;
     var circ = 2 * Math.PI * 22;
     ring.style.strokeDasharray = circ;
@@ -474,6 +498,10 @@
     root.setAttribute('hidden', 'hidden');
     document.body.style.overflow = '';
     if (countdownTimer) clearInterval(countdownTimer);
+    if (window.__adspiritQfAbortController) {
+      try { window.__adspiritQfAbortController.abort(); } catch (e) {}
+      window.__adspiritQfAbortController = null;
+    }
   }
 
   // --- KEYBOARD ---
@@ -481,11 +509,15 @@
     var visible = document.querySelector('.adspirit-qualifier-root:not([hidden])');
     if (!visible) return;
     if (e.key === 'Escape') closePopup();
-    if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') { e.preventDefault(); next(); }
+    if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'BUTTON' && !e.isComposing) { e.preventDefault(); next(); }
   });
 
   // --- INIT ---
   function init() {
+    if (!CFG.ajax_url || !CFG.nonce) {
+      console.warn('[AdSpirit Qualifier] CFG ausente (ajax_url/nonce). Abortando init.');
+      return;
+    }
     // Trigger button (popup mode)
     document.querySelectorAll('.adspirit-qualifier-trigger').forEach(function (btn) {
       btn.addEventListener('click', openPopup);

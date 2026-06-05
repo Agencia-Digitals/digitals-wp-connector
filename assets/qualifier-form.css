@@ -26,7 +26,7 @@
 .adspirit-qf-overlay {
   position: fixed;
   inset: 0;
-  z-index: 99998;
+  z-index: 999998;
   background: rgba(6, 6, 6, 0.55);
   -webkit-backdrop-filter: blur(24px) saturate(120%);
   backdrop-filter: blur(24px) saturate(120%);
@@ -40,12 +40,14 @@
   position: fixed;
   top: 28px;
   right: 32px;
-  z-index: 100000;
+  z-index: 1000000;
   background: transparent;
   border: none;
   color: rgba(242, 242, 242, 0.72);
   cursor: pointer;
   padding: 8px;
+  min-width: 44px;
+  min-height: 44px;
   transition: color 160ms ease;
 }
 .adspirit-qf-close:hover { color: #F2F2F2; }
@@ -54,7 +56,7 @@
 .adspirit-qf-main {
   position: fixed;
   inset: 0;
-  z-index: 99999;
+  z-index: 999999;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -313,8 +315,29 @@ textarea.adspirit-qf-input { min-height: 130px; resize: vertical; line-height: 1
   letter-spacing: 0.14em;
 }
 
+.adspirit-qf-input:focus-visible,
+.adspirit-qf-choice:focus-visible,
+.adspirit-qf-btn:focus-visible,
+.adspirit-qf-close:focus-visible,
+.adspirit-qualifier-trigger:focus-visible {
+  outline: 2px solid #F2F2F2;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .adspirit-qf-overlay,
+  .adspirit-qf-step { animation: none !important; }
+  .adspirit-qf-input,
+  .adspirit-qf-choice,
+  .adspirit-qf-btn,
+  .adspirit-qf-error,
+  .adspirit-qf-close,
+  .adspirit-qf-countdown circle { transition: none !important; }
+}
+
 @media (max-width: 640px) {
   .adspirit-qf-main { padding: 32px 20px 64px; }
   .adspirit-qf-title { font-size: 26px; }
   .adspirit-qf-sub { font-size: 14px; }
+  .adspirit-qf-kbd-hint { display: none; }
 }

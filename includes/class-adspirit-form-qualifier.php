@@ -98,11 +98,25 @@ class AdSpirit_Form_Qualifier {
             return;
         }
 
-        // Rate limit simples por IP (5/min)
-        $ip = isset($_SERVER['REMOTE_ADDR']) ? (string) $_SERVER['REMOTE_ADDR'] : 'unknown';
+        // Rate limit por IP REAL (não REMOTE_ADDR puro — colapsa em proxy
+        // Cloudflare/EasyPanel). Lê CF-Connecting-IP > X-Forwarded-For
+        // (primeiro IP) > REMOTE_ADDR. Cap 30/min (não 5 — atrás de proxy
+        // o bucket era global). Adicionalmente, bucket por email pra
+        // bloquear flood com 1 email só.
+        $ip = '';
+        if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
+            $ip = trim((string) $_SERVER['HTTP_CF_CONNECTING_IP']);
+        } elseif (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+            $parts = explode(',', (string) $_SERVER['HTTP_X_FORWARDED_FOR']);
+            $ip = trim($parts[0]);
+        } elseif (!empty($_SERVER['REMOTE_ADDR'])) {
+            $ip = (string) $_SERVER['REMOTE_ADDR'];
+        } else {
+            $ip = 'unknown';
+        }
         $bucket = 'adspirit_qualifier_rl_' . md5($ip);
         $hits = (int) get_transient($bucket);
-        if ($hits >= 5) {
+        if ($hits >= 30) {
             wp_send_json_error(array('error' => 'rate_limit'), 429);
             return;
         }
@@ -135,10 +149,12 @@ class AdSpirit_Form_Qualifier {
             'cf7_url' => isset($_SERVER['HTTP_REFERER']) ? esc_url_raw($_SERVER['HTTP_REFERER']) : home_url('/'),
         );
 
-        // Telemetria (opcional — se Telemetry class estiver ativa)
+        // Telemetria — signature real: collect_from_post($form_kind, $form_id, $referrer_url).
+        // Coleta UTMs, gclid, fbclid e visitor journey via static call.
         if (class_exists('AdSpirit_Telemetry') && method_exists('AdSpirit_Telemetry', 'collect_from_post')) {
             try {
-                $telemetry = AdSpirit_Telemetry::instance()->collect_from_post($_POST);
+                $referrer = isset($_SERVER['HTTP_REFERER']) ? esc_url_raw($_SERVER['HTTP_REFERER']) : home_url('/');
+                $telemetry = AdSpirit_Telemetry::collect_from_post('qualifier', 'adspirit_form_qualifier', $referrer);
                 if (is_array($telemetry)) {
                     $payload['_adspirit_telemetry'] = $telemetry;
                 }
