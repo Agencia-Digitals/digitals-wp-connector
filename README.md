@@ -47,6 +47,7 @@ Zero copy/paste de tokens. Mesma simplicidade de "conectar GitHub" no Vercel.
 - `[adspirit_form_qualifier]` — botão CTA → form em **tela cheia** (overlay). Padrão.
 - `[adspirit_form_qualifier mode="inline"]` — tela cheia, abre direto no load (sem botão).
 - `[adspirit_form_qualifier mode="embed"]` — **contido na seção** (card dark, sem overlay). Pra encaixar numa landing com hero + seção.
+- `[adspirit_form_qualifier mode="trigger"]` — só o form (sem botão). Use **seu próprio botão** (estilizado no builder) pra abrir, marcando-o com qualquer um: classe `adspirit-qualifier-trigger`, atributo `data-adspirit-qualifier`, ou link `href="#adspirit-avaliacao"`. Coloque o `mode="trigger"` uma vez na página.
 
 **Telemetria (30+ campos)** — server + client side. Browser parse (Chrome/Safari/Firefox + Windows/macOS/iOS/Android), IP, locale, timezone, behavior (tempo na página + no form + fields visitados), WP context (post_id, post_type), cookies de atribuição (_fbp, _fbc, _ga, _gid). Linka com pixel via cookie `adspirit_vid` — CRM herda toda a jornada multi-touch.
 

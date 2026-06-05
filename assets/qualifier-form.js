@@ -631,9 +631,19 @@
       console.warn('[AdSpirit Qualifier] CFG ausente (ajax_url/nonce). Abortando init.');
       return;
     }
-    // Trigger button (popup mode)
-    document.querySelectorAll('.adspirit-qualifier-trigger').forEach(function (btn) {
-      btn.addEventListener('click', openPopup);
+    // Trigger via delegação no document — cobre o botão do plugin E botões
+    // próprios criados no page-builder (mesmo adicionados depois do load).
+    // Abre o form quem tiver: .adspirit-qualifier-trigger, [data-adspirit-qualifier],
+    // ou link href="#adspirit-avaliacao".
+    document.addEventListener('click', function (e) {
+      var el = e.target;
+      if (el && el.nodeType === 3) el = el.parentElement; // text node → elemento
+      var trigger = el && el.closest
+        ? el.closest('.adspirit-qualifier-trigger, [data-adspirit-qualifier], a[href$="#adspirit-avaliacao"]')
+        : null;
+      if (!trigger) return;
+      e.preventDefault();
+      openPopup();
     });
     // Inline (full-screen) e embed (contido) renderizam direto no load.
     var auto = document.querySelector('.adspirit-qualifier-root[data-mode="inline"], .adspirit-qualifier-root[data-mode="embed"]');

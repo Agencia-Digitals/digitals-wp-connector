@@ -42,17 +42,22 @@ class AdSpirit_Form_Qualifier {
 
     /**
      * Render shortcode.
-     *   atts: mode="popup"|"inline"|"embed" (default popup), button_label="..."
-     *     - popup:  botão CTA → form em tela cheia (overlay)
-     *     - inline: form em tela cheia, abre direto no load (sem botão)
-     *     - embed:  form contido na seção (card dark, sem overlay full-screen)
+     *   atts: mode="popup"|"inline"|"embed"|"trigger" (default popup), button_label="..."
+     *     - popup:   botão CTA → form em tela cheia (overlay)
+     *     - inline:  form em tela cheia, abre direto no load (sem botão)
+     *     - embed:   form contido na seção (card dark, sem overlay full-screen)
+     *     - trigger: só o popup (sem botão) → você usa SEU botão pra abrir.
+     *                Qualquer elemento abre o form se tiver:
+     *                  • class "adspirit-qualifier-trigger", OU
+     *                  • atributo data-adspirit-qualifier, OU
+     *                  • link href="#adspirit-avaliacao"
      */
     public function render_shortcode($atts) {
         $atts = shortcode_atts(array(
             'mode' => 'popup',
             'button_label' => 'Iniciar avaliação',
         ), $atts, 'adspirit_form_qualifier');
-        $mode = in_array($atts['mode'], array('inline', 'embed'), true) ? $atts['mode'] : 'popup';
+        $mode = in_array($atts['mode'], array('inline', 'embed', 'trigger'), true) ? $atts['mode'] : 'popup';
 
         // Enqueue assets só quando shortcode é renderizado
         $version = defined('ADSPIRIT_CONNECTOR_VERSION') ? ADSPIRIT_CONNECTOR_VERSION : '2.3.0';
@@ -88,6 +93,12 @@ class AdSpirit_Form_Qualifier {
             'button_label' => esc_html($atts['button_label']),
         ));
 
+        // Trigger: SÓ o popup (sem botão). Use seu PRÓPRIO botão pra abrir —
+        // qualquer elemento com data-adspirit-qualifier, class adspirit-qualifier-trigger,
+        // ou link href="#adspirit-avaliacao" dispara o form.
+        if ($mode === 'trigger') {
+            return '<div class="adspirit-qualifier-root" data-mode="popup" hidden></div>';
+        }
         // Embed: card contido na seção (sem overlay). Inline: tela cheia no load.
         if ($mode === 'embed' || $mode === 'inline') {
             return '<div class="adspirit-qualifier-root" data-mode="' . esc_attr($mode) . '"></div>';
