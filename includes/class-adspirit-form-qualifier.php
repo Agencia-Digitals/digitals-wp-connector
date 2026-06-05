@@ -38,6 +38,87 @@ class AdSpirit_Form_Qualifier {
             AdSpirit_Safe_Hook::action(array($this, 'handle_submit'), 'qualifier_submit'));
         add_action('wp_ajax_nopriv_adspirit_qualifier_submit',
             AdSpirit_Safe_Hook::action(array($this, 'handle_submit'), 'qualifier_submit'));
+
+        // Aba de ajuda no admin: qual shortcode usar + classe do botão.
+        add_filter('adspirit_connector_tabs',
+            AdSpirit_Safe_Hook::filter(array($this, 'register_tab'), 'qualifier_tab_register'));
+        add_action('adspirit_connector_render_tab_qualifier',
+            AdSpirit_Safe_Hook::action(array($this, 'render_tab'), 'qualifier_tab'));
+    }
+
+    public function register_tab($tabs) {
+        $tabs['qualifier'] = 'Form de avaliação';
+        return $tabs;
+    }
+
+    /** Guia visual: qual shortcode escolher + como abrir via botão próprio. */
+    public function render_tab() {
+        $modes = array(
+            array('Botão "Iniciar avaliação"', 'Mostra um botão; ao clicar, abre o form em TELA CHEIA. Bom pra CTA em hero/seção escura.', '[adspirit_form_qualifier]'),
+            array('Contido na seção', 'O form aparece DENTRO da seção (card escuro, sem cobrir a tela). Pra encaixar numa landing com hero + seção.', '[adspirit_form_qualifier mode="embed"]'),
+            array('Abre sozinho (tela cheia)', 'O form abre em tela cheia assim que a página carrega, sem botão. Pra página dedicada só do form.', '[adspirit_form_qualifier mode="inline"]'),
+            array('Com o SEU botão', 'Não renderiza botão — você usa um botão próprio (estilizado no builder) pra abrir. Coloque este shortcode uma vez na página.', '[adspirit_form_qualifier mode="trigger"]'),
+        );
+        ?>
+        <h2 class="as-section"><span class="as-kicker-inline">Form</span>Form de avaliação (qualifier)</h2>
+        <p class="as-section-help">O form de avaliação com o design da agência (preto + glassmorphism, multi-step BANT). <strong>Não confunda</strong> com <code>[adspirit_form]</code> (form branco genérico antigo). Veja na PÁGINA publicada — no editor do builder ele aparece vazio (é montado por JavaScript).</p>
+
+        <?php AdSpirit_Menu::card_open('Qual shortcode usar', 'Escolha conforme onde o form vai aparecer'); ?>
+        <table class="as-table" style="width:100%;">
+            <thead><tr><th style="width:200px;">Quero…</th><th>O que faz</th><th style="width:340px;">Shortcode (copie)</th></tr></thead>
+            <tbody>
+            <?php foreach ($modes as $m): ?>
+                <tr>
+                    <td><strong><?php echo esc_html($m[0]); ?></strong></td>
+                    <td><?php echo esc_html($m[1]); ?></td>
+                    <td>
+                        <div style="display:flex; gap:6px; align-items:center;">
+                            <input type="text" readonly value="<?php echo esc_attr($m[2]); ?>" class="regular-text code" style="flex:1; font-size:12px;" onclick="this.select();">
+                            <button type="button" class="button as-copy" data-copy="<?php echo esc_attr($m[2]); ?>">Copiar</button>
+                        </div>
+                    </td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+        <?php AdSpirit_Menu::card_close(); ?>
+
+        <?php AdSpirit_Menu::card_open('Usar o seu próprio botão', 'Com o shortcode mode="trigger" na página, marque QUALQUER botão pra abrir o form'); ?>
+        <p class="as-section-help">Coloque <code>[adspirit_form_qualifier mode="trigger"]</code> uma vez na página (em qualquer lugar) e então marque o seu botão de UMA destas formas:</p>
+        <table class="form-table">
+            <tr>
+                <th>Link do botão</th>
+                <td><code>#adspirit-avaliacao</code><p class="description">O jeito mais fácil no builder: aponte o link do botão pra <code>#adspirit-avaliacao</code>.</p></td>
+            </tr>
+            <tr>
+                <th>Atributo HTML</th>
+                <td><code>data-adspirit-qualifier</code><p class="description">Adicione esse atributo (custom attribute) ao botão/elemento.</p></td>
+            </tr>
+            <tr>
+                <th>Classe CSS</th>
+                <td><code>adspirit-qualifier-trigger</code><p class="description">Funciona, mas essa classe carrega o estilo do plugin — prefira as duas de cima pra manter o SEU design.</p></td>
+            </tr>
+        </table>
+        <?php AdSpirit_Menu::card_close(); ?>
+
+        <script>
+        (function(){
+            document.querySelectorAll('.as-copy').forEach(function(btn){
+                btn.addEventListener('click', function(){
+                    var txt = btn.getAttribute('data-copy') || '';
+                    var done = function(){ var o = btn.textContent; btn.textContent = 'Copiado!'; setTimeout(function(){ btn.textContent = o; }, 1400); };
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(txt).then(done).catch(done);
+                    } else {
+                        var t = document.createElement('textarea'); t.value = txt; document.body.appendChild(t); t.select();
+                        try { document.execCommand('copy'); } catch(e){}
+                        document.body.removeChild(t); done();
+                    }
+                });
+            });
+        })();
+        </script>
+        <?php
     }
 
     /**

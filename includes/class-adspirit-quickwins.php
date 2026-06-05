@@ -47,6 +47,12 @@ class AdSpirit_Quickwins {
 
     // ========== 1. AUTO-UPDATE via GitHub Releases ==========
 
+    /** Logo do plugin pra tela de Plugins / Atualizações / modal de detalhes. */
+    private function icon_urls() {
+        $svg = ADSPIRIT_CONNECTOR_URL . 'assets/adspirit-mark.svg';
+        return array('svg' => $svg, '1x' => $svg, '2x' => $svg, 'default' => $svg);
+    }
+
     public function check_for_update($transient) {
         if (empty($transient->checked)) return $transient;
 
@@ -69,7 +75,7 @@ class AdSpirit_Quickwins {
                 'package' => $cached['zip'],
                 'tested' => '6.7',
                 'requires_php' => '7.4',
-                'icons' => array(),
+                'icons' => $this->icon_urls(),
             );
         }
         return $transient;
@@ -96,6 +102,7 @@ class AdSpirit_Quickwins {
                 'description' => 'Plugin oficial da Agência Digitals.',
                 'changelog' => $cached['body'] ?? '',
             ),
+            'icons' => $this->icon_urls(),
             'download_link' => $cached['zip'],
         );
     }

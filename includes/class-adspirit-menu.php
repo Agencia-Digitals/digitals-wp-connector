@@ -98,7 +98,7 @@ class AdSpirit_Menu {
     public static function tab_groups() {
         return apply_filters('adspirit_connector_tab_groups', array(
             'geral'       => array('label' => 'Geral',       'tabs' => array('overview', 'connection')),
-            'captura'     => array('label' => 'Captura',     'tabs' => array('forms', 'antispam', 'lgpd')),
+            'captura'     => array('label' => 'Captura',     'tabs' => array('qualifier', 'forms', 'antispam', 'lgpd')),
             'tracking'    => array('label' => 'Tracking',    'tabs' => array('capi-meta', 'ga4', 'cross-domain', 'behavioral', 'clarity')),
             'integracoes' => array('label' => 'Integrações', 'tabs' => array('customerio', 'mailchimp', 'webhook-out', 'ab-tests')),
             'sistema'     => array('label' => 'Sistema',     'tabs' => array('logs')),
