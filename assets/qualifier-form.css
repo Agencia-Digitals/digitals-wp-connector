@@ -2,6 +2,84 @@
  * Portado do mockup (~/Downloads/AdSpirit/form-bant-mockup.html).
  * Namespace .adspirit-qf- pra não vazar pro tema. */
 
+/* ═══════════════════════════════════════════════════════════════════════
+   RESET + HARDENING — blinda o form contra o CSS do tema/page-builder do site.
+   Sem isto o render fica "totalmente diferente" do mockup (fontes do tema +
+   inputs/botões/margens do tema vazando pra dentro dos elementos do form).
+   !important só onde temas costumam clobberar (fonte, aparência nativa de
+   controle, borda/fundo/raio). Props responsivas (padding) ficam livres.
+   ═══════════════════════════════════════════════════════════════════════ */
+.adspirit-qualifier-root, .adspirit-qualifier-root *,
+.adspirit-qualifier-root *::before, .adspirit-qualifier-root *::after {
+  box-sizing: border-box;
+}
+/* zera heranças do tema (universal → especificidade baixa; as classes
+   .adspirit-qf-* reaplicam o que precisa, por ordem de fonte) */
+.adspirit-qf-overlay, .adspirit-qf-main, .adspirit-qf-main *,
+.adspirit-qf-close, .adspirit-qf-close * {
+  margin: 0;
+  padding: 0;
+  text-align: left;
+  text-shadow: none;
+  text-transform: none;
+  letter-spacing: normal;
+  line-height: 1.5;
+  float: none;
+  max-width: none;
+  min-width: 0;
+}
+/* fonte forçada — tema costuma setar font-family em h1/p/input */
+.adspirit-qualifier-root, .adspirit-qf-main, .adspirit-qf-main * {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+}
+.adspirit-qf-main button, .adspirit-qualifier-trigger {
+  font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, sans-serif !important;
+}
+/* mata a aparência nativa de input/textarea/button + estilos de controle do tema */
+.adspirit-qualifier-root input, .adspirit-qualifier-root textarea,
+.adspirit-qualifier-root button, .adspirit-qualifier-trigger {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+.adspirit-qf-main a { text-decoration: none !important; box-shadow: none; }
+/* reafirma o chrome (props constantes, não-responsivas) — especificidade alta
+   pra ganhar de regras do tema tipo `.tema input` / `.builder .btn` */
+.adspirit-qf-main .adspirit-qf-input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.035) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 10px !important;
+  color: #F2F2F2 !important;
+}
+.adspirit-qf-main .adspirit-qf-input:focus {
+  border-color: rgba(255, 255, 255, 0.30) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+.adspirit-qf-main .adspirit-qf-btn,
+.adspirit-qualifier-trigger {
+  background-color: rgba(255, 255, 255, 0.15) !important;
+  border: 0 !important;
+  border-radius: 4px !important;
+  color: #ffffff !important;
+}
+.adspirit-qf-main .adspirit-qf-btn-back {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+.adspirit-qf-main .adspirit-qf-choice {
+  background: rgba(255, 255, 255, 0.035) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 10px !important;
+  color: #F2F2F2 !important;
+}
+.adspirit-qf-main .adspirit-qf-choice.selected {
+  border-color: rgba(255, 255, 255, 0.30) !important;
+  background: rgba(255, 255, 255, 0.10) !important;
+}
+/* ═══════════════════ fim reset/hardening ═══════════════════ */
+
 .adspirit-qualifier-trigger {
   display: inline-flex;
   align-items: center;
@@ -27,7 +105,10 @@
   position: fixed;
   inset: 0;
   z-index: 999998;
-  background: rgba(6, 6, 6, 0.55);
+  /* Mais opaco que o mockup (0.55) DE PROPÓSITO: no site real o fundo pode ser
+     claro; 0.82 garante um backdrop quase-preto consistente, igual à percepção
+     do mockup (que tinha 0.55 sobre um body #060606). */
+  background: rgba(6, 6, 6, 0.82);
   -webkit-backdrop-filter: blur(24px) saturate(120%);
   backdrop-filter: blur(24px) saturate(120%);
   animation: adspirit-qf-fade 320ms ease;

@@ -52,10 +52,18 @@ class AdSpirit_Form_Qualifier {
 
         // Enqueue assets só quando shortcode é renderizado
         $version = defined('ADSPIRIT_CONNECTOR_VERSION') ? ADSPIRIT_CONNECTOR_VERSION : '2.3.0';
+        // Fontes do mockup (Inter + Open Sans). SEM elas o tema cai pra fonte
+        // dele e o form fica "totalmente diferente". Carregadas como dep do CSS.
+        wp_enqueue_style(
+            'adspirit-qualifier-fonts',
+            'https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500&family=Open+Sans:wght@400;500;600;700&display=swap',
+            array(),
+            null
+        );
         wp_enqueue_style(
             'adspirit-qualifier-form',
             ADSPIRIT_CONNECTOR_URL . 'assets/qualifier-form.css',
-            array(),
+            array('adspirit-qualifier-fonts'),
             $version
         );
         wp_enqueue_script(
