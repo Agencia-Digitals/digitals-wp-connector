@@ -142,11 +142,26 @@ class AdSpirit_Form_Qualifier {
             array('Abre sozinho (tela cheia)', 'O form abre em tela cheia assim que a página carrega, sem botão. Pra página dedicada só do form.', '[adspirit_form_qualifier mode="inline"]'),
             array('Com o SEU botão', 'Não renderiza botão — você usa um botão próprio (estilizado no builder) pra abrir. Coloque este shortcode uma vez na página.', '[adspirit_form_qualifier mode="trigger"]'),
         );
+        $qs = self::get_settings();
         ?>
         <h2 class="as-section"><span class="as-kicker-inline">Form</span>Form de avaliação (qualifier)</h2>
         <p class="as-section-help">O form de avaliação com o design da agência (preto + glassmorphism, multi-step BANT). <strong>Não confunda</strong> com <code>[adspirit_form]</code> (form branco genérico antigo). Veja na PÁGINA publicada — no editor do builder ele aparece vazio (é montado por JavaScript).</p>
 
-        <?php AdSpirit_Menu::card_open('Qual shortcode usar', 'Escolha conforme onde o form vai aparecer'); ?>
+        <?php AdSpirit_Menu::card_open('Disponibilizar no site todo', 'Sem precisar do shortcode em cada página', ($qs['sitewide'] ?? '0') === '1' ? '<span class="as-badge ok">Ligado</span>' : '<span class="as-badge muted">Desligado</span>'); ?>
+        <?php AdSpirit_Menu::form_open('qualifier'); ?>
+        <table class="form-table">
+            <tr>
+                <th>Site todo</th>
+                <td>
+                    <label><input type="checkbox" name="sitewide" value="1" <?php checked($qs['sitewide'] ?? '0', '1'); ?>> <strong>Carregar o form em todas as páginas</strong> (escondido até clicarem)</label>
+                    <p class="description">Ligado, você <strong>não precisa de shortcode em página nenhuma</strong> — é só criar um botão e apontar o link dele pra <code>#adspirit-avaliacao</code> (veja o card abaixo). Custo: o CSS/JS do form carrega em todo o site.</p>
+                </td>
+            </tr>
+        </table>
+        <?php AdSpirit_Menu::form_close('Salvar'); ?>
+        <?php AdSpirit_Menu::card_close(); ?>
+
+        <?php AdSpirit_Menu::card_open('Qual shortcode usar', 'Se NÃO ligar o "site todo", escolha conforme onde o form vai aparecer'); ?>
         <table class="as-table" style="width:100%;">
             <thead><tr><th style="width:200px;">Quero…</th><th>O que faz</th><th style="width:340px;">Shortcode (copie)</th></tr></thead>
             <tbody>
@@ -166,22 +181,25 @@ class AdSpirit_Form_Qualifier {
         </table>
         <?php AdSpirit_Menu::card_close(); ?>
 
-        <?php AdSpirit_Menu::card_open('Usar o seu próprio botão', 'Com o shortcode mode="trigger" na página, marque QUALQUER botão pra abrir o form'); ?>
-        <p class="as-section-help">Coloque <code>[adspirit_form_qualifier mode="trigger"]</code> uma vez na página (em qualquer lugar) e então marque o seu botão de UMA destas formas:</p>
-        <table class="form-table">
-            <tr>
-                <th>Link do botão</th>
-                <td><code>#adspirit-avaliacao</code><p class="description">O jeito mais fácil no builder: aponte o link do botão pra <code>#adspirit-avaliacao</code>.</p></td>
-            </tr>
-            <tr>
-                <th>Atributo HTML</th>
-                <td><code>data-adspirit-qualifier</code><p class="description">Adicione esse atributo (custom attribute) ao botão/elemento.</p></td>
-            </tr>
-            <tr>
-                <th>Classe CSS</th>
-                <td><code>adspirit-qualifier-trigger</code><p class="description">Funciona, mas essa classe carrega o estilo do plugin — prefira as duas de cima pra manter o SEU design.</p></td>
-            </tr>
-        </table>
+        <?php AdSpirit_Menu::card_open('Abrir com o seu próprio botão', 'Botão estilizado no seu builder, sem o botão do plugin — em 2 passos'); ?>
+        <div style="display:grid; gap:18px;">
+            <div>
+                <p style="margin:0 0 8px; font-weight:600; color:var(--as-ink);">1. Deixe o form disponível na página <span style="font-weight:400; color:var(--as-ink-faint);">(escolha um)</span></p>
+                <ul style="margin:0; padding-left:18px; line-height:1.85; color:var(--as-ink-soft);">
+                    <li>Ligue <strong>"Site todo"</strong> no card acima — recomendado, vale pra todas as páginas, ou</li>
+                    <li>Cole <code>[adspirit_form_qualifier mode="trigger"]</code> uma vez na página onde o botão fica (não aparece nada, só carrega o form).</li>
+                </ul>
+            </div>
+            <div>
+                <p style="margin:0 0 8px; font-weight:600; color:var(--as-ink);">2. Aponte o seu botão pro form</p>
+                <p style="margin:0 0 8px; color:var(--as-ink-soft);">No campo <strong>Link / URL</strong> do botão (no builder), use:</p>
+                <div style="display:flex; gap:6px; align-items:center; max-width:320px;">
+                    <input type="text" readonly value="#adspirit-avaliacao" class="regular-text code" style="flex:1; font-size:12px;" onclick="this.select();">
+                    <button type="button" class="button as-copy" data-copy="#adspirit-avaliacao">Copiar</button>
+                </div>
+                <p class="description" style="margin-top:10px;"><strong>Sem campo de link no botão?</strong> Adicione a ele o atributo <code>data-adspirit-qualifier</code>, ou a classe <code>adspirit-qualifier-trigger</code> (essa herda o estilo do plugin — prefira o link ou o atributo pra manter o seu design).</p>
+            </div>
+        </div>
         <?php AdSpirit_Menu::card_close(); ?>
 
         <script>
