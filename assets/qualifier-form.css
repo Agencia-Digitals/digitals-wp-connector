@@ -1,0 +1,320 @@
+/* AdSpirit Qualifier Form — popup dark com glassmorphism.
+ * Portado do mockup (~/Downloads/AdSpirit/form-bant-mockup.html).
+ * Namespace .adspirit-qf- pra não vazar pro tema. */
+
+.adspirit-qualifier-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 35px;
+  border-radius: 4px;
+  font-family: "Open Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.85rem;
+  font-weight: 400;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  background-color: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  border: none;
+  cursor: pointer;
+  transition-duration: 0.4s;
+}
+.adspirit-qualifier-trigger:hover {
+  background-color: rgba(255, 255, 255, 0.28);
+}
+
+.adspirit-qf-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99998;
+  background: rgba(6, 6, 6, 0.55);
+  -webkit-backdrop-filter: blur(24px) saturate(120%);
+  backdrop-filter: blur(24px) saturate(120%);
+  animation: adspirit-qf-fade 320ms ease;
+}
+@keyframes adspirit-qf-fade {
+  from { background: rgba(6,6,6,0); -webkit-backdrop-filter: blur(0px); backdrop-filter: blur(0px); }
+}
+
+.adspirit-qf-close {
+  position: fixed;
+  top: 28px;
+  right: 32px;
+  z-index: 100000;
+  background: transparent;
+  border: none;
+  color: rgba(242, 242, 242, 0.72);
+  cursor: pointer;
+  padding: 8px;
+  transition: color 160ms ease;
+}
+.adspirit-qf-close:hover { color: #F2F2F2; }
+.adspirit-qf-close svg { width: 22px; height: 22px; }
+
+.adspirit-qf-main {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 24px 80px;
+  overflow-y: auto;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: 300;
+  color: #F2F2F2;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.adspirit-qf-step {
+  width: 100%;
+  max-width: 640px;
+  animation: adspirit-qf-slide 380ms ease;
+}
+@keyframes adspirit-qf-slide {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.adspirit-qf-eyebrow {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.26em;
+  color: rgba(242, 242, 242, 0.48);
+  margin-bottom: 28px;
+  font-weight: 400;
+}
+
+.adspirit-qf-title {
+  font-size: clamp(1.875rem, 1.375rem + 1.75vw, 2.625rem);
+  line-height: 1.15;
+  font-weight: 300;
+  letter-spacing: -0.015em;
+  color: #F2F2F2;
+  margin: 0 0 16px;
+}
+
+.adspirit-qf-sub {
+  font-size: 16px;
+  line-height: 1.6;
+  font-weight: 300;
+  color: rgba(242, 242, 242, 0.72);
+  margin: 0 0 40px;
+  max-width: 540px;
+}
+
+.adspirit-qf-input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.035);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #F2F2F2;
+  padding: 18px 20px;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 300;
+  transition: border-color 200ms ease, background 200ms ease;
+}
+.adspirit-qf-input:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.30);
+  background: rgba(255, 255, 255, 0.06);
+}
+.adspirit-qf-input::placeholder { color: rgba(242, 242, 242, 0.32); }
+textarea.adspirit-qf-input { min-height: 130px; resize: vertical; line-height: 1.55; }
+
+.adspirit-qf-inputs-group { display: grid; gap: 14px; }
+
+.adspirit-qf-choices { display: grid; gap: 10px; }
+.adspirit-qf-choice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px 22px;
+  background: rgba(255, 255, 255, 0.035);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 200ms ease;
+  user-select: none;
+  color: #F2F2F2;
+}
+.adspirit-qf-choice:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+}
+.adspirit-qf-choice.selected {
+  border-color: rgba(255, 255, 255, 0.30);
+  background: rgba(255, 255, 255, 0.10);
+}
+.adspirit-qf-choice-content { flex: 1; min-width: 0; }
+.adspirit-qf-choice-label { font-size: 15px; font-weight: 400; line-height: 1.4; }
+.adspirit-qf-choice-meta {
+  font-size: 12px;
+  color: rgba(242, 242, 242, 0.48);
+  margin-top: 4px;
+  line-height: 1.4;
+  font-weight: 300;
+}
+.adspirit-qf-choice-kbd {
+  font-size: 11px;
+  color: rgba(242, 242, 242, 0.48);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-weight: 400;
+  flex-shrink: 0;
+  letter-spacing: 0.06em;
+}
+.adspirit-qf-choice.selected .adspirit-qf-choice-kbd {
+  color: #F2F2F2;
+  border-color: rgba(255, 255, 255, 0.30);
+}
+
+.adspirit-qf-nav {
+  margin-top: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.adspirit-qf-nav-actions { display: flex; align-items: center; gap: 12px; }
+
+.adspirit-qf-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 35px;
+  border-radius: 4px;
+  font-family: "Open Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.85rem;
+  font-weight: 400;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition-duration: 0.4s;
+  background-color: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  border: none;
+  line-height: 1.6;
+}
+.adspirit-qf-btn:hover { background-color: rgba(255, 255, 255, 0.28); }
+.adspirit-qf-btn[disabled] { opacity: 0.3; cursor: not-allowed; }
+.adspirit-qf-btn[disabled]:hover { background-color: rgba(255, 255, 255, 0.06); }
+.adspirit-qf-btn-back {
+  background-color: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.7);
+}
+.adspirit-qf-btn-back:hover { background-color: rgba(255, 255, 255, 0.12); color: #fff; }
+.adspirit-qf-btn svg { width: 14px; height: 14px; opacity: 0.8; }
+
+.adspirit-qf-kbd-hint {
+  font-size: 11px;
+  color: rgba(242, 242, 242, 0.32);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+.adspirit-qf-kbd {
+  display: inline-block;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  padding: 1px 6px;
+  font-size: 10px;
+  color: rgba(242, 242, 242, 0.48);
+  margin: 0 2px;
+}
+
+.adspirit-qf-error {
+  margin-top: 14px;
+  font-size: 13px;
+  color: #E89D6B;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 220ms ease, transform 220ms ease;
+  min-height: 1.2em;
+}
+.adspirit-qf-error.visible { opacity: 1; transform: translateY(0); }
+.adspirit-qf-error::before {
+  content: '!';
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: 1px solid #E89D6B;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 500;
+  margin-right: 8px;
+  vertical-align: -2px;
+}
+
+.adspirit-qf-success-icon {
+  width: 56px;
+  height: 56px;
+  margin-bottom: 32px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.30);
+  background: rgba(255, 255, 255, 0.035);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.adspirit-qf-redirect-block {
+  margin-top: 32px;
+  padding: 22px 24px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.adspirit-qf-countdown {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.30);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 300;
+  color: #F2F2F2;
+  flex-shrink: 0;
+  position: relative;
+}
+.adspirit-qf-countdown svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+.adspirit-qf-countdown circle {
+  fill: none;
+  stroke: #F2F2F2;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1000ms linear;
+}
+.adspirit-qf-redirect-label {
+  font-size: 11px;
+  color: rgba(242, 242, 242, 0.48);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+@media (max-width: 640px) {
+  .adspirit-qf-main { padding: 32px 20px 64px; }
+  .adspirit-qf-title { font-size: 26px; }
+  .adspirit-qf-sub { font-size: 14px; }
+}
