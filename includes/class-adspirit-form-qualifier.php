@@ -22,6 +22,8 @@
 if (!defined('ABSPATH')) exit;
 
 class AdSpirit_Form_Qualifier {
+    const OPTION_KEY = 'adspirit_qualifier';
+
     private static $instance = null;
 
     public static function instance() {
@@ -44,6 +46,87 @@ class AdSpirit_Form_Qualifier {
             AdSpirit_Safe_Hook::filter(array($this, 'register_tab'), 'qualifier_tab_register'));
         add_action('adspirit_connector_render_tab_qualifier',
             AdSpirit_Safe_Hook::action(array($this, 'render_tab'), 'qualifier_tab'));
+        add_action('adspirit_connector_save_qualifier',
+            AdSpirit_Safe_Hook::action(array($this, 'handle_save'), 'qualifier_save'));
+
+        // Modo "site todo": injeta o form (trigger) no rodapé de TODAS as páginas
+        // do front, sem precisar do shortcode em cada página. Qualquer botão com
+        // #adspirit-avaliacao / data-adspirit-qualifier / .adspirit-qualifier-trigger abre.
+        add_action('wp_enqueue_scripts',
+            AdSpirit_Safe_Hook::action(array($this, 'maybe_enqueue_sitewide'), 'qualifier_sitewide_enqueue'));
+        add_action('wp_footer',
+            AdSpirit_Safe_Hook::action(array($this, 'maybe_inject_sitewide_root'), 'qualifier_sitewide_root'));
+    }
+
+    public static function defaults() {
+        return array('sitewide' => '0');
+    }
+
+    public static function get_settings() {
+        return wp_parse_args(get_option(self::OPTION_KEY, array()), self::defaults());
+    }
+
+    /** Enqueue do CSS/JS/fonte + config. Idempotente (WP dedupa por handle). */
+    public static function enqueue_assets($mode = 'popup', $button_label = 'Iniciar avaliação') {
+        $version = defined('ADSPIRIT_CONNECTOR_VERSION') ? ADSPIRIT_CONNECTOR_VERSION : '2.3.0';
+        // Fontes do mockup (Inter + Open Sans), dep do CSS.
+        wp_enqueue_style(
+            'adspirit-qualifier-fonts',
+            'https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500&family=Open+Sans:wght@400;500;600;700&display=swap',
+            array(),
+            null
+        );
+        wp_enqueue_style(
+            'adspirit-qualifier-form',
+            ADSPIRIT_CONNECTOR_URL . 'assets/qualifier-form.css',
+            array('adspirit-qualifier-fonts'),
+            $version
+        );
+        wp_enqueue_script(
+            'adspirit-qualifier-form',
+            ADSPIRIT_CONNECTOR_URL . 'assets/qualifier-form.js',
+            array(),
+            $version,
+            true
+        );
+        $core = class_exists('AdSpirit_Settings') ? AdSpirit_Settings::get_core() : array();
+        // v2.10: Turnstile config (apenas se Turnstile ativo + aplica ao qualifier)
+        $turnstile_cfg = array('enabled' => false, 'site_key' => '');
+        if (class_exists('AdSpirit_Turnstile') && AdSpirit_Turnstile::applies_to_qualifier()) {
+            $ts = AdSpirit_Turnstile::get_settings();
+            $turnstile_cfg = array('enabled' => true, 'site_key' => (string) $ts['site_key']);
+        }
+        wp_localize_script('adspirit-qualifier-form', 'AdSpiritQualifierCfg', array(
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce' => wp_create_nonce('adspirit_qualifier_submit'),
+            'brand_slug' => (string) ($core['brand_slug'] ?? ''),
+            'mode' => $mode,
+            'button_label' => esc_html($button_label),
+            'turnstile' => $turnstile_cfg,
+        ));
+    }
+
+    /** Site todo: enqueue dos assets (no head) quando o toggle está ligado. */
+    public function maybe_enqueue_sitewide() {
+        if (is_admin()) return;
+        $s = self::get_settings();
+        if (($s['sitewide'] ?? '0') !== '1') return;
+        self::enqueue_assets('trigger');
+    }
+
+    /** Site todo: injeta o root (trigger) no rodapé. Idempotente por página. */
+    public function maybe_inject_sitewide_root() {
+        if (is_admin()) return;
+        $s = self::get_settings();
+        if (($s['sitewide'] ?? '0') !== '1') return;
+        echo '<div class="adspirit-qualifier-root" data-mode="popup" hidden data-adspirit-sitewide="1"></div>';
+    }
+
+    public function handle_save($post) {
+        $patch = array('sitewide' => !empty($post['sitewide']) ? '1' : '0');
+        $merged = wp_parse_args($patch, self::get_settings());
+        update_option(self::OPTION_KEY, $merged, false);
+        add_settings_error(self::OPTION_KEY, 'saved', 'Configurações do form salvas.', 'updated');
     }
 
     public function register_tab($tabs) {
@@ -140,39 +223,7 @@ class AdSpirit_Form_Qualifier {
         ), $atts, 'adspirit_form_qualifier');
         $mode = in_array($atts['mode'], array('inline', 'embed', 'trigger'), true) ? $atts['mode'] : 'popup';
 
-        // Enqueue assets só quando shortcode é renderizado
-        $version = defined('ADSPIRIT_CONNECTOR_VERSION') ? ADSPIRIT_CONNECTOR_VERSION : '2.3.0';
-        // Fontes do mockup (Inter + Open Sans). SEM elas o tema cai pra fonte
-        // dele e o form fica "totalmente diferente". Carregadas como dep do CSS.
-        wp_enqueue_style(
-            'adspirit-qualifier-fonts',
-            'https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500&family=Open+Sans:wght@400;500;600;700&display=swap',
-            array(),
-            null
-        );
-        wp_enqueue_style(
-            'adspirit-qualifier-form',
-            ADSPIRIT_CONNECTOR_URL . 'assets/qualifier-form.css',
-            array('adspirit-qualifier-fonts'),
-            $version
-        );
-        wp_enqueue_script(
-            'adspirit-qualifier-form',
-            ADSPIRIT_CONNECTOR_URL . 'assets/qualifier-form.js',
-            array(),
-            $version,
-            true
-        );
-
-        // Config injetada como localStorage (visitor_id, brand_slug, ajax_url)
-        $core = class_exists('AdSpirit_Settings') ? AdSpirit_Settings::get_core() : array();
-        wp_localize_script('adspirit-qualifier-form', 'AdSpiritQualifierCfg', array(
-            'ajax_url' => admin_url('admin-ajax.php'),
-            'nonce' => wp_create_nonce('adspirit_qualifier_submit'),
-            'brand_slug' => (string) ($core['brand_slug'] ?? ''),
-            'mode' => $mode,
-            'button_label' => esc_html($atts['button_label']),
-        ));
+        self::enqueue_assets($mode, $atts['button_label']);
 
         // Trigger: SÓ o popup (sem botão). Use seu PRÓPRIO botão pra abrir —
         // qualquer elemento com data-adspirit-qualifier, class adspirit-qualifier-trigger,
@@ -254,6 +305,21 @@ class AdSpirit_Form_Qualifier {
                     );
                 }
                 wp_send_json_error(array('error' => 'spam_blocked', 'reason' => $check['reason_code']), 403);
+                return;
+            }
+        }
+
+        // v2.10: Cloudflare Turnstile (anti-bot avançado) — opt-in via config.
+        // Roda APÓS anti-spam básico pra economizar chamada externa em bots
+        // óbvios. Fail-open em erro de rede do Cloudflare.
+        if (class_exists('AdSpirit_Turnstile') && AdSpirit_Turnstile::applies_to_qualifier()) {
+            $token = isset($_POST['_adspirit_turnstile']) ? (string) $_POST['_adspirit_turnstile'] : '';
+            $cf_check = AdSpirit_Turnstile::verify_token($token);
+            if (empty($cf_check['valid'])) {
+                if (class_exists('AdSpirit_Anti_Spam') && method_exists('AdSpirit_Anti_Spam', 'log_block')) {
+                    AdSpirit_Anti_Spam::instance()->log_block('qualifier_turnstile', $cf_check['reason'] ?? 'rejected');
+                }
+                wp_send_json_error(array('error' => 'spam_blocked', 'reason' => 'turnstile'), 403);
                 return;
             }
         }

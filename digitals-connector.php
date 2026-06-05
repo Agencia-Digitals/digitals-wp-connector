@@ -3,7 +3,7 @@
  * Plugin Name:       AdSpirit Connector
  * Plugin URI:        https://crm.agenciadigitals.com.br
  * Description:       Conecta o site WordPress ao CRM AdSpirit (Digitals). CF7 real-time, anti-spam, field mapping, CAPI Meta, GA4 server-side, cross-domain decoration. Configurado via wp-admin.
- * Version:           2.9.0
+ * Version:           2.10.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Tested up to:      6.7
@@ -19,7 +19,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('ADSPIRIT_CONNECTOR_VERSION', '2.9.0');
+define('ADSPIRIT_CONNECTOR_VERSION', '2.10.0');
 define('ADSPIRIT_CONNECTOR_FILE', __FILE__);
 define('ADSPIRIT_CONNECTOR_DIR', plugin_dir_path(__FILE__));
 define('ADSPIRIT_CONNECTOR_URL', plugin_dir_url(__FILE__));
@@ -97,6 +97,8 @@ adspirit_connector_safe_require('includes/class-adspirit-thank-you.php');
 adspirit_connector_safe_require('includes/class-adspirit-submissions-log.php');
 // v2.8 setup wizard (checklist visual de configuração)
 adspirit_connector_safe_require('includes/class-adspirit-setup-wizard.php');
+// v2.10 cloudflare turnstile (anti-bot invisível)
+adspirit_connector_safe_require('includes/class-adspirit-turnstile.php');
 
 /**
  * Bootstrap on plugins_loaded.
@@ -152,6 +154,8 @@ function adspirit_connector_init() {
     if (class_exists('AdSpirit_Submissions_Log')) AdSpirit_Submissions_Log::instance();
     // v2.8 setup wizard
     if (class_exists('AdSpirit_Setup_Wizard')) AdSpirit_Setup_Wizard::instance();
+    // v2.10 cloudflare turnstile
+    if (class_exists('AdSpirit_Turnstile')) AdSpirit_Turnstile::instance();
 }
 
 /**

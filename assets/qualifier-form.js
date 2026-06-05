@@ -547,7 +547,27 @@
   function appendAntibotMeta(fd) {
     fd.append('_adspirit_ts', String(__adspiritQfStartTs));
     fd.append('_adspirit_hp', ''); // bot que parseia HTML preenche; humano não vê
+    // v2.10: Turnstile token (se Turnstile ativo e widget renderizado)
+    if (window.__adspiritTurnstileToken) {
+      fd.append('_adspirit_turnstile', window.__adspiritTurnstileToken);
+    }
   }
+
+  // v2.10: monta widget Turnstile invisible quando configurado.
+  // Cloudflare renderiza auto, callback salva token em window pra submit.
+  // Token expira em ~5min; se expirar, callback executa de novo automaticamente.
+  function mountTurnstile() {
+    if (!CFG.turnstile || !CFG.turnstile.enabled || !CFG.turnstile.site_key) return;
+    if (document.querySelector('.adspirit-qf-turnstile-mount')) return; // já montou
+    var div = document.createElement('div');
+    div.className = 'adspirit-qf-turnstile-mount';
+    div.style.cssText = 'position:fixed; bottom:0; right:0; z-index:-1; visibility:hidden;';
+    div.innerHTML = '<div class="cf-turnstile" data-sitekey="' + CFG.turnstile.site_key + '" data-callback="__adspiritTurnstileSuccess" data-size="invisible" data-action="qualifier"></div>';
+    document.body.appendChild(div);
+  }
+  window.__adspiritTurnstileSuccess = function (token) {
+    window.__adspiritTurnstileToken = token;
+  };
 
   // Lead parcial: fire-and-forget após a etapa de contato. Manda o que já
   // foi preenchido + _adspirit_partial=1. Roda no máximo uma vez.
@@ -667,6 +687,7 @@
     loadState();
     state.currentStep = 0;
     render();
+    mountTurnstile(); // v2.10: monta widget invisível pra capturar token
   }
   function closePopup() {
     var root = document.querySelector('.adspirit-qualifier-root[data-mode="popup"]');
@@ -713,6 +734,7 @@
     if (auto) {
       loadState();
       render();
+      mountTurnstile(); // v2.10
     }
   }
   if (document.readyState === 'loading') {

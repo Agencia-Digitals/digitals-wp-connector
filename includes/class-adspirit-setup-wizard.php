@@ -199,6 +199,18 @@ class AdSpirit_Setup_Wizard {
         $pixel_browser = !empty($core['pixel_enabled']) && $core['pixel_enabled'] === '1';
         $core_check = AdSpirit_Settings::get_core();
         $pixel_status = !empty($core_check['pixel_enabled']) && $core_check['pixel_enabled'] === '1';
+        // v2.10: Turnstile como opcional (recomendado pra anti-bot avançado)
+        $turnstile_active = class_exists('AdSpirit_Turnstile') && AdSpirit_Turnstile::is_active();
+        $items[] = $this->item(
+            $turnstile_active ? 'ok' : 'warn',
+            'Cloudflare Turnstile (anti-bot invisível)',
+            $turnstile_active
+                ? 'Configurado e ativo. Pega bots sofisticados que honeypot/time-trap não pegam.'
+                : 'Opcional, mas recomendado. <strong>Grátis e ilimitado.</strong> Substitui reCAPTCHA + complementa o Anti-Spam Pro.',
+            admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=turnstile'),
+            $turnstile_active ? 'Editar' : 'Configurar'
+        );
+
         $items[] = $this->item(
             $pixel_status ? 'ok' : 'warn',
             'Pixel Meta (browser-side)',
