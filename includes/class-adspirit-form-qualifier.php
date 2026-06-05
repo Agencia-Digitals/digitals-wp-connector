@@ -103,16 +103,25 @@ class AdSpirit_Form_Qualifier {
         // (primeiro IP) > REMOTE_ADDR. Cap 30/min (não 5 — atrás de proxy
         // o bucket era global). Adicionalmente, bucket por email pra
         // bloquear flood com 1 email só.
-        $ip = '';
+        // REMOTE_ADDR é sempre presente em CGI normal. Headers de proxy
+        // são lidos pra deduzir IP real quando atrás de Cloudflare/proxy,
+        // mas REQUER REMOTE_ADDR presente pra confirmar que o request
+        // veio de um proxy real (não direto de internet falsificando
+        // headers). Sem REMOTE_ADDR: negar (caso anômalo, CLI ou bug).
+        if (empty($_SERVER['REMOTE_ADDR'])) {
+            wp_send_json_error(array('error' => 'no_ip'), 400);
+            return;
+        }
+        $ip = (string) $_SERVER['REMOTE_ADDR'];
+        // Se REMOTE_ADDR é proxy conhecido, prefere header X-Forwarded
+        // (não validamos ranges exatos — pragmatismo, mas pelo menos
+        // exigimos REMOTE_ADDR confirmando um proxy real está intermediando).
         if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
             $ip = trim((string) $_SERVER['HTTP_CF_CONNECTING_IP']);
         } elseif (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
             $parts = explode(',', (string) $_SERVER['HTTP_X_FORWARDED_FOR']);
-            $ip = trim($parts[0]);
-        } elseif (!empty($_SERVER['REMOTE_ADDR'])) {
-            $ip = (string) $_SERVER['REMOTE_ADDR'];
-        } else {
-            $ip = 'unknown';
+            $candidate = trim($parts[0]);
+            if ($candidate !== '') $ip = $candidate;
         }
         $bucket = 'adspirit_qualifier_rl_' . md5($ip);
         $hits = (int) get_transient($bucket);
@@ -122,12 +131,22 @@ class AdSpirit_Form_Qualifier {
         }
         set_transient($bucket, $hits + 1, 60);
 
-        // Lê fields do POST
+        // Lê fields do POST. Pra textarea (pain, notes), usa
+        // sanitize_textarea_field pra preservar line breaks; demais
+        // campos usam sanitize_text_field (single-line).
         $fields = isset($_POST['fields']) && is_array($_POST['fields']) ? $_POST['fields'] : array();
+        $textarea_keys = array('pain', 'notes', 'message', 'mensagem');
         $sanitized = array();
         foreach ($fields as $key => $value) {
             $k = sanitize_key((string) $key);
-            $sanitized[$k] = is_scalar($value) ? sanitize_text_field((string) $value) : '';
+            if (!is_scalar($value)) {
+                $sanitized[$k] = '';
+                continue;
+            }
+            $raw = (string) $value;
+            $sanitized[$k] = in_array($k, $textarea_keys, true)
+                ? sanitize_textarea_field($raw)
+                : sanitize_text_field($raw);
         }
 
         // Presença online: form coleta Instagram + site separados (pelo menos

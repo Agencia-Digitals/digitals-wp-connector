@@ -272,12 +272,12 @@ class AdSpirit_Status {
         <p class="as-section-help">Faz <code>GET</code> no endpoint validando brand slug + secret. Não cria lead.</p>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <button type="button" class="button button-primary" id="adspirit-test-btn"><?php echo self::icon('zap'); ?> Testar conexão agora</button>
-            <form method="get" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline;">
+            <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline;">
                 <input type="hidden" name="action" value="adspirit_send_test_event">
                 <?php wp_nonce_field('adspirit_send_test_event'); ?>
                 <button type="submit" class="button">Disparar lead de teste</button>
             </form>
-            <form method="get" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline;">
+            <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline;">
                 <input type="hidden" name="action" value="adspirit_force_update_check">
                 <?php wp_nonce_field('adspirit_force_update_check'); ?>
                 <button type="submit" class="button" title="Limpa cache + checa GitHub agora (não espera ciclo de 6h)">Verificar atualizações agora</button>

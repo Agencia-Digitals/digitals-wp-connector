@@ -229,12 +229,26 @@
   function afterMount(step, stepEl) {
     if (step.isSuccess) {
       var url = (window.AdSpiritQualifierLastResponse && window.AdSpiritQualifierLastResponse.redirect_url) || '';
-      startCountdown(5, url);
-    } else if (!step.isIntro) {
-      var inp = stepEl.querySelector('[autofocus]') || stepEl.querySelector('input.adspirit-qf-input, textarea.adspirit-qf-input');
-      if (inp) setTimeout(function () { try { inp.focus(); } catch (e) {} }, 120);
+      if (url) {
+        startCountdown(5, url);
+      } else {
+        // Sem redirect_url (config qualifier inerte ou rule sem
+        // destination). Esconde o bloco de countdown — sucesso fica
+        // só com a mensagem.
+        var block = stepEl.querySelector('.adspirit-qf-redirect-block');
+        if (block) block.style.display = 'none';
+      }
     }
     bindStepInner(stepEl);
+  }
+  // Foco separado do mount: só roda quando o step entra (não enquanto está
+  // invisível/deslocado), com preventScroll pra não causar layout shift.
+  function focusFirst(stepEl) {
+    var inp = stepEl.querySelector('[autofocus]') || stepEl.querySelector('input.adspirit-qf-input, textarea.adspirit-qf-input');
+    if (!inp) return;
+    setTimeout(function () {
+      try { inp.focus({ preventScroll: true }); } catch (e) { try { inp.focus(); } catch (e2) {} }
+    }, 40);
   }
 
   function render(direction) {
@@ -263,35 +277,51 @@
         nextEl.classList.remove('qf-enter-from-right');
       }
       afterMount(step, nextEl);
+      focusFirst(nextEl);
       return;
     }
 
-    // Cross-slide horizontal: monta o novo já deslocado, força reflow, então
-    // dispara as duas animações (entra ↔ sai) no mesmo frame.
+    // SEQUENCIAL (sem embolar): o atual sai (slide+fade) e SÓ ENTÃO o novo
+    // entra (slide+fade), ocupando o lugar. O novo é montado já invisível na
+    // posição de entrada — a mudança de altura entre steps acontece "atrás"
+    // da animação, então o layout shift não aparece.
     // Avançar (iOS-like) → novo entra pela direita, atual sai pela esquerda.
-    // Voltar → espelhado: novo entra pela esquerda, atual sai pela direita.
     animating = true;
-    nextEl.classList.add(back ? 'qf-enter-from-left' : 'qf-enter-from-right');
-    stage.appendChild(nextEl);
-    void nextEl.offsetWidth;
-    prev.classList.add(back ? 'qf-leave-to-right' : 'qf-leave-to-left');
-    nextEl.classList.remove(back ? 'qf-enter-from-left' : 'qf-enter-from-right');
+    var enterClass = back ? 'qf-enter-from-left' : 'qf-enter-from-right';
+    var leaveClass = back ? 'qf-leave-to-right' : 'qf-leave-to-left';
 
-    var cleaned = false;
-    function cleanup() {
-      if (cleaned) return;
-      cleaned = true;
+    // O novo NÃO é montado agora — montá-lo junto com o atual mudaria a altura
+    // do stage e empurraria o atual durante a saída. Primeiro só sai o atual.
+    prev.classList.add(leaveClass);
+
+    var swapped = false;
+    function onLeave(e) {
+      if (e.target === prev && e.propertyName === 'opacity') swap();
+    }
+    function onEnter(e) {
+      if (e.target === nextEl && e.propertyName === 'transform') {
+        animating = false;
+        nextEl.removeEventListener('transitionend', onEnter);
+      }
+    }
+    function swap() {
+      if (swapped) return;
+      swapped = true;
+      prev.removeEventListener('transitionend', onLeave);
+      // Remove o atual e monta o novo no MESMO frame (síncrono): o browser não
+      // chega a pintar o vão, então a troca de altura não vira shift visível.
       if (prev && prev.parentNode) prev.parentNode.removeChild(prev);
-      animating = false;
-      nextEl.removeEventListener('transitionend', onEnd);
+      nextEl.classList.add(enterClass);     // novo: invisível, deslocado pro lado
+      stage.appendChild(nextEl);
+      afterMount(step, nextEl);
+      void nextEl.offsetWidth;
+      nextEl.classList.remove(enterClass);  // novo entra (slide + fade in)
+      focusFirst(nextEl);
+      nextEl.addEventListener('transitionend', onEnter);
+      setTimeout(function () { animating = false; }, 620); // fallback fim-da-entrada
     }
-    function onEnd(e) {
-      if (e.target === nextEl && e.propertyName === 'transform') cleanup();
-    }
-    nextEl.addEventListener('transitionend', onEnd);
-    setTimeout(cleanup, 650); // fallback se transitionend não disparar
-
-    afterMount(step, nextEl);
+    prev.addEventListener('transitionend', onLeave);
+    setTimeout(swap, 300); // fallback: inicia a entrada mesmo sem transitionend
   }
 
   function renderIntro(step) {
