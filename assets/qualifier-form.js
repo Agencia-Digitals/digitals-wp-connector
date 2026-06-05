@@ -32,6 +32,7 @@
       eyebrow: 'contato',
       title: 'Email, WhatsApp e presença online',
       sub: 'A rede social é obrigatória (Instagram, LinkedIn ou outra). O site da empresa é opcional — nem toda empresa tem site, mas presença em rede social é essencial.',
+      capturePartial: true, // ao passar daqui, dispara lead PARCIAL pro CRM
       fields: [
         { key: 'email', type: 'email', placeholder: 'Email corporativo', required: true },
         { key: 'phone', type: 'tel', placeholder: 'WhatsApp com DDD', required: true },
@@ -161,9 +162,13 @@
     } catch (e) {}
   }
   function clearState() {
-    try { sessionStorage.removeItem(STORAGE_KEY); } catch (e) {}
+    try {
+      sessionStorage.removeItem(STORAGE_KEY);
+      sessionStorage.removeItem('adspirit_qf_sid'); // nova submissão = novo id
+    } catch (e) {}
     state.responses = {};
     state.currentStep = 0;
+    partialSent = false; // permite novo parcial num form seguinte na sessão
   }
 
   // --- DOM HELPERS ---
@@ -493,6 +498,12 @@
     var v = validateCurrent(root);
     if (!v.ok) { showError(v.msg, v.focus); return; }
 
+    // Captura parcial: ao passar da etapa de contato (email+WhatsApp já
+    // validados), dispara um lead PARCIAL pro CRM — fire-and-forget, não
+    // bloqueia a navegação nem trata a resposta.
+    var curStep = STEPS[state.currentStep];
+    if (curStep && curStep.capturePartial) submitPartialToServer();
+
     // Se está no penúltimo step (último com pergunta), submete
     var isLastQuestion = state.currentStep === STEPS.length - 2;
     if (isLastQuestion) {
@@ -513,6 +524,47 @@
   }
 
   // --- SUBMIT ---
+  // ID estável da submissão (mesmo entre parcial e final). Persiste em
+  // sessionStorage pra sobreviver a reload. O parcial leva sufixo "-p" no
+  // servidor; o CRM liga os dois pelo contato e promove o lead in-place.
+  function qfSubmissionId() {
+    try {
+      var k = 'adspirit_qf_sid';
+      var v = sessionStorage.getItem(k);
+      if (!v) {
+        v = 'q-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
+        sessionStorage.setItem(k, v);
+      }
+      return v;
+    } catch (e) {
+      return 'q-' + Date.now();
+    }
+  }
+
+  // Lead parcial: fire-and-forget após a etapa de contato. Manda o que já
+  // foi preenchido + _adspirit_partial=1. Roda no máximo uma vez.
+  var partialSent = false;
+  function submitPartialToServer() {
+    if (partialSent) return;
+    partialSent = true;
+    try {
+      var fd = new FormData();
+      fd.append('action', 'adspirit_qualifier_submit');
+      fd.append('nonce', CFG.nonce || '');
+      fd.append('submission_id', qfSubmissionId());
+      fd.append('_adspirit_partial', '1');
+      Object.keys(state.responses).forEach(function (k) {
+        fd.append('fields[' + k + ']', state.responses[k] || '');
+      });
+      fetch(CFG.ajax_url, {
+        method: 'POST',
+        body: fd,
+        credentials: 'same-origin',
+        keepalive: true,
+      }).catch(function () {});
+    } catch (e) { /* nunca quebra o fluxo do form */ }
+  }
+
   function submitToServer() {
     if (submitting) return;
     submitting = true;
@@ -524,6 +576,7 @@
     var formData = new FormData();
     formData.append('action', 'adspirit_qualifier_submit');
     formData.append('nonce', CFG.nonce || '');
+    formData.append('submission_id', qfSubmissionId());
     Object.keys(state.responses).forEach(function (k) {
       formData.append('fields[' + k + ']', state.responses[k] || '');
     });

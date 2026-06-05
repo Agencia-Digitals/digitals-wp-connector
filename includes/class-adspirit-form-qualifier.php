@@ -173,6 +173,15 @@ class AdSpirit_Form_Qualifier {
                 : sanitize_text_field($raw);
         }
 
+        // Lead PARCIAL: disparado após a etapa de contato (email+WhatsApp).
+        // submission_id (do front) liga parcial e final via o mesmo id-base
+        // (parcial usa sufixo "-p"); o CRM dedupa por contato e promove o
+        // lead parcial in-place quando o final chega.
+        $is_partial = !empty($_POST['_adspirit_partial']);
+        $client_sid = isset($_POST['submission_id'])
+            ? sanitize_text_field((string) $_POST['submission_id'])
+            : '';
+
         // Presença online: form coleta Instagram + site separados (pelo menos
         // um obrigatório). Combinamos no campo canônico `site-empresa` —
         // mesmo destino do antigo `social`, então o CRM/website column não muda.
@@ -207,6 +216,9 @@ class AdSpirit_Form_Qualifier {
             'cf7_time' => current_time('c'),
             'cf7_url' => isset($_SERVER['HTTP_REFERER']) ? esc_url_raw($_SERVER['HTTP_REFERER']) : home_url('/'),
         );
+        if ($is_partial) {
+            $payload['_adspirit_partial'] = '1';
+        }
 
         // Telemetria — signature real: collect_from_post($form_kind, $form_id, $referrer_url).
         // Coleta UTMs, gclid, fbclid e visitor journey via static call.
@@ -227,6 +239,12 @@ class AdSpirit_Form_Qualifier {
             return;
         }
 
+        // Submission id estável: usa o do front quando vier (liga parcial↔final),
+        // senão gera. Parcial leva sufixo "-p" → idempotency distinta do final,
+        // então o final NÃO cai no cache do webhook e roda o scoring.
+        $base_sid = $client_sid !== '' ? $client_sid : ('q-' . time() . '-' . wp_generate_password(8, false));
+        $submission_id = $base_sid . ($is_partial ? '-p' : '');
+
         $endpoint = rtrim($core['endpoint_url'], '/') . '/api/webhooks/contact-form-7';
         $response = wp_remote_post($endpoint, array(
             'timeout' => 10,
@@ -234,7 +252,7 @@ class AdSpirit_Form_Qualifier {
                 'Content-Type' => 'application/json',
                 'x-brand-slug' => $core['brand_slug'],
                 'x-cf7-secret' => $core['secret'],
-                'x-cf7-submission-id' => 'q-' . time() . '-' . wp_generate_password(8, false),
+                'x-cf7-submission-id' => $submission_id,
                 'User-Agent' => 'AdSpirit-Connector/' . ADSPIRIT_CONNECTOR_VERSION,
             ),
             'body' => wp_json_encode($payload),
@@ -254,15 +272,19 @@ class AdSpirit_Form_Qualifier {
             return;
         }
 
-        // Webhook out (fan-out pra n8n/Elisa, Zapier, etc) — fire-and-forget
-        if (class_exists('AdSpirit_Integrations') && method_exists('AdSpirit_Integrations', 'fanout')) {
+        // Webhook out (fan-out pra n8n/Elisa, Zapier, etc) — fire-and-forget.
+        // NÃO faz fanout no parcial (lead incompleto não dispara automações
+        // downstream; só o envio final completo faz).
+        if (!$is_partial && class_exists('AdSpirit_Integrations') && method_exists('AdSpirit_Integrations', 'fanout')) {
             try {
                 AdSpirit_Integrations::instance()->fanout($payload);
             } catch (\Throwable $e) { /* silenciado */ }
         }
 
-        // Resposta pro JS — repassa redirect_url + profile do CRM
+        // Resposta pro JS — repassa redirect_url + profile do CRM.
+        // No parcial o front ignora a resposta (segue nos próximos steps).
         wp_send_json_success(array(
+            'partial' => $is_partial,
             'redirect_url' => isset($body['redirect_url']) ? (string) $body['redirect_url'] : home_url('/'),
             'profile' => isset($body['profile']) ? (string) $body['profile'] : null,
             'duplicate' => !empty($body['duplicate']),
