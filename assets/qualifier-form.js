@@ -18,10 +18,10 @@
       isIntro: true,
       eyebrow: 'Avaliação para novos clientes',
       title: 'Preencha os seus dados',
-      sub: 'A Digitals trabalha com um número limitado de novos clientes a cada ciclo. Vamos avaliar o fit estratégico entre o seu negócio e o nosso modelo de crescimento. Avaliação individual em 11 etapas curtas.',
+      sub: 'A Digitals trabalha com um número limitado de novos clientes a cada ciclo. Vamos avaliar o fit estratégico entre o seu negócio e o nosso modelo de crescimento. Avaliação individual, leva poucos minutos.',
     },
     {
-      eyebrow: '01/11 · identificação',
+      eyebrow: 'identificação',
       title: 'Nome completo',
       fields: [
         { key: 'first_name', type: 'text', placeholder: 'Nome', required: true },
@@ -29,7 +29,7 @@
       ],
     },
     {
-      eyebrow: '02/11 · contato',
+      eyebrow: 'contato',
       title: 'Email, WhatsApp e presença online',
       sub: 'A rede social é obrigatória (Instagram, LinkedIn ou outra). O site da empresa é opcional — nem toda empresa tem site, mas presença em rede social é essencial.',
       fields: [
@@ -40,12 +40,12 @@
       ],
     },
     {
-      eyebrow: '03/11 · empresa',
+      eyebrow: 'empresa',
       title: 'Nome da empresa',
       fields: [{ key: 'company', type: 'text', placeholder: 'Razão social ou nome fantasia', required: true }],
     },
     {
-      eyebrow: '04/11 · cargo',
+      eyebrow: 'cargo',
       title: 'Seu cargo ou ocupação',
       fieldKey: 'role',
       choices: [
@@ -57,7 +57,7 @@
       ],
     },
     {
-      eyebrow: '05/11 · porte',
+      eyebrow: 'porte',
       title: 'Tamanho da empresa',
       fieldKey: 'size',
       choices: [
@@ -70,7 +70,7 @@
       ],
     },
     {
-      eyebrow: '06/11 · mercado',
+      eyebrow: 'mercado',
       title: 'Setor de atuação',
       fieldKey: 'market',
       choices: [
@@ -84,7 +84,7 @@
       ],
     },
     {
-      eyebrow: '07/11 · experiência',
+      eyebrow: 'experiência',
       title: 'Tem time interno de marketing ou já trabalhou com agência?',
       fieldKey: 'experience',
       choices: [
@@ -93,7 +93,7 @@
       ],
     },
     {
-      eyebrow: '08/11 · faturamento',
+      eyebrow: 'faturamento',
       title: 'Faturamento mensal',
       fieldKey: 'revenue',
       choices: [
@@ -105,7 +105,7 @@
       ],
     },
     {
-      eyebrow: '09/11 · investimento',
+      eyebrow: 'investimento',
       title: 'Orçamento mensal para marketing e ads',
       fieldKey: 'investment',
       choices: [
@@ -118,7 +118,7 @@
       ],
     },
     {
-      eyebrow: '10/11 · urgência',
+      eyebrow: 'urgência',
       title: 'Quando pretende começar o trabalho com a agência',
       fieldKey: 'timing',
       choices: [
@@ -129,7 +129,7 @@
       ],
     },
     {
-      eyebrow: '11/11 · contexto',
+      eyebrow: 'contexto',
       title: 'Motivo do contato',
       sub: 'Campo opcional.',
       optional: true,
@@ -258,22 +258,24 @@
       if (prev && prev.parentNode) stage.removeChild(prev);
       stage.appendChild(nextEl);
       if (!reduce) {
-        nextEl.classList.add('qf-enter-up');
+        nextEl.classList.add('qf-enter-from-right');
         void nextEl.offsetWidth;
-        nextEl.classList.remove('qf-enter-up');
+        nextEl.classList.remove('qf-enter-from-right');
       }
       afterMount(step, nextEl);
       return;
     }
 
-    // Cross-slide: monta o novo já deslocado, força reflow, então dispara
-    // as duas animações (entra ↔ sai) no mesmo frame.
+    // Cross-slide horizontal: monta o novo já deslocado, força reflow, então
+    // dispara as duas animações (entra ↔ sai) no mesmo frame.
+    // Avançar (iOS-like) → novo entra pela direita, atual sai pela esquerda.
+    // Voltar → espelhado: novo entra pela esquerda, atual sai pela direita.
     animating = true;
-    nextEl.classList.add(back ? 'qf-enter-down' : 'qf-enter-up');
+    nextEl.classList.add(back ? 'qf-enter-from-left' : 'qf-enter-from-right');
     stage.appendChild(nextEl);
     void nextEl.offsetWidth;
-    prev.classList.add(back ? 'qf-leave-down' : 'qf-leave-up');
-    nextEl.classList.remove(back ? 'qf-enter-down' : 'qf-enter-up');
+    prev.classList.add(back ? 'qf-leave-to-right' : 'qf-leave-to-left');
+    nextEl.classList.remove(back ? 'qf-enter-from-left' : 'qf-enter-from-right');
 
     var cleaned = false;
     function cleanup() {

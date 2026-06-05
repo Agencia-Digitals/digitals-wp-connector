@@ -62,6 +62,9 @@
   justify-content: center;
   padding: 64px 24px 80px;
   overflow-y: auto;
+  /* Clip só na borda da viewport (invisível) — evita scrollbar horizontal
+     no deslize sem cortar o card numa "caixa". */
+  overflow-x: clip;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   font-weight: 300;
   color: #F2F2F2;
@@ -69,8 +72,10 @@
   -webkit-font-smoothing: antialiased;
 }
 
-/* Stage: empilha o step que sai e o que entra na MESMA célula do grid,
-   pra animarem juntos (cross-slide) sem um empurrar o outro. */
+/* Stage: empilha o step que sai e o que entra na MESMA célula do grid.
+   SEM clip aqui — senão o card parece dentro de uma caixa cortada durante
+   o deslize. Ele desliza livre pro lado e some no fade; o clip anti-scrollbar
+   mora no .adspirit-qf-main (borda da tela). */
 .adspirit-qf-stage {
   position: relative;
   width: 100%;
@@ -82,16 +87,17 @@
 .adspirit-qf-step {
   width: 100%;
   max-width: 640px;
-  transition: transform 440ms cubic-bezier(0.22, 0.61, 0.36, 1), opacity 300ms ease;
+  /* opacity acompanha quase todo o trajeto pra o fade andar junto do deslize. */
+  transition: transform 540ms cubic-bezier(0.16, 1, 0.3, 1), opacity 460ms ease;
   will-change: transform, opacity;
 }
-/* Transição vertical estilo Typeform — direção depende de avançar/voltar.
-   Avançar: o atual sobe e some, o próximo entra de baixo.
-   Voltar: o atual desce e some, o anterior entra de cima. */
-.adspirit-qf-step.qf-enter-up   { opacity: 0; transform: translateY(44px); }
-.adspirit-qf-step.qf-enter-down { opacity: 0; transform: translateY(-44px); }
-.adspirit-qf-step.qf-leave-up   { opacity: 0; transform: translateY(-44px); pointer-events: none; }
-.adspirit-qf-step.qf-leave-down { opacity: 0; transform: translateY(44px);  pointer-events: none; }
+/* Deslize horizontal estilo navegação iOS.
+   Avançar: novo entra pela direita, atual sai pela esquerda (conteúdo vai pra esquerda).
+   Voltar: espelhado — novo entra pela esquerda, atual sai pela direita. */
+.adspirit-qf-step.qf-enter-from-left  { opacity: 0; transform: translateX(-64px); }
+.adspirit-qf-step.qf-enter-from-right { opacity: 0; transform: translateX(64px); }
+.adspirit-qf-step.qf-leave-to-right   { opacity: 0; transform: translateX(64px);  pointer-events: none; }
+.adspirit-qf-step.qf-leave-to-left    { opacity: 0; transform: translateX(-64px); pointer-events: none; }
 
 .adspirit-qf-eyebrow {
   font-size: 11px;
