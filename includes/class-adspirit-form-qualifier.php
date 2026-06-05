@@ -130,12 +130,28 @@ class AdSpirit_Form_Qualifier {
             $sanitized[$k] = is_scalar($value) ? sanitize_text_field((string) $value) : '';
         }
 
+        // Presença online: form coleta Instagram + site separados (pelo menos
+        // um obrigatório). Combinamos no campo canônico `site-empresa` —
+        // mesmo destino do antigo `social`, então o CRM/website column não muda.
+        // Site (URL) tem prioridade; Instagram entra junto quando presente.
+        $site_in  = trim((string) ($sanitized['site'] ?? ''));
+        $insta_in = trim((string) ($sanitized['instagram'] ?? ''));
+        $presence = $site_in;
+        if ($insta_in !== '') {
+            $presence = ($presence === '') ? $insta_in : $presence . ' · ' . $insta_in;
+        }
+        // Back-compat: sessões antigas ainda mandam `social` num campo só.
+        if ($presence === '' && !empty($sanitized['social'])) {
+            $presence = (string) $sanitized['social'];
+        }
+
         // Mapeia pros field names canônicos do CF7 (pra Elisa/n8n continuar reconhecendo)
         $payload = array(
             'your-name' => trim(($sanitized['first_name'] ?? '') . ' ' . ($sanitized['last_name'] ?? '')),
             'your-email' => $sanitized['email'] ?? '',
             'Telefone' => $sanitized['phone'] ?? '',
-            'site-empresa' => $sanitized['social'] ?? '',
+            'site-empresa' => $presence,
+            'instagram' => $insta_in,
             'empresa' => $sanitized['company'] ?? '',
             'cargo' => $sanitized['role'] ?? '',
             'Numero-funcionarios' => $sanitized['size'] ?? '',

@@ -69,15 +69,29 @@
   -webkit-font-smoothing: antialiased;
 }
 
+/* Stage: empilha o step que sai e o que entra na MESMA célula do grid,
+   pra animarem juntos (cross-slide) sem um empurrar o outro. */
+.adspirit-qf-stage {
+  position: relative;
+  width: 100%;
+  max-width: 640px;
+  display: grid;
+}
+.adspirit-qf-stage > .adspirit-qf-step { grid-area: 1 / 1; }
+
 .adspirit-qf-step {
   width: 100%;
   max-width: 640px;
-  animation: adspirit-qf-slide 380ms ease;
+  transition: transform 440ms cubic-bezier(0.22, 0.61, 0.36, 1), opacity 300ms ease;
+  will-change: transform, opacity;
 }
-@keyframes adspirit-qf-slide {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
-}
+/* Transição vertical estilo Typeform — direção depende de avançar/voltar.
+   Avançar: o atual sobe e some, o próximo entra de baixo.
+   Voltar: o atual desce e some, o anterior entra de cima. */
+.adspirit-qf-step.qf-enter-up   { opacity: 0; transform: translateY(44px); }
+.adspirit-qf-step.qf-enter-down { opacity: 0; transform: translateY(-44px); }
+.adspirit-qf-step.qf-leave-up   { opacity: 0; transform: translateY(-44px); pointer-events: none; }
+.adspirit-qf-step.qf-leave-down { opacity: 0; transform: translateY(44px);  pointer-events: none; }
 
 .adspirit-qf-eyebrow {
   font-size: 11px;
@@ -184,10 +198,12 @@ textarea.adspirit-qf-input { min-height: 130px; resize: vertical; line-height: 1
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px 20px;
   flex-wrap: wrap;
 }
-.adspirit-qf-nav-actions { display: flex; align-items: center; gap: 12px; }
+/* Botões nunca encolhem; a dica de atalho cede espaço e, se não couber,
+   quebra pra própria linha (row-gap) em vez de embolar com os botões. */
+.adspirit-qf-nav-actions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
 
 .adspirit-qf-btn {
   display: flex;
@@ -223,6 +239,9 @@ textarea.adspirit-qf-input { min-height: 130px; resize: vertical; line-height: 1
   color: rgba(242, 242, 242, 0.32);
   text-transform: uppercase;
   letter-spacing: 0.12em;
+  white-space: nowrap;
+  flex: 0 1 auto;
+  min-width: 0;
 }
 .adspirit-qf-kbd {
   display: inline-block;
@@ -332,12 +351,22 @@ textarea.adspirit-qf-input { min-height: 130px; resize: vertical; line-height: 1
   .adspirit-qf-btn,
   .adspirit-qf-error,
   .adspirit-qf-close,
+  .adspirit-qf-step,
   .adspirit-qf-countdown circle { transition: none !important; }
 }
 
 @media (max-width: 640px) {
-  .adspirit-qf-main { padding: 32px 20px 64px; }
+  .adspirit-qf-main { padding: 32px 18px 56px; }
   .adspirit-qf-title { font-size: 26px; }
   .adspirit-qf-sub { font-size: 14px; }
   .adspirit-qf-kbd-hint { display: none; }
+  .adspirit-qf-close { top: 14px; right: 14px; }
+  /* Nav vira bloco full-width: CTA principal estica, "Voltar" fica compacto
+     ao lado — sem texto longo estourando a linha no 375px. */
+  .adspirit-qf-nav { margin-top: 28px; gap: 12px; }
+  .adspirit-qf-nav-actions { width: 100%; gap: 10px; }
+  .adspirit-qf-btn { padding: 13px 18px; flex: 1 1 auto; }
+  .adspirit-qf-btn-back { flex: 0 0 auto; padding: 13px 16px; }
+  /* Inputs com fonte ≥16px evitam o zoom automático do iOS no focus. */
+  .adspirit-qf-input { font-size: 16px; padding: 16px 18px; }
 }

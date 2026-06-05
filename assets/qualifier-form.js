@@ -31,10 +31,12 @@
     {
       eyebrow: '02/11 · contato',
       title: 'Email, WhatsApp e presença online',
+      sub: 'A rede social é obrigatória (Instagram, LinkedIn ou outra). O site da empresa é opcional — nem toda empresa tem site, mas presença em rede social é essencial.',
       fields: [
         { key: 'email', type: 'email', placeholder: 'Email corporativo', required: true },
         { key: 'phone', type: 'tel', placeholder: 'WhatsApp com DDD', required: true },
-        { key: 'social', type: 'text', placeholder: 'Instagram, LinkedIn ou site (uma rede social pelo menos)', required: true },
+        { key: 'instagram', type: 'text', placeholder: 'Instagram, LinkedIn ou outra rede (obrigatório)', required: true },
+        { key: 'site', type: 'text', placeholder: 'Site da empresa (opcional)', required: false },
       ],
     },
     {
@@ -194,36 +196,100 @@
   }
 
   // --- RENDER ---
-  function render() {
-    var step = STEPS[state.currentStep];
-    var root = document.querySelector('.adspirit-qualifier-root');
-    if (!root) return;
+  // O shell (overlay + close + main + stage) é montado uma vez. Cada
+  // navegação só troca o .adspirit-qf-step, com transição vertical estilo
+  // Typeform: o step que sai desliza/some na direção do movimento e o que
+  // entra vem do lado oposto — os dois animam ao mesmo tempo (cross-slide),
+  // empilhados na mesma célula do grid .adspirit-qf-stage.
+  var animating = false;
 
-    // Build overlay + close + main on first render
+  function ensureShell(root) {
+    if (root.querySelector('.adspirit-qf-main')) return;
     root.innerHTML = '' +
       '<div class="adspirit-qf-overlay"></div>' +
       '<button class="adspirit-qf-close" aria-label="Fechar">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
       '</button>' +
-      '<div class="adspirit-qf-main"><div class="adspirit-qf-step" id="adspirit-qf-step"></div></div>';
+      '<div class="adspirit-qf-main"><div class="adspirit-qf-stage"></div></div>';
+    var closeBtn = root.querySelector('.adspirit-qf-close');
+    var overlay = root.querySelector('.adspirit-qf-overlay');
+    if (closeBtn) closeBtn.addEventListener('click', closePopup);
+    if (overlay) overlay.addEventListener('click', closePopup);
+  }
 
-    var stepEl = root.querySelector('#adspirit-qf-step');
-    if (!stepEl) return;
+  function buildStepEl(step) {
+    var el = document.createElement('div');
+    el.className = 'adspirit-qf-step';
+    if (step.isSuccess) el.innerHTML = renderSuccess();
+    else if (step.isIntro) el.innerHTML = renderIntro(step);
+    else el.innerHTML = renderStep(step);
+    return el;
+  }
 
+  function afterMount(step, stepEl) {
     if (step.isSuccess) {
-      stepEl.innerHTML = renderSuccess();
       var url = (window.AdSpiritQualifierLastResponse && window.AdSpiritQualifierLastResponse.redirect_url) || '';
       startCountdown(5, url);
-    } else if (step.isIntro) {
-      stepEl.innerHTML = renderIntro(step);
-    } else {
-      stepEl.innerHTML = renderStep(step);
-      // Focus primeiro input
+    } else if (!step.isIntro) {
       var inp = stepEl.querySelector('[autofocus]') || stepEl.querySelector('input.adspirit-qf-input, textarea.adspirit-qf-input');
-      if (inp) setTimeout(function () { inp.focus(); }, 80);
+      if (inp) setTimeout(function () { try { inp.focus(); } catch (e) {} }, 120);
+    }
+    bindStepInner(stepEl);
+  }
+
+  function render(direction) {
+    var step = STEPS[state.currentStep];
+    var root = document.querySelector('.adspirit-qualifier-root');
+    if (!root) return;
+    ensureShell(root);
+    var stage = root.querySelector('.adspirit-qf-stage');
+    var main = root.querySelector('.adspirit-qf-main');
+    if (!stage) return;
+    if (main) main.scrollTop = 0;
+
+    var prev = stage.querySelector('.adspirit-qf-step');
+    var nextEl = buildStepEl(step);
+    var back = direction === 'back';
+    var reduce = false;
+    try { reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+
+    // Primeiro mount (sem step anterior) ou reduced-motion: troca direta.
+    if (!prev || reduce) {
+      if (prev && prev.parentNode) stage.removeChild(prev);
+      stage.appendChild(nextEl);
+      if (!reduce) {
+        nextEl.classList.add('qf-enter-up');
+        void nextEl.offsetWidth;
+        nextEl.classList.remove('qf-enter-up');
+      }
+      afterMount(step, nextEl);
+      return;
     }
 
-    bindStepEvents(root);
+    // Cross-slide: monta o novo já deslocado, força reflow, então dispara
+    // as duas animações (entra ↔ sai) no mesmo frame.
+    animating = true;
+    nextEl.classList.add(back ? 'qf-enter-down' : 'qf-enter-up');
+    stage.appendChild(nextEl);
+    void nextEl.offsetWidth;
+    prev.classList.add(back ? 'qf-leave-down' : 'qf-leave-up');
+    nextEl.classList.remove(back ? 'qf-enter-down' : 'qf-enter-up');
+
+    var cleaned = false;
+    function cleanup() {
+      if (cleaned) return;
+      cleaned = true;
+      if (prev && prev.parentNode) prev.parentNode.removeChild(prev);
+      animating = false;
+      nextEl.removeEventListener('transitionend', onEnd);
+    }
+    function onEnd(e) {
+      if (e.target === nextEl && e.propertyName === 'transform') cleanup();
+    }
+    nextEl.addEventListener('transitionend', onEnd);
+    setTimeout(cleanup, 650); // fallback se transitionend não disparar
+
+    afterMount(step, nextEl);
   }
 
   function renderIntro(step) {
@@ -291,15 +357,13 @@
   }
 
   // --- EVENTS ---
-  function bindStepEvents(root) {
-    // Close
-    var closeBtn = root.querySelector('.adspirit-qf-close');
-    var overlay = root.querySelector('.adspirit-qf-overlay');
-    if (closeBtn) closeBtn.addEventListener('click', closePopup);
-    if (overlay) overlay.addEventListener('click', closePopup);
+  // Liga eventos do step atual. close/overlay já são ligados uma vez no shell
+  // (ensureShell), então aqui é só inputs, choices e nav — escopados ao stepEl.
+  function bindStepInner(stepEl) {
+    if (!stepEl) return;
 
     // Inputs (persist on type)
-    root.querySelectorAll('input.adspirit-qf-input, textarea.adspirit-qf-input').forEach(function (el) {
+    stepEl.querySelectorAll('input.adspirit-qf-input, textarea.adspirit-qf-input').forEach(function (el) {
       el.addEventListener('input', function () {
         var key = el.getAttribute('data-key');
         if (key) {
@@ -310,23 +374,22 @@
     });
 
     // Choices
-    root.querySelectorAll('.adspirit-qf-choice').forEach(function (el) {
+    stepEl.querySelectorAll('.adspirit-qf-choice').forEach(function (el) {
       el.addEventListener('click', function () {
-        var label = el.getAttribute('data-label');
         var step = STEPS[state.currentStep];
         if (!step.fieldKey) return;
-        root.querySelectorAll('.adspirit-qf-choice').forEach(function (c) { c.classList.remove('selected'); });
+        var label = el.getAttribute('data-label');
+        stepEl.querySelectorAll('.adspirit-qf-choice').forEach(function (c) { c.classList.remove('selected'); });
         el.classList.add('selected');
         state.responses[step.fieldKey] = label;
         saveState();
-        // Auto-advance
-        setTimeout(next, 240);
+        setTimeout(next, 240); // auto-advance
       });
     });
 
     // Nav buttons
-    var nextBtn = root.querySelector('[data-action="next"]');
-    var backBtn = root.querySelector('[data-action="back"]');
+    var nextBtn = stepEl.querySelector('[data-action="next"]');
+    var backBtn = stepEl.querySelector('[data-action="back"]');
     if (nextBtn) nextBtn.addEventListener('click', next);
     if (backBtn) backBtn.addEventListener('click', back);
   }
@@ -355,6 +418,17 @@
         }
       }
     }
+    // Regra "pelo menos um": ex. Instagram OU site (encorajamos os dois,
+    // mas só exigimos que um esteja preenchido).
+    if (step.requireOneOf && step.requireOneOf.length) {
+      var anyFilled = step.requireOneOf.some(function (k) {
+        return (state.responses[k] || '').trim() !== '';
+      });
+      if (!anyFilled) {
+        var firstEl = root.querySelector('[data-key="' + step.requireOneOf[0] + '"]');
+        return { ok: false, focus: firstEl, msg: step.requireOneOfMsg || 'Preencha pelo menos um desses campos' };
+      }
+    }
     if (step.choices && !state.responses[step.fieldKey]) {
       return { ok: false, msg: 'Selecione uma opção pra continuar' };
     }
@@ -375,7 +449,7 @@
 
   // --- NAV ---
   function next() {
-    if (submitting) return;
+    if (submitting || animating) return;
     var root = document.querySelector('.adspirit-qualifier-root');
     var v = validateCurrent(root);
     if (!v.ok) { showError(v.msg, v.focus); return; }
@@ -388,14 +462,14 @@
     }
     if (state.currentStep < STEPS.length - 1) {
       state.currentStep++;
-      render();
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      render('next');
     }
   }
   function back() {
+    if (submitting || animating) return;
     if (state.currentStep > 0) {
       state.currentStep--;
-      render();
+      render('back');
     }
   }
 
@@ -442,7 +516,7 @@
         window.AdSpiritQualifierLastResponse = json.data || {};
         clearState();
         state.currentStep = STEPS.length - 1;
-        render();
+        render('next');
       })
       .catch(function () {
         clearTimeout(timeoutId);
