@@ -541,6 +541,14 @@
     }
   }
 
+  // v2.9: timestamp do load + honeypot (vazio quando humano) — anti-spam
+  // unificado lê do payload top-level _adspirit_ts e _adspirit_hp.
+  var __adspiritQfStartTs = Date.now();
+  function appendAntibotMeta(fd) {
+    fd.append('_adspirit_ts', String(__adspiritQfStartTs));
+    fd.append('_adspirit_hp', ''); // bot que parseia HTML preenche; humano não vê
+  }
+
   // Lead parcial: fire-and-forget após a etapa de contato. Manda o que já
   // foi preenchido + _adspirit_partial=1. Roda no máximo uma vez.
   var partialSent = false;
@@ -553,6 +561,7 @@
       fd.append('nonce', CFG.nonce || '');
       fd.append('submission_id', qfSubmissionId());
       fd.append('_adspirit_partial', '1');
+      appendAntibotMeta(fd);
       Object.keys(state.responses).forEach(function (k) {
         fd.append('fields[' + k + ']', state.responses[k] || '');
       });
@@ -577,6 +586,7 @@
     formData.append('action', 'adspirit_qualifier_submit');
     formData.append('nonce', CFG.nonce || '');
     formData.append('submission_id', qfSubmissionId());
+    appendAntibotMeta(formData);
     Object.keys(state.responses).forEach(function (k) {
       formData.append('fields[' + k + ']', state.responses[k] || '');
     });

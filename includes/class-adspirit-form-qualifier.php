@@ -236,6 +236,28 @@ class AdSpirit_Form_Qualifier {
         }
         set_transient($bucket, $hits + 1, 60);
 
+        // v2.9: anti-spam unificado — sempre on no qualifier (decisão §91).
+        // Roda mesmas 6 checagens do CF7 (honeypot, time_trap, rate_limit,
+        // UA, reverse_text, blocklist) via helper estático.
+        if (class_exists('AdSpirit_Anti_Spam')) {
+            $email_for_check = isset($_POST['fields']['email']) ? (string) $_POST['fields']['email'] : '';
+            $payload_for_check = is_array($_POST['fields'] ?? null) ? (array) $_POST['fields'] : array();
+            // Inclui meta antibot do payload top-level (honeypot + timestamp)
+            if (isset($_POST['_adspirit_hp'])) $payload_for_check[AdSpirit_Anti_Spam::HONEYPOT_FIELD] = (string) $_POST['_adspirit_hp'];
+            if (isset($_POST['_adspirit_ts'])) $payload_for_check['_adspirit_ts'] = (string) $_POST['_adspirit_ts'];
+            $check = AdSpirit_Anti_Spam::validate_payload($payload_for_check, $email_for_check);
+            if (empty($check['valid'])) {
+                if (method_exists('AdSpirit_Anti_Spam', 'log_block')) {
+                    AdSpirit_Anti_Spam::instance()->log_block(
+                        'qualifier_' . ($check['reason_code'] ?? 'unknown'),
+                        $check['reason_text'] ?? 'rejected by anti-spam'
+                    );
+                }
+                wp_send_json_error(array('error' => 'spam_blocked', 'reason' => $check['reason_code']), 403);
+                return;
+            }
+        }
+
         // Lê fields do POST. Pra textarea (pain, notes), usa
         // sanitize_textarea_field pra preservar line breaks; demais
         // campos usam sanitize_text_field (single-line).

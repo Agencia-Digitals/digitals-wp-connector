@@ -208,6 +208,114 @@ class AdSpirit_Anti_Spam {
         return $result;
     }
 
+    /**
+     * v2.9: helper público pra outros handlers (qualifier, etc) reusarem
+     * a mesma engine de validação sem depender do hook wpcf7_validate.
+     *
+     * @param array $payload Dados do form ($_POST equivalente).
+     * @param string $email Email canônico (se houver).
+     * @return array ['valid'=>bool, 'reason_code'=>string|null, 'reason_text'=>string|null]
+     *
+     * Não retorna early na primeira falha — sempre completa pra log
+     * mais informativo no caller. (Caller decide o que fazer.)
+     */
+    public static function validate_payload(array $payload, $email = '') {
+        if (!class_exists('AdSpirit_Settings')) return array('valid' => true, 'reason_code' => null, 'reason_text' => null);
+        $cfg = AdSpirit_Settings::get_antispam();
+        if ($cfg['enabled'] !== '1') return array('valid' => true, 'reason_code' => null, 'reason_text' => null);
+
+        // (1) Honeypot — campo escondido preenchido = bot
+        if ($cfg['honeypot'] === '1') {
+            $hp = isset($payload[self::HONEYPOT_FIELD]) ? trim((string) $payload[self::HONEYPOT_FIELD]) : '';
+            if ($hp !== '') return array('valid' => false, 'reason_code' => 'honeypot', 'reason_text' => 'Honeypot preenchido.');
+        }
+
+        // (2) Time trap via timestamp explícito no payload (front envia _adspirit_ts)
+        if ($cfg['time_trap'] === '1') {
+            $min_s = max(0, intval($cfg['time_trap_min_s']));
+            if ($min_s > 0) {
+                $ts_ms = isset($payload['_adspirit_ts']) ? intval($payload['_adspirit_ts']) : 0;
+                if ($ts_ms > 0) {
+                    $delta_ms = (time() * 1000) - $ts_ms;
+                    if ($delta_ms < $min_s * 1000) {
+                        return array('valid' => false, 'reason_code' => 'time_trap',
+                            'reason_text' => sprintf('Submetido em %.1fs (min %ds).', $delta_ms / 1000, $min_s));
+                    }
+                }
+            }
+        }
+
+        // (3) Rate limit por IP — bucket dedicado pra payload validation
+        if ($cfg['rate_limit'] === '1') {
+            $max = max(1, intval($cfg['rate_limit_max']));
+            $ip = isset($_SERVER['HTTP_CF_CONNECTING_IP']) ? trim((string) $_SERVER['HTTP_CF_CONNECTING_IP'])
+                : (isset($_SERVER['HTTP_X_FORWARDED_FOR']) ? trim(explode(',', (string) $_SERVER['HTTP_X_FORWARDED_FOR'])[0])
+                : (isset($_SERVER['REMOTE_ADDR']) ? (string) $_SERVER['REMOTE_ADDR'] : ''));
+            if ($ip !== '') {
+                $key = 'adspirit_rl_payload_' . md5($ip);
+                $count = (int) get_transient($key);
+                if ($count >= $max) {
+                    return array('valid' => false, 'reason_code' => 'rate_limit',
+                        'reason_text' => sprintf('IP excedeu %d submits/min.', $max));
+                }
+                set_transient($key, $count + 1, 60);
+            }
+        }
+
+        // (4) User-Agent check
+        if (($cfg['ua_check'] ?? '1') === '1') {
+            $ua = isset($_SERVER['HTTP_USER_AGENT']) ? trim((string) $_SERVER['HTTP_USER_AGENT']) : '';
+            if ($ua === '') return array('valid' => false, 'reason_code' => 'ua_empty', 'reason_text' => 'User-Agent vazio.');
+            $bad = array('python-requests', 'curl/', 'wget/', 'Go-http-client', 'libwww-perl');
+            foreach ($bad as $sig) {
+                if (stripos($ua, $sig) !== false) {
+                    return array('valid' => false, 'reason_code' => 'ua_bot', 'reason_text' => 'UA cliente HTTP automatizado.');
+                }
+            }
+        }
+
+        // (5) Reverse text trap
+        if (($cfg['reverse_trap'] ?? '1') === '1' && class_exists('AdSpirit_Quickwins')) {
+            $all_text = '';
+            foreach ($payload as $k => $v) {
+                if (strpos((string) $k, '_adspirit_') === 0) continue;
+                if (is_string($v)) $all_text .= ' ' . $v;
+            }
+            if (AdSpirit_Quickwins::is_suspicious_text($all_text)) {
+                return array('valid' => false, 'reason_code' => 'reverse_text', 'reason_text' => 'Texto suspeito (alta entropia).');
+            }
+        }
+
+        // (6) Blocklist
+        if (!empty($cfg['blocklist_emails'])) {
+            $em = strtolower(trim((string) $email));
+            $patterns = preg_split('/\r?\n/', trim((string) $cfg['blocklist_emails']));
+            foreach ($patterns as $pattern) {
+                $pattern = trim($pattern);
+                if (!$pattern) continue;
+                $regex = '/' . str_replace('/', '\\/', $pattern) . '/i';
+                if (@preg_match($regex, $em)) {
+                    return array('valid' => false, 'reason_code' => 'blocklist_email', 'reason_text' => 'Email bloqueado: ' . $pattern);
+                }
+            }
+        }
+        if (!empty($cfg['blocklist_words'])) {
+            $words = preg_split('/\r?\n/', trim((string) $cfg['blocklist_words']));
+            $all_text = '';
+            foreach ($payload as $v) if (is_string($v)) $all_text .= ' ' . $v;
+            $all_text = strtolower($all_text);
+            foreach ($words as $word) {
+                $word = trim(strtolower($word));
+                if (!$word) continue;
+                if (strpos($all_text, $word) !== false) {
+                    return array('valid' => false, 'reason_code' => 'blocklist_word', 'reason_text' => 'Texto contém: ' . $word);
+                }
+            }
+        }
+
+        return array('valid' => true, 'reason_code' => null, 'reason_text' => null);
+    }
+
     private function reject($result, $reason_code, $reason_text) {
         // Invalida o form. CF7 mostra mensagem genérica de erro.
         $result->invalidate('honeypot-or-spam', __('Submissão rejeitada.', 'adspirit-connector'));
