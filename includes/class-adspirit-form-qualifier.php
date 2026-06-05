@@ -42,13 +42,17 @@ class AdSpirit_Form_Qualifier {
 
     /**
      * Render shortcode.
-     *   atts: mode="popup"|"inline" (default popup), button_label="..."
+     *   atts: mode="popup"|"inline"|"embed" (default popup), button_label="..."
+     *     - popup:  botão CTA → form em tela cheia (overlay)
+     *     - inline: form em tela cheia, abre direto no load (sem botão)
+     *     - embed:  form contido na seção (card dark, sem overlay full-screen)
      */
     public function render_shortcode($atts) {
         $atts = shortcode_atts(array(
             'mode' => 'popup',
             'button_label' => 'Iniciar avaliação',
         ), $atts, 'adspirit_form_qualifier');
+        $mode = in_array($atts['mode'], array('inline', 'embed'), true) ? $atts['mode'] : 'popup';
 
         // Enqueue assets só quando shortcode é renderizado
         $version = defined('ADSPIRIT_CONNECTOR_VERSION') ? ADSPIRIT_CONNECTOR_VERSION : '2.3.0';
@@ -80,14 +84,15 @@ class AdSpirit_Form_Qualifier {
             'ajax_url' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('adspirit_qualifier_submit'),
             'brand_slug' => (string) ($core['brand_slug'] ?? ''),
-            'mode' => $atts['mode'] === 'inline' ? 'inline' : 'popup',
+            'mode' => $mode,
             'button_label' => esc_html($atts['button_label']),
         ));
 
-        if ($atts['mode'] === 'inline') {
-            return '<div class="adspirit-qualifier-root" data-mode="inline"></div>';
+        // Embed: card contido na seção (sem overlay). Inline: tela cheia no load.
+        if ($mode === 'embed' || $mode === 'inline') {
+            return '<div class="adspirit-qualifier-root" data-mode="' . esc_attr($mode) . '"></div>';
         }
-        // Popup mode: botão CTA que dispara o popup
+        // Popup mode: botão CTA que dispara o popup em tela cheia
         return sprintf(
             '<button type="button" class="adspirit-qualifier-trigger">%s</button><div class="adspirit-qualifier-root" data-mode="popup" hidden></div>',
             esc_html($atts['button_label'])

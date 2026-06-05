@@ -204,7 +204,14 @@
   var animating = false;
 
   function ensureShell(root) {
-    if (root.querySelector('.adspirit-qf-main')) return;
+    if (root.querySelector('.adspirit-qf-stage')) return;
+    // Modo "embed": form contido na seção (sem overlay full-screen). Os mesmos
+    // steps/inputs/transições rodam dentro de um card dark .adspirit-qf-embed.
+    if (root.getAttribute('data-mode') === 'embed') {
+      root.innerHTML = '<div class="adspirit-qf-embed"><div class="adspirit-qf-stage"></div></div>';
+      return;
+    }
+    // Modos popup/inline: overlay full-screen + botão fechar.
     root.innerHTML = '' +
       '<div class="adspirit-qf-overlay"></div>' +
       '<button class="adspirit-qf-close" aria-label="Fechar">' +
@@ -628,9 +635,9 @@
     document.querySelectorAll('.adspirit-qualifier-trigger').forEach(function (btn) {
       btn.addEventListener('click', openPopup);
     });
-    // Inline mode — render direto
-    var inline = document.querySelector('.adspirit-qualifier-root[data-mode="inline"]');
-    if (inline) {
+    // Inline (full-screen) e embed (contido) renderizam direto no load.
+    var auto = document.querySelector('.adspirit-qualifier-root[data-mode="inline"], .adspirit-qualifier-root[data-mode="embed"]');
+    if (auto) {
       loadState();
       render();
     }

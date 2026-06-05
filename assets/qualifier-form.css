@@ -14,8 +14,11 @@
   box-sizing: border-box;
 }
 /* zera heranças do tema (universal → especificidade baixa; as classes
-   .adspirit-qf-* reaplicam o que precisa, por ordem de fonte) */
-.adspirit-qf-overlay, .adspirit-qf-main, .adspirit-qf-main *,
+   .adspirit-qf-* reaplicam o que precisa, por ordem de fonte).
+   Cobre os 2 shells: .adspirit-qf-main (full-screen) e .adspirit-qf-embed (contido). */
+.adspirit-qf-overlay,
+.adspirit-qf-main, .adspirit-qf-main *,
+.adspirit-qf-embed, .adspirit-qf-embed *,
 .adspirit-qf-close, .adspirit-qf-close * {
   margin: 0;
   padding: 0;
@@ -29,10 +32,10 @@
   min-width: 0;
 }
 /* fonte forçada — tema costuma setar font-family em h1/p/input */
-.adspirit-qualifier-root, .adspirit-qf-main, .adspirit-qf-main * {
+.adspirit-qualifier-root, .adspirit-qualifier-root * {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
 }
-.adspirit-qf-main button, .adspirit-qualifier-trigger {
+.adspirit-qualifier-root button, .adspirit-qualifier-trigger {
   font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, sans-serif !important;
 }
 /* mata a aparência nativa de input/textarea/button + estilos de controle do tema */
@@ -43,38 +46,39 @@
   box-shadow: none !important;
   outline: none !important;
 }
-.adspirit-qf-main a { text-decoration: none !important; box-shadow: none; }
+.adspirit-qualifier-root a { text-decoration: none !important; box-shadow: none; }
 /* reafirma o chrome (props constantes, não-responsivas) — especificidade alta
-   pra ganhar de regras do tema tipo `.tema input` / `.builder .btn` */
-.adspirit-qf-main .adspirit-qf-input {
+   pra ganhar de regras do tema tipo `.tema input` / `.builder .btn`. Escopado
+   em .adspirit-qualifier-root pra cobrir full-screen E embed. */
+.adspirit-qualifier-root .adspirit-qf-input {
   width: 100%;
   background: rgba(255, 255, 255, 0.035) !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
   border-radius: 10px !important;
   color: #F2F2F2 !important;
 }
-.adspirit-qf-main .adspirit-qf-input:focus {
+.adspirit-qualifier-root .adspirit-qf-input:focus {
   border-color: rgba(255, 255, 255, 0.30) !important;
   background: rgba(255, 255, 255, 0.06) !important;
 }
-.adspirit-qf-main .adspirit-qf-btn,
+.adspirit-qualifier-root .adspirit-qf-btn,
 .adspirit-qualifier-trigger {
   background-color: rgba(255, 255, 255, 0.15) !important;
   border: 0 !important;
   border-radius: 4px !important;
   color: #ffffff !important;
 }
-.adspirit-qf-main .adspirit-qf-btn-back {
+.adspirit-qualifier-root .adspirit-qf-btn-back {
   background-color: rgba(255, 255, 255, 0.06) !important;
   color: rgba(255, 255, 255, 0.7) !important;
 }
-.adspirit-qf-main .adspirit-qf-choice {
+.adspirit-qualifier-root .adspirit-qf-choice {
   background: rgba(255, 255, 255, 0.035) !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
   border-radius: 10px !important;
   color: #F2F2F2 !important;
 }
-.adspirit-qf-main .adspirit-qf-choice.selected {
+.adspirit-qualifier-root .adspirit-qf-choice.selected {
   border-color: rgba(255, 255, 255, 0.30) !important;
   background: rgba(255, 255, 255, 0.10) !important;
 }
@@ -185,6 +189,39 @@
 }
 .adspirit-qf-step.qf-leave-to-right { opacity: 0; transform: translateX(64px); }
 .adspirit-qf-step.qf-leave-to-left  { opacity: 0; transform: translateX(-64px); }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   MODO EMBED — form contido na seção (sem overlay full-screen).
+   Mesmo visual do mockup (vidro escuro), mas como um card que mora dentro
+   da página. Shortcode: [adspirit_form_qualifier mode="embed"].
+   ═══════════════════════════════════════════════════════════════════════ */
+.adspirit-qf-embed {
+  position: relative;
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  background: rgba(8, 8, 10, 0.96);
+  -webkit-backdrop-filter: blur(20px) saturate(120%);
+  backdrop-filter: blur(20px) saturate(120%);
+  border-radius: 20px;
+  padding: 48px 44px 44px;
+  color: #F2F2F2;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-weight: 300;
+  line-height: 1.5;
+  overflow-x: clip;            /* contém o deslize horizontal dos steps */
+  -webkit-font-smoothing: antialiased;
+}
+.adspirit-qf-embed .adspirit-qf-stage { max-width: none; }
+.adspirit-qf-embed .adspirit-qf-step { max-width: none; }
+/* títulos menores que o full-screen (cabem melhor num card contido) */
+.adspirit-qf-embed .adspirit-qf-title { font-size: clamp(1.5rem, 1.2rem + 1.2vw, 2rem); margin-bottom: 14px; }
+.adspirit-qf-embed .adspirit-qf-eyebrow { margin-bottom: 20px; }
+.adspirit-qf-embed .adspirit-qf-sub { font-size: 15px; margin-bottom: 28px; }
+.adspirit-qf-embed .adspirit-qf-nav { margin-top: 28px; }
+@media (max-width: 640px) {
+  .adspirit-qf-embed { padding: 30px 22px 26px; border-radius: 16px; }
+}
 
 .adspirit-qf-eyebrow {
   font-size: 11px;

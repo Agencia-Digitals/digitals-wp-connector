@@ -41,7 +41,12 @@ Zero copy/paste de tokens. Mesma simplicidade de "conectar GitHub" no Vercel.
 - WPForms (`wpforms_process_complete`)
 - Elementor Forms (`elementor_pro/forms/new_record`)
 - Fluent Forms (`fluentform_submission_inserted`)
-- + Shortcode próprio `[adspirit_form]` multi-step nativo com progress bar, localStorage persistence e telemetria por step.
+- + Shortcode `[adspirit_form]` — form multi-step **genérico** (card branco/teal, progress bar). Legado/drop-in simples.
+
+**Form qualifier BANT (design AdSpirit dark glass)** — use **`[adspirit_form_qualifier]`** pro form de avaliação com o visual da agência (preto + glassmorphism, transição horizontal, 11 etapas BANT, telemetria). NÃO confunda com `[adspirit_form]` (branco). Três modos:
+- `[adspirit_form_qualifier]` — botão CTA → form em **tela cheia** (overlay). Padrão.
+- `[adspirit_form_qualifier mode="inline"]` — tela cheia, abre direto no load (sem botão).
+- `[adspirit_form_qualifier mode="embed"]` — **contido na seção** (card dark, sem overlay). Pra encaixar numa landing com hero + seção.
 
 **Telemetria (30+ campos)** — server + client side. Browser parse (Chrome/Safari/Firefox + Windows/macOS/iOS/Android), IP, locale, timezone, behavior (tempo na página + no form + fields visitados), WP context (post_id, post_type), cookies de atribuição (_fbp, _fbc, _ga, _gid). Linka com pixel via cookie `adspirit_vid` — CRM herda toda a jornada multi-touch.
 
