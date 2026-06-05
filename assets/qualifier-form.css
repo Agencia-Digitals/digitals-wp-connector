@@ -87,17 +87,23 @@
 .adspirit-qf-step {
   width: 100%;
   max-width: 640px;
-  /* opacity acompanha quase todo o trajeto pra o fade andar junto do deslize. */
-  transition: transform 540ms cubic-bezier(0.16, 1, 0.3, 1), opacity 460ms ease;
+  /* Timing da ENTRADA (decelera, premium). A saída tem timing próprio abaixo. */
+  transition: transform 460ms cubic-bezier(0.16, 1, 0.3, 1), opacity 320ms ease;
   will-change: transform, opacity;
 }
-/* Deslize horizontal estilo navegação iOS.
-   Avançar: novo entra pela direita, atual sai pela esquerda (conteúdo vai pra esquerda).
+/* Deslize horizontal estilo navegação iOS, SEQUENCIAL (sai → entra, sem embolar).
+   Avançar: novo entra pela direita, atual sai pela esquerda.
    Voltar: espelhado — novo entra pela esquerda, atual sai pela direita. */
 .adspirit-qf-step.qf-enter-from-left  { opacity: 0; transform: translateX(-64px); }
 .adspirit-qf-step.qf-enter-from-right { opacity: 0; transform: translateX(64px); }
-.adspirit-qf-step.qf-leave-to-right   { opacity: 0; transform: translateX(64px);  pointer-events: none; }
-.adspirit-qf-step.qf-leave-to-left    { opacity: 0; transform: translateX(-64px); pointer-events: none; }
+/* Saída: acelera (ease-in) e some rápido — limpa a tela ANTES de o novo entrar. */
+.adspirit-qf-step.qf-leave-to-right,
+.adspirit-qf-step.qf-leave-to-left {
+  pointer-events: none;
+  transition: transform 360ms cubic-bezier(0.4, 0, 1, 1), opacity 220ms ease;
+}
+.adspirit-qf-step.qf-leave-to-right { opacity: 0; transform: translateX(64px); }
+.adspirit-qf-step.qf-leave-to-left  { opacity: 0; transform: translateX(-64px); }
 
 .adspirit-qf-eyebrow {
   font-size: 11px;
