@@ -123,14 +123,17 @@ class AdSpirit_Lgpd_Popup {
         <style id="adspirit-lgpd-css">
         #adspirit-lgpd{
             position:fixed; z-index:99999;
-            background:rgba(8,8,8,0.82);
-            -webkit-backdrop-filter:blur(24px) saturate(120%);
-            backdrop-filter:blur(24px) saturate(120%);
+            /* Minimalista: SEM contorno. O fundo é blur + pouca transparência
+               (mais sólido) — é o que dá presença, não a borda. Sombra quase
+               imperceptível só pra um leve descolamento do conteúdo. */
+            background:rgba(9,9,11,0.88);
+            -webkit-backdrop-filter:blur(28px) saturate(130%);
+            backdrop-filter:blur(28px) saturate(130%);
             color:#F2F2F2;
-            border:1px solid rgba(255,255,255,0.08);
+            border:none;
             border-radius:14px;
             padding:20px 22px;
-            box-shadow:0 16px 48px rgba(0,0,0,0.45);
+            box-shadow:0 6px 26px rgba(0,0,0,0.20);
             font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
             font-weight:300; font-size:13px; line-height:1.6;
             /* Estado "armado": invisível esperando o timer de 10s. */
@@ -278,9 +281,9 @@ class AdSpirit_Lgpd_Popup {
         <?php AdSpirit_Menu::form_close('Salvar consentimento'); ?>
         <?php AdSpirit_Menu::card_close(); ?>
 
-        <?php AdSpirit_Menu::card_open('Preview ao vivo', 'Como aparece no site (preto translúcido + blur, sem cor de destaque — idêntico ao form)'); ?>
+        <?php AdSpirit_Menu::card_open('Preview ao vivo', 'Como aparece no site (preto + blur, SEM contorno, minimalista — idêntico ao form)'); ?>
         <div style="background:linear-gradient(120deg,#1a1f29,#2b2233); padding:34px; border-radius:8px;">
-            <div style="background:rgba(8,8,8,0.82); -webkit-backdrop-filter:blur(24px) saturate(120%); backdrop-filter:blur(24px) saturate(120%); color:#F2F2F2; border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:20px 22px; max-width:380px; box-shadow:0 16px 48px rgba(0,0,0,0.45); font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif; font-weight:300; font-size:13px; line-height:1.6;">
+            <div style="background:rgba(9,9,11,0.88); -webkit-backdrop-filter:blur(28px) saturate(130%); backdrop-filter:blur(28px) saturate(130%); color:#F2F2F2; border:none; border-radius:14px; padding:20px 22px; max-width:380px; box-shadow:0 6px 26px rgba(0,0,0,0.20); font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif; font-weight:300; font-size:13px; line-height:1.6;">
                 <div style="font-size:10px; font-weight:400; letter-spacing:0.26em; text-transform:uppercase; color:rgba(242,242,242,0.48); margin-bottom:10px;"><?php echo esc_html($c['title']); ?></div>
                 <p style="margin:0 0 16px; color:rgba(242,242,242,0.72); font-size:12.5px;"><?php echo esc_html($c['message']); ?></p>
                 <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
