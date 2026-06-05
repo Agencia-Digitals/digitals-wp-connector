@@ -93,6 +93,9 @@ adspirit_connector_safe_require('includes/class-adspirit-form-qualifier.php');
 // v2.5 whatsapp popup + thank you redirect com tracking server-side
 adspirit_connector_safe_require('includes/class-adspirit-whatsapp.php');
 adspirit_connector_safe_require('includes/class-adspirit-thank-you.php');
+// v2.6 submissions log (substituto local do TablePress)
+adspirit_connector_safe_require('includes/class-adspirit-submissions-log.php');
+adspirit_connector_safe_require('includes/class-adspirit-thank-you.php');
 
 /**
  * Bootstrap on plugins_loaded.
@@ -144,6 +147,8 @@ function adspirit_connector_init() {
     // v2.5 whatsapp + thank you shortcodes
     if (class_exists('AdSpirit_WhatsApp'))  AdSpirit_WhatsApp::instance();
     if (class_exists('AdSpirit_Thank_You')) AdSpirit_Thank_You::instance();
+    // v2.6 submissions log
+    if (class_exists('AdSpirit_Submissions_Log')) AdSpirit_Submissions_Log::instance();
 }
 
 /**

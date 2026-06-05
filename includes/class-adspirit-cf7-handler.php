@@ -147,6 +147,10 @@ class AdSpirit_Cf7_Handler {
                 'form_id' => $form_id,
                 'fields'  => array_keys($data),
             ));
+            // Log local pra aba "Submissions" (não-bloqueante, response body
+            // não disponível em blocking=false — gravamos sem profile).
+            $data_with_form = array_merge($data, array('_form_id' => (string) $form_id));
+            do_action('adspirit_lead_dispatched', $data_with_form, null, 'cf7');
         }
 
         // Fanout pra webhooks externos (Zapier/Make/n8n)

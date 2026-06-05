@@ -362,6 +362,12 @@ class AdSpirit_Form_Qualifier {
             } catch (\Throwable $e) { /* silenciado */ }
         }
 
+        // Log local pra aba "Submissions" (pega profile + lead_id do response).
+        // Source distingue qualifier completo de parcial.
+        $log_source = $is_partial ? 'qualifier_partial' : 'qualifier';
+        $log_payload = array_merge($payload, array('_form_id' => $log_source));
+        do_action('adspirit_lead_dispatched', $log_payload, $body, $log_source);
+
         // Resposta pro JS — repassa redirect_url + profile do CRM.
         // No parcial o front ignora a resposta (segue nos próximos steps).
         wp_send_json_success(array(

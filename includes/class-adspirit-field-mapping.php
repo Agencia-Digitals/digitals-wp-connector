@@ -86,16 +86,47 @@ class AdSpirit_Field_Mapping {
         }
         if (!$selected_form) $selected_form = $forms[0];
 
+        // v2.6: diagnóstico — para cada form, conta campos reconhecidos
+        // (= bate canonical name ou tem mapping existente) vs não-reconhecidos.
+        $all_status = array();
+        $any_unmapped = false;
+        $canonical_fields_all = AdSpirit_Settings::canonical_fields();
+        foreach ($forms as $f) {
+            $st = $this->form_match_status($f, $canonical_fields_all);
+            $all_status[$f->id()] = $st;
+            if ($st['unmatched_count'] > 0) $any_unmapped = true;
+        }
+
         ?>
+        <?php if (!$any_unmapped) : ?>
+            <div class="as-notice" style="background:#d4edda; border-left-color:#28a745; padding:12px 16px; margin-bottom:16px;">
+                <strong>✓ Todos os campos dos seus <?php echo count($forms); ?> form(s) estão reconhecidos automaticamente.</strong>
+                Você não precisa configurar nada nessa aba — o CRM já recebe cada submission com os field names canônicos.
+            </div>
+        <?php else : ?>
+            <div class="as-notice warn" style="padding:12px 16px; margin-bottom:16px;">
+                <strong>⚠ Encontramos campos não-mapeados em alguns forms.</strong>
+                Campos com nome diferente do canônico (<code>nome</code> ao invés de <code>your-name</code>, etc) chegam no CRM mas
+                <strong>não são interpretados</strong> — scoring zera, dimensões ficam vazias. Configure abaixo o que falta.
+            </div>
+        <?php endif; ?>
+
         <h2 class="as-section"><span class="as-kicker-inline">Field mapping</span>Forms detectados</h2>
         <p class="as-section-help">Cada cliente tem nomes de campo diferentes (<code>nome</code> vs <code>your-name</code>). Mapeie aqui pra que o CRM reconheça cada campo independente do nome usado no form.</p>
 
         <div style="display:flex; flex-wrap:wrap; gap:6px; margin: 0 0 18px;">
-        <?php foreach ($forms as $f): ?>
+        <?php foreach ($forms as $f):
+            $st = $all_status[$f->id()] ?? array('matched_count' => 0, 'total' => 0, 'unmatched_count' => 0);
+            $badge_color = $st['unmatched_count'] === 0 ? '#28a745' : '#d39e00';
+        ?>
             <a href="<?php echo esc_url(admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=forms&form_id=' . $f->id())); ?>"
-               class="button <?php echo $f->id() === $selected_form->id() ? 'button-primary' : ''; ?>">
+               class="button <?php echo $f->id() === $selected_form->id() ? 'button-primary' : ''; ?>"
+               title="<?php echo (int) $st['matched_count']; ?> de <?php echo (int) $st['total']; ?> campos reconhecidos">
                 <?php echo esc_html($f->title()); ?>
                 <code style="margin-left:6px; opacity:0.7; padding:0 4px;">#<?php echo esc_html($f->id()); ?></code>
+                <span style="margin-left:6px; display:inline-block; padding:1px 6px; border-radius:3px; background:<?php echo esc_attr($badge_color); ?>; color:white; font-size:10px; font-weight:600;">
+                    <?php echo (int) $st['matched_count']; ?>/<?php echo (int) $st['total']; ?>
+                </span>
             </a>
         <?php endforeach; ?>
         </div>
@@ -240,6 +271,80 @@ class AdSpirit_Field_Mapping {
             }
         }
         return $out;
+    }
+
+    /**
+     * v2.6: status de mapeamento de um form individual.
+     * Retorna ['total'=>N, 'matched_count'=>N, 'unmatched_count'=>N,
+     *   'unmatched_fields'=>[name,...], 'has_explicit_map'=>bool]
+     *
+     * "matched" = campo do form com nome canônico exato OU alias conhecido
+     * OU com mapping explícito salvo. "unmatched" = não cai em nenhum dos 3.
+     * Campos auxiliares (submit, _wpcf7_*, recaptcha) ficam fora da contagem.
+     */
+    public function form_match_status($form, $canonical_fields = null) {
+        if (!$form) return array('total' => 0, 'matched_count' => 0, 'unmatched_count' => 0, 'unmatched_fields' => array(), 'has_explicit_map' => false);
+        $form_id = $form->id();
+        $tags = $form->scan_form_tags();
+        $canonical_fields = $canonical_fields ?: AdSpirit_Settings::canonical_fields();
+        $existing = AdSpirit_Settings::get_field_mapping_for_form($form_id);
+        $has_explicit_map = !empty($existing);
+
+        // Aliases (reaproveita o filter)
+        $aliases = apply_filters('adspirit_field_mapping_aliases', array(
+            'your-name'           => array('your-name', 'name', 'nome', 'fullname', 'full-name', 'nome-completo', 'first-name'),
+            'your-email'          => array('your-email', 'email', 'e-mail', 'mail', 'seu-email'),
+            'Telefone'            => array('Telefone', 'telefone', 'phone', 'tel', 'celular', 'whatsapp', 'numero', 'fone'),
+            'empresa'             => array('empresa', 'company', 'business', 'razao-social'),
+            'cargo'               => array('cargo', 'position', 'role', 'job-title'),
+            'Numero-funcionarios' => array('Numero-funcionarios', 'numero-funcionarios', 'employees', 'funcionarios'),
+            'nicho'               => array('nicho', 'segment', 'industry', 'segmento'),
+            'site-empresa'        => array('site-empresa', 'website', 'site', 'url'),
+            'Investimento'        => array('Investimento', 'investimento', 'budget', 'orcamento'),
+            'urgencia para começar' => array('urgencia para começar', 'urgencia', 'urgency', 'prazo'),
+        ));
+
+        // Lista flat de todos os aliases (lowercase) reconhecidos
+        $alias_pool = array();
+        foreach ($aliases as $list) foreach ($list as $a) $alias_pool[strtolower($a)] = true;
+
+        // Mapeamentos explícitos salvos viram "reconhecidos"
+        $mapped_cf7_fields = array();
+        foreach ($existing as $can_key => $cf7_field) {
+            if (!empty($cf7_field)) $mapped_cf7_fields[strtolower($cf7_field)] = true;
+        }
+
+        // Ignora campos auxiliares de CF7 / re-captcha / submit
+        $ignore_prefixes = array('_wpcf7', 'g-recaptcha', 'recaptcha');
+        $ignore_types = array('submit', 'recaptcha', 'acceptance', 'response_output');
+
+        $total = 0;
+        $matched = 0;
+        $unmatched_fields = array();
+        foreach ($tags as $tag) {
+            $name = isset($tag->name) ? (string) $tag->name : '';
+            $type = isset($tag->type) ? (string) $tag->type : '';
+            if (!$name) continue;
+            $skip = false;
+            foreach ($ignore_prefixes as $p) if (stripos($name, $p) === 0) { $skip = true; break; }
+            if ($skip || in_array($type, $ignore_types, true)) continue;
+
+            $total++;
+            $nl = strtolower($name);
+            if (isset($alias_pool[$nl]) || isset($mapped_cf7_fields[$nl])) {
+                $matched++;
+            } else {
+                $unmatched_fields[] = $name;
+            }
+        }
+
+        return array(
+            'total' => $total,
+            'matched_count' => $matched,
+            'unmatched_count' => $total - $matched,
+            'unmatched_fields' => $unmatched_fields,
+            'has_explicit_map' => $has_explicit_map,
+        );
     }
 
     public function handle_save($post) {

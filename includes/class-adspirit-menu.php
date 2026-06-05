@@ -84,6 +84,7 @@ class AdSpirit_Menu {
             'capi-meta'    => 'Meta CAPI',
             'ga4'          => 'Google Analytics 4',
             'cross-domain' => 'Cross-domain',
+            'submissions'  => 'Submissões recentes',
             'logs'         => 'Logs',
         );
         return apply_filters('adspirit_connector_tabs', $tabs);
@@ -101,7 +102,7 @@ class AdSpirit_Menu {
             'captura'     => array('label' => 'Captura',     'tabs' => array('qualifier', 'forms', 'antispam', 'lgpd')),
             'tracking'    => array('label' => 'Tracking',    'tabs' => array('capi-meta', 'ga4', 'cross-domain', 'behavioral', 'clarity')),
             'integracoes' => array('label' => 'Integrações', 'tabs' => array('customerio', 'mailchimp', 'webhook-out', 'ab-tests')),
-            'sistema'     => array('label' => 'Sistema',     'tabs' => array('logs')),
+            'sistema'     => array('label' => 'Sistema',     'tabs' => array('submissions', 'logs')),
         ));
     }
 
