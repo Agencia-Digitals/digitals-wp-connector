@@ -154,7 +154,15 @@ class AdSpirit_Field_Mapping {
 
         AdSpirit_Menu::form_open('forms');
         ?>
-        <?php AdSpirit_Menu::card_open('Mapeamento — ' . esc_html($form->title()), 'Form ID <code>#' . esc_html($form_id) . '</code> · ' . count($cf7_fields) . ' campos detectados', '<button type="button" class="button button-primary" form="adspirit-mapping-form" onclick="adspiritApplySuggestions()">Aplicar sugestões</button>'); ?>
+        <?php $has_suggestions = !empty($suggestions); ?>
+        <?php AdSpirit_Menu::card_open(
+            'Mapeamento — ' . esc_html($form->title()),
+            'Form ID <code>#' . esc_html($form_id) . '</code> · ' . count($cf7_fields) . ' campos detectados',
+            $has_suggestions
+                ? '<button type="button" class="button button-primary" form="adspirit-mapping-form" onclick="adspiritApplyAndSave()" title="Aplica sugestões e salva imediatamente">Aplicar e salvar sugestões</button>
+                   <button type="button" class="button" form="adspirit-mapping-form" onclick="adspiritApplySuggestions()" title="Preenche os dropdowns; você ainda precisa clicar Salvar">Só aplicar</button>'
+                : ''
+        ); ?>
         <form id="adspirit-mapping-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
             <input type="hidden" name="action" value="adspirit_save">
             <input type="hidden" name="adspirit_tab" value="forms">
@@ -211,6 +219,7 @@ class AdSpirit_Field_Mapping {
 
         <script>
         function adspiritApplySuggestions() {
+            var applied = 0;
             document.querySelectorAll('code[data-canonical]').forEach(function(el) {
                 var canKey = el.getAttribute('data-canonical');
                 var suggestion = el.getAttribute('data-suggestion');
@@ -218,8 +227,15 @@ class AdSpirit_Field_Mapping {
                 var select = document.querySelector('select[name="mapping[' + canKey + ']"]');
                 if (!select) return;
                 var opt = select.querySelector('option[value="' + suggestion + '"]');
-                if (opt) select.value = suggestion;
+                if (opt) { select.value = suggestion; applied++; }
             });
+            return applied;
+        }
+        function adspiritApplyAndSave() {
+            var n = adspiritApplySuggestions();
+            if (n === 0) { alert('Nenhuma sugestão a aplicar.'); return; }
+            var form = document.getElementById('adspirit-mapping-form');
+            if (form) form.submit();
         }
         </script>
 
