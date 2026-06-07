@@ -711,30 +711,48 @@
 
   // --- INIT ---
   function init() {
-    if (!CFG.ajax_url || !CFG.nonce) {
-      console.warn('[AdSpirit Qualifier] CFG ausente (ajax_url/nonce). Abortando init.');
-      return;
-    }
-    // Trigger via delegação no document — cobre o botão do plugin E botões
-    // próprios criados no page-builder (mesmo adicionados depois do load).
-    // Abre o form quem tiver: .adspirit-qualifier-trigger, [data-adspirit-qualifier],
-    // ou link href="#adspirit-avaliacao".
-    document.addEventListener('click', function (e) {
-      var el = e.target;
-      if (el && el.nodeType === 3) el = el.parentElement; // text node → elemento
-      var trigger = el && el.closest
-        ? el.closest('.adspirit-qualifier-trigger, [data-adspirit-qualifier], a[href$="#adspirit-avaliacao"]')
-        : null;
-      if (!trigger) return;
-      e.preventDefault();
-      openPopup();
-    });
-    // Inline (full-screen) e embed (contido) renderizam direto no load.
-    var auto = document.querySelector('.adspirit-qualifier-root[data-mode="inline"], .adspirit-qualifier-root[data-mode="embed"]');
-    if (auto) {
-      loadState();
-      render();
-      mountTurnstile(); // v2.10
+    try {
+      if (!CFG.ajax_url || !CFG.nonce) {
+        console.warn('[AdSpirit Qualifier] CFG ausente (ajax_url/nonce). Abortando init.');
+        return;
+      }
+      // v2.10.3: só ativa runtime SE houver root do qualifier OU trigger
+      // explícito na página. Se nenhum dos dois, NÃO adiciona event listener
+      // global no document — evita qualquer interferência com forms de outros
+      // plugins (CF7, etc) em sites onde o script foi enfileirado mas o
+      // qualifier não é usado naquela página.
+      var hasRoot = !!document.querySelector('.adspirit-qualifier-root');
+      var hasTrigger = !!document.querySelector('.adspirit-qualifier-trigger, [data-adspirit-qualifier], a[href$="#adspirit-avaliacao"]');
+      if (!hasRoot && !hasTrigger) {
+        return; // página não usa o qualifier — silent no-op
+      }
+      // Trigger via delegação no document — cobre o botão do plugin E botões
+      // próprios criados no page-builder (mesmo adicionados depois do load).
+      document.addEventListener('click', function (e) {
+        try {
+          var el = e.target;
+          if (el && el.nodeType === 3) el = el.parentElement; // text node → elemento
+          var trigger = el && el.closest
+            ? el.closest('.adspirit-qualifier-trigger, [data-adspirit-qualifier], a[href$="#adspirit-avaliacao"]')
+            : null;
+          if (!trigger) return;
+          e.preventDefault();
+          openPopup();
+        } catch (e2) {
+          console.warn('[AdSpirit Qualifier] click handler erro:', e2);
+        }
+      });
+      // Inline (full-screen) e embed (contido) renderizam direto no load.
+      var auto = document.querySelector('.adspirit-qualifier-root[data-mode="inline"], .adspirit-qualifier-root[data-mode="embed"]');
+      if (auto) {
+        loadState();
+        render();
+        mountTurnstile(); // v2.10
+      }
+    } catch (err) {
+      // v2.10.3: try/catch top-level pra erro no qualifier NUNCA derrubar
+      // outros scripts da página (CF7 submit, analytics, etc).
+      console.error('[AdSpirit Qualifier] init erro:', err);
     }
   }
   if (document.readyState === 'loading') {

@@ -49,13 +49,20 @@ class AdSpirit_Form_Qualifier {
         add_action('adspirit_connector_save_qualifier',
             AdSpirit_Safe_Hook::action(array($this, 'handle_save'), 'qualifier_save'));
 
-        // Modo "site todo": injeta o form (trigger) no rodapé de TODAS as páginas
-        // do front, sem precisar do shortcode em cada página. Qualquer botão com
-        // #adspirit-avaliacao / data-adspirit-qualifier / .adspirit-qualifier-trigger abre.
-        add_action('wp_enqueue_scripts',
-            AdSpirit_Safe_Hook::action(array($this, 'maybe_enqueue_sitewide'), 'qualifier_sitewide_enqueue'));
-        add_action('wp_footer',
-            AdSpirit_Safe_Hook::action(array($this, 'maybe_inject_sitewide_root'), 'qualifier_sitewide_root'));
+        // v2.10.3: hooks de "site todo" REGISTRADOS APENAS quando o toggle está
+        // explicitamente ligado (option === '1'). Antes ficavam sempre registrados
+        // e davam early-return dentro do handler — funcional, mas em sites com
+        // LiteSpeed JS combine + muitos plugins isso introduzia interferência
+        // no submit AJAX do CF7 (form principal parava de chegar nos hooks).
+        // Sem opt-in, ZERO modificação do front-end (sem extra wp_footer hook,
+        // sem extra enqueue check).
+        $qs = get_option(self::OPTION_KEY, array());
+        if (isset($qs['sitewide']) && $qs['sitewide'] === '1') {
+            add_action('wp_enqueue_scripts',
+                AdSpirit_Safe_Hook::action(array($this, 'maybe_enqueue_sitewide'), 'qualifier_sitewide_enqueue'));
+            add_action('wp_footer',
+                AdSpirit_Safe_Hook::action(array($this, 'maybe_inject_sitewide_root'), 'qualifier_sitewide_root'));
+        }
     }
 
     public static function defaults() {

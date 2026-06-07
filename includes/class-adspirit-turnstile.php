@@ -41,14 +41,23 @@ class AdSpirit_Turnstile {
         add_action('adspirit_connector_save_turnstile',
             AdSpirit_Safe_Hook::action(array($this, 'handle_save'), 'turnstile_save'));
 
-        // v2.9: aplica em CF7 quando opt-in (filter wpcf7_validate)
-        add_filter('wpcf7_validate',
-            AdSpirit_Safe_Hook::filter(array($this, 'maybe_validate_cf7'), 'turnstile_cf7_validate'),
-            20, 2);
+        // v2.10.3: hooks no fluxo CF7 SOMENTE quando Turnstile está realmente
+        // ativo + opt-in pra CF7. Antes ficavam sempre registrados (early-return
+        // dentro do handler), mas isso somava 1 invocação extra a cada submit CF7
+        // e podia interferir em sites com cache de JS minificado / muitos plugins.
+        // Sem opt-in, ZERO interferência no fluxo CF7 existente.
+        if (self::is_active() && self::applies_to_cf7()) {
+            add_filter('wpcf7_validate',
+                AdSpirit_Safe_Hook::filter(array($this, 'maybe_validate_cf7'), 'turnstile_cf7_validate'),
+                20, 2);
+        }
 
-        // Enqueue script no front quando ativo (carregamento condicional)
-        add_action('wp_enqueue_scripts',
-            AdSpirit_Safe_Hook::action(array($this, 'maybe_enqueue_widget'), 'turnstile_enqueue'));
+        // Enqueue script no front somente se Turnstile ativo (qualifier OU CF7).
+        // Idem: sem ativação, nenhum script de terceiros (cloudflare) é carregado.
+        if (self::is_active()) {
+            add_action('wp_enqueue_scripts',
+                AdSpirit_Safe_Hook::action(array($this, 'maybe_enqueue_widget'), 'turnstile_enqueue'));
+        }
     }
 
     public function register_tab($tabs) {
