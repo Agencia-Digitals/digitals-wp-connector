@@ -48,6 +48,14 @@ class AdSpirit_Submissions_Log {
     public function render_tab() {
         if (!current_user_can(AdSpirit_Menu::CAPABILITY)) return;
 
+        // Fase 1: quando a tabela durável existe, ela vira a fonte da aba —
+        // render rico com status por integração + botão Reenviar. Sem a tabela
+        // (criação falhou), cai no log legado (wp_options) abaixo como fallback.
+        if (class_exists('AdSpirit_Lead_Store') && AdSpirit_Lead_Store::available()) {
+            AdSpirit_Lead_Store::render_submissions_tab();
+            return;
+        }
+
         $filters = array(
             'source' => isset($_GET['sl_source']) ? sanitize_key((string) $_GET['sl_source']) : '',
             'profile' => isset($_GET['sl_profile']) ? sanitize_key((string) $_GET['sl_profile']) : '',

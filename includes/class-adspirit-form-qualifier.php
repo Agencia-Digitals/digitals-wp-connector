@@ -404,7 +404,11 @@ class AdSpirit_Form_Qualifier {
             'nicho' => $sanitized['market'] ?? '',
             'ExperienciacomMarketing' => $sanitized['experience'] ?? '',
             'revenue' => $sanitized['revenue'] ?? '',
-            'Investimento mensal em Marketing' => $sanitized['investment'] ?? '',
+            // Quick fix (Fase 0): chave canônica = 'Investimento' (o CF7 corta
+            // o nome do tag no 1º espaço → posta 'Investimento'; a coluna do
+            // Google Sheet e o canônico do CRM também são 'Investimento'). Antes
+            // ia 'Investimento mensal em Marketing' e não batia em coluna nenhuma.
+            'Investimento' => $sanitized['investment'] ?? '',
             'urgencia' => $sanitized['timing'] ?? '',
             'pain' => $sanitized['pain'] ?? '',
             'cf7_time' => current_time('c'),
@@ -439,6 +443,14 @@ class AdSpirit_Form_Qualifier {
         $base_sid = $client_sid !== '' ? $client_sid : ('q-' . time() . '-' . wp_generate_password(8, false));
         $submission_id = $base_sid . ($is_partial ? '-p' : '');
 
+        // Fase 1: grava local ANTES do POST pro CRM. Integridade não bloqueia o
+        // envio — se record_pending falhar (tabela ausente), retorna false e o
+        // fluxo segue normal (lead vai pro CRM + log legado de fallback).
+        $lead_source = $is_partial ? 'qualifier_partial' : 'qualifier';
+        if (class_exists('AdSpirit_Lead_Store')) {
+            AdSpirit_Lead_Store::record_pending($submission_id, $payload, $lead_source, 'adspirit_form_qualifier');
+        }
+
         $endpoint = rtrim($core['endpoint_url'], '/') . '/api/webhooks/contact-form-7';
         $response = wp_remote_post($endpoint, array(
             'timeout' => 10,
@@ -453,6 +465,9 @@ class AdSpirit_Form_Qualifier {
         ));
 
         if (is_wp_error($response)) {
+            if (class_exists('AdSpirit_Lead_Store')) {
+                AdSpirit_Lead_Store::mark($submission_id, 'crm', 'failed', 0, $response->get_error_message());
+            }
             wp_send_json_error(array('error' => 'crm_unreachable', 'detail' => $response->get_error_message()), 502);
             return;
         }
@@ -462,8 +477,16 @@ class AdSpirit_Form_Qualifier {
         $body = json_decode($body_raw, true);
 
         if ($code < 200 || $code >= 300 || !is_array($body)) {
+            if (class_exists('AdSpirit_Lead_Store')) {
+                AdSpirit_Lead_Store::mark($submission_id, 'crm', 'failed', (int) $code, 'HTTP ' . $code);
+            }
             wp_send_json_error(array('error' => 'crm_error', 'status' => $code), 502);
             return;
+        }
+
+        // CRM aceitou — marca enviado + captura profile/lead_id da resposta.
+        if (class_exists('AdSpirit_Lead_Store')) {
+            AdSpirit_Lead_Store::mark($submission_id, 'crm', 'sent', (int) $code, null, $body);
         }
 
         // Webhook out (fan-out pra n8n/Elisa, Zapier, etc) — fire-and-forget.
@@ -472,6 +495,9 @@ class AdSpirit_Form_Qualifier {
         if (!$is_partial && class_exists('AdSpirit_Integrations') && method_exists('AdSpirit_Integrations', 'fanout')) {
             try {
                 AdSpirit_Integrations::instance()->fanout($payload);
+                if (class_exists('AdSpirit_Lead_Store')) {
+                    AdSpirit_Lead_Store::mark($submission_id, 'fanout', 'dispatched');
+                }
             } catch (\Throwable $e) { /* silenciado */ }
         }
 

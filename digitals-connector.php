@@ -3,7 +3,7 @@
  * Plugin Name:       AdSpirit Connector
  * Plugin URI:        https://crm.agenciadigitals.com.br
  * Description:       Conecta o site WordPress ao CRM AdSpirit (Digitals). CF7 real-time, anti-spam, field mapping, CAPI Meta, GA4 server-side, cross-domain decoration. Configurado via wp-admin.
- * Version:           2.10.3
+ * Version:           2.11.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Tested up to:      6.7
@@ -19,7 +19,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('ADSPIRIT_CONNECTOR_VERSION', '2.10.3');
+define('ADSPIRIT_CONNECTOR_VERSION', '2.11.0');
 define('ADSPIRIT_CONNECTOR_FILE', __FILE__);
 define('ADSPIRIT_CONNECTOR_DIR', plugin_dir_path(__FILE__));
 define('ADSPIRIT_CONNECTOR_URL', plugin_dir_url(__FILE__));
@@ -95,6 +95,8 @@ adspirit_connector_safe_require('includes/class-adspirit-whatsapp.php');
 adspirit_connector_safe_require('includes/class-adspirit-thank-you.php');
 // v2.6 submissions log (substituto local do TablePress)
 adspirit_connector_safe_require('includes/class-adspirit-submissions-log.php');
+// v2.11 lead store (persistência durável de submissões + reenvio)
+adspirit_connector_safe_require('includes/class-adspirit-lead-store.php');
 // v2.8 setup wizard (checklist visual de configuração)
 adspirit_connector_safe_require('includes/class-adspirit-setup-wizard.php');
 // v2.10 cloudflare turnstile (anti-bot invisível)
@@ -152,6 +154,8 @@ function adspirit_connector_init() {
     if (class_exists('AdSpirit_Thank_You')) AdSpirit_Thank_You::instance();
     // v2.6 submissions log
     if (class_exists('AdSpirit_Submissions_Log')) AdSpirit_Submissions_Log::instance();
+    // v2.11 lead store (persistência durável — cria/migra tabela on-load)
+    if (class_exists('AdSpirit_Lead_Store')) AdSpirit_Lead_Store::instance();
     // v2.8 setup wizard
     if (class_exists('AdSpirit_Setup_Wizard')) AdSpirit_Setup_Wizard::instance();
     // v2.10 cloudflare turnstile
@@ -179,6 +183,11 @@ function adspirit_connector_activate() {
     }
     if (class_exists('AdSpirit_Settings')) {
         AdSpirit_Settings::seed_defaults();
+    }
+    // v2.11: cria a tabela de submissões duráveis. Em update via GitHub o
+    // activation hook NÃO roda — o maybe_install() no boot cobre esse caso.
+    if (class_exists('AdSpirit_Lead_Store')) {
+        AdSpirit_Lead_Store::install();
     }
     // Reset de safe mode na ativação — nova instalação começa limpa
     if (class_exists('AdSpirit_Safe_Bootstrap')) {

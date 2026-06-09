@@ -158,7 +158,12 @@ class AdSpirit_Form_Adapters {
         $submission_id = $form_kind . '-' . $form_id . '-' . time() . '-' . substr(md5(wp_json_encode($payload)), 0, 8);
         $endpoint = rtrim($core['endpoint_url'], '/') . '/api/webhooks/contact-form-7';
 
-        wp_remote_post($endpoint, array(
+        // Fase 1: grava local ANTES do POST. Não bloqueia o envio.
+        if (class_exists('AdSpirit_Lead_Store')) {
+            AdSpirit_Lead_Store::record_pending($submission_id, $payload, $form_kind, (string) $form_id);
+        }
+
+        $response = wp_remote_post($endpoint, array(
             'timeout' => 8, 'blocking' => false,
             'headers' => array(
                 'Content-Type' => 'application/json',
@@ -170,8 +175,20 @@ class AdSpirit_Form_Adapters {
             'body' => wp_json_encode($payload),
         ));
 
+        if (class_exists('AdSpirit_Lead_Store')) {
+            AdSpirit_Lead_Store::mark(
+                $submission_id, 'crm',
+                is_wp_error($response) ? 'failed' : 'sent', 0,
+                is_wp_error($response) ? $response->get_error_message() : null
+            );
+        }
+
         if (class_exists('AdSpirit_Cf7_Handler')) {
             AdSpirit_Cf7_Handler::log('sent', 0, null, array('form_id' => $form_kind . ':' . $form_id, 'fields' => array_keys($payload)));
         }
+
+        // Fallback: alimenta o log legado (antes os adapters não entravam nele).
+        $payload_with_form = array_merge($payload, array('_form_id' => $form_kind . ':' . $form_id));
+        do_action('adspirit_lead_dispatched', $payload_with_form, null, $form_kind);
     }
 }

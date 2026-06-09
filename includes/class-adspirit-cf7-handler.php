@@ -138,10 +138,20 @@ class AdSpirit_Cf7_Handler {
             'body'        => $body,
         );
 
+        // Fase 1: grava local ANTES do POST pro CRM. Integridade NÃO bloqueia o
+        // envio — se record_pending falhar (tabela ausente), retorna false e o
+        // fluxo segue (lead vai pro CRM + log legado de fallback abaixo).
+        if (class_exists('AdSpirit_Lead_Store')) {
+            AdSpirit_Lead_Store::record_pending($submission_id, $data, 'cf7', (string) $form_id);
+        }
+
         $response = wp_remote_post($endpoint, $args);
         if (is_wp_error($response)) {
             self::log('error', 0, $response->get_error_message());
             error_log('[AdSpirit Connector] CF7 dispatch failed: ' . $response->get_error_message());
+            if (class_exists('AdSpirit_Lead_Store')) {
+                AdSpirit_Lead_Store::mark($submission_id, 'crm', 'failed', 0, $response->get_error_message());
+            }
         } else {
             self::log('sent', 0, null, array(
                 'form_id' => $form_id,
@@ -151,11 +161,19 @@ class AdSpirit_Cf7_Handler {
             // não disponível em blocking=false — gravamos sem profile).
             $data_with_form = array_merge($data, array('_form_id' => (string) $form_id));
             do_action('adspirit_lead_dispatched', $data_with_form, null, 'cf7');
+            // blocking=false: "sent" = despachado sem erro local (não confirma
+            // aceite do CRM). O record durável permite reenvio se algo falhar.
+            if (class_exists('AdSpirit_Lead_Store')) {
+                AdSpirit_Lead_Store::mark($submission_id, 'crm', 'sent', 0, null);
+            }
         }
 
         // Fanout pra webhooks externos (Zapier/Make/n8n)
         if (class_exists('AdSpirit_Integrations')) {
             AdSpirit_Integrations::fanout($data);
+            if (class_exists('AdSpirit_Lead_Store')) {
+                AdSpirit_Lead_Store::mark($submission_id, 'fanout', 'dispatched');
+            }
         }
 
         // 5) Paralelo: dispara Meta CAPI Lead + GA4 generate_lead
