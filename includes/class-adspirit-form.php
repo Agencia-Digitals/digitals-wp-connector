@@ -498,7 +498,7 @@ class AdSpirit_Form {
 
         ?>
         <h2 class="as-section"><span class="as-kicker-inline">Form builder</span>Formulários do plugin</h2>
-        <p class="as-section-help">Monte forms multi-campo sem código. Use <code>[adspirit_form id="seu-id"]</code> na página. <strong>Não publique em produção ainda</strong> — a rede de segurança (gravação durável) é ligada na próxima entrega.</p>
+        <p class="as-section-help">Monte forms multi-campo sem código. Use <code>[adspirit_form id="seu-id"]</code> na página. Cada envio é gravado na rede de segurança (aba <strong>Submissões</strong>) <strong>antes</strong> de ir pro CRM — pode publicar.</p>
 
         <?php AdSpirit_Menu::card_open('Seus forms', count($ids) . ' form(s)', '<a href="' . esc_url(admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=builder&new=1')) . '" class="button button-primary">+ Novo form</a>'); ?>
         <?php if (empty($ids)): ?>
