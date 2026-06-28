@@ -39,12 +39,13 @@ class AdSpirit_Telemetry {
     public function inject_collector() {
         if (is_admin()) return;
 
-        // Respeita consent LGPD se desabilitado
-        if (class_exists('AdSpirit_Lgpd_Popup')
-            && method_exists('AdSpirit_Lgpd_Popup', 'has_telemetry_consent')
-            && !AdSpirit_Lgpd_Popup::has_telemetry_consent()) {
-            return;
-        }
+        // Coletor injetado SEMPRE (base legal: legítimo interesse; consistente
+        // com o pixel, que já carrega sem gate). Antes era travado em
+        // has_telemetry_consent() NO RENDER, causando 2 bugs: (a) no 1º acesso
+        // (sem cookie de consent) o coletor nem aparecia → CF7 ia sem
+        // visitor_id; (b) pra ter consent precisava do reload do banner, que
+        // apagava o formulário. Os dados só são ENVIADOS no submit (ação
+        // deliberada do visitante). §126.
 
         ?>
         <script>
