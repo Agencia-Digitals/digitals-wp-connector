@@ -38,28 +38,6 @@
       ],
     },
     {
-      eyebrow: 'presença online',
-      title: 'Seu Instagram',
-      sub: 'Ou outra rede social onde a empresa está presente (LinkedIn, TikTok…).',
-      fields: [
-        { key: 'instagram', type: 'text', placeholder: '@ ou link do perfil', required: true },
-      ],
-    },
-    {
-      eyebrow: 'presença online',
-      title: 'Seu site',
-      sub: 'Campo opcional — nem toda empresa tem site.',
-      optional: true,
-      fields: [
-        { key: 'site', type: 'text', placeholder: 'Site da empresa (opcional)', required: false },
-      ],
-    },
-    {
-      eyebrow: 'empresa',
-      title: 'Nome da empresa',
-      fields: [{ key: 'company', type: 'text', placeholder: 'Razão social ou nome fantasia', required: true }],
-    },
-    {
       eyebrow: 'cargo',
       title: 'Seu cargo ou ocupação',
       fieldKey: 'role',
@@ -70,6 +48,11 @@
         { label: 'Coordenador, analista ou especialista', kbd: 'D' },
         { label: 'Outro', kbd: 'E' },
       ],
+    },
+    {
+      eyebrow: 'empresa',
+      title: 'Nome da empresa',
+      fields: [{ key: 'company', type: 'text', placeholder: 'Razão social ou nome fantasia', required: true }],
     },
     {
       eyebrow: 'porte',
@@ -99,6 +82,17 @@
       ],
     },
     {
+      eyebrow: 'presença online',
+      title: 'Site ou Instagram da empresa',
+      sub: 'Ou outra rede social onde a empresa está presente. Pelo menos um dos dois.',
+      requireOneOf: ['site', 'instagram'],
+      requireOneOfMsg: 'Informe o site ou uma rede social pra continuar',
+      fields: [
+        { key: 'site', type: 'text', placeholder: 'Site da empresa', required: false },
+        { key: 'instagram', type: 'text', placeholder: '@ ou link do perfil (Instagram, LinkedIn…)', required: false },
+      ],
+    },
+    {
       eyebrow: 'experiência',
       title: 'Tem time interno de marketing ou já trabalhou com agência?',
       fieldKey: 'experience',
@@ -109,7 +103,7 @@
     },
     {
       eyebrow: 'faturamento',
-      title: 'Faturamento mensal',
+      title: 'Faixa de faturamento mensal',
       fieldKey: 'revenue',
       choices: [
         { label: 'Até R$ 50 mil', kbd: 'A' },
@@ -146,7 +140,7 @@
     },
     {
       eyebrow: 'contexto',
-      title: 'Motivo do contato',
+      title: 'O que te levou a buscar a Digitals',
       sub: 'Campo opcional.',
       optional: true,
       fields: [{ key: 'pain', type: 'textarea', placeholder: 'O que motivou a busca e o que espera resolver.', required: false }],
