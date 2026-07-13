@@ -18,7 +18,7 @@
       isIntro: true,
       eyebrow: 'Avaliação para novos clientes',
       title: 'Preencha os seus dados',
-      sub: 'A Digitals trabalha com um número limitado de novos clientes a cada ciclo. Vamos avaliar o fit estratégico entre o seu negócio e o nosso modelo de crescimento. Avaliação individual, leva poucos minutos.',
+      sub: 'A Digitals trabalha com um número limitado de novos clientes a cada ciclo. Vamos avaliar o fit estratégico entre o seu negócio e o nosso modelo de crescimento. Avaliação individual, leva 2 minutos.',
     },
     {
       eyebrow: 'identificação',
