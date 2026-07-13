@@ -22,7 +22,7 @@
     },
     {
       eyebrow: 'identificação',
-      title: 'Nome completo',
+      title: 'Seu nome',
       fields: [
         { key: 'first_name', type: 'text', placeholder: 'Nome', required: true },
         { key: 'last_name', type: 'text', placeholder: 'Sobrenome', required: true },
@@ -30,13 +30,27 @@
     },
     {
       eyebrow: 'contato',
-      title: 'Email, WhatsApp e presença online',
-      sub: 'A rede social é obrigatória (Instagram, LinkedIn ou outra). O site da empresa é opcional — nem toda empresa tem site, mas presença em rede social é essencial.',
+      title: 'Email e WhatsApp',
       capturePartial: true, // ao passar daqui, dispara lead PARCIAL pro CRM
       fields: [
         { key: 'email', type: 'email', placeholder: 'Email corporativo', required: true },
         { key: 'phone', type: 'tel', placeholder: 'WhatsApp com DDD', required: true },
-        { key: 'instagram', type: 'text', placeholder: 'Instagram, LinkedIn ou outra rede (obrigatório)', required: true },
+      ],
+    },
+    {
+      eyebrow: 'presença online',
+      title: 'Seu Instagram',
+      sub: 'Ou outra rede social onde a empresa está presente (LinkedIn, TikTok…).',
+      fields: [
+        { key: 'instagram', type: 'text', placeholder: '@ ou link do perfil', required: true },
+      ],
+    },
+    {
+      eyebrow: 'presença online',
+      title: 'Seu site',
+      sub: 'Campo opcional — nem toda empresa tem site.',
+      optional: true,
+      fields: [
         { key: 'site', type: 'text', placeholder: 'Site da empresa (opcional)', required: false },
       ],
     },
@@ -107,7 +121,7 @@
     },
     {
       eyebrow: 'investimento',
-      title: 'Orçamento mensal para marketing e ads',
+      title: 'Quanto você costuma investir em Tráfego Pago?',
       fieldKey: 'investment',
       choices: [
         { label: 'Nunca investi em marketing', kbd: 'A' },
@@ -116,11 +130,12 @@
         { label: 'R$ 5 mil – R$ 10 mil', kbd: 'D' },
         { label: 'Acima de R$ 10 mil mensal', kbd: 'E' },
         { label: 'Acima de R$ 20 mil mensal', kbd: 'F' },
+        { label: 'Não sei dizer, não sou responsável por essa área', kbd: 'G' },
       ],
     },
     {
       eyebrow: 'urgência',
-      title: 'Quando pretende começar o trabalho com a agência',
+      title: 'Quando pretende começar o trabalho com a agência?',
       fieldKey: 'timing',
       choices: [
         { label: 'O quanto antes', kbd: 'A' },
