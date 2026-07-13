@@ -18,11 +18,11 @@
       isIntro: true,
       eyebrow: 'Avaliação para novos clientes',
       title: 'Preencha os seus dados',
-      sub: 'A Digitals trabalha com um número limitado de novos clientes a cada ciclo. Vamos avaliar o fit estratégico entre o seu negócio e o nosso modelo de crescimento. Avaliação individual, leva poucos minutos.',
+      sub: 'A Digitals trabalha com um número limitado de novos clientes a cada ciclo. Vamos avaliar o fit estratégico entre o seu negócio e o nosso modelo de crescimento. Avaliação individual, leva aproximadamente 2 minutos.',
     },
     {
       eyebrow: 'identificação',
-      title: 'Nome completo',
+      title: 'Seu nome',
       fields: [
         { key: 'first_name', type: 'text', placeholder: 'Nome', required: true },
         { key: 'last_name', type: 'text', placeholder: 'Sobrenome', required: true },
@@ -30,20 +30,12 @@
     },
     {
       eyebrow: 'contato',
-      title: 'Email, WhatsApp e presença online',
-      sub: 'A rede social é obrigatória (Instagram, LinkedIn ou outra). O site da empresa é opcional — nem toda empresa tem site, mas presença em rede social é essencial.',
+      title: 'Email e WhatsApp',
       capturePartial: true, // ao passar daqui, dispara lead PARCIAL pro CRM
       fields: [
         { key: 'email', type: 'email', placeholder: 'Email corporativo', required: true },
         { key: 'phone', type: 'tel', placeholder: 'WhatsApp com DDD', required: true },
-        { key: 'instagram', type: 'text', placeholder: 'Instagram, LinkedIn ou outra rede (obrigatório)', required: true },
-        { key: 'site', type: 'text', placeholder: 'Site da empresa (opcional)', required: false },
       ],
-    },
-    {
-      eyebrow: 'empresa',
-      title: 'Nome da empresa',
-      fields: [{ key: 'company', type: 'text', placeholder: 'Razão social ou nome fantasia', required: true }],
     },
     {
       eyebrow: 'cargo',
@@ -56,6 +48,11 @@
         { label: 'Coordenador, analista ou especialista', kbd: 'D' },
         { label: 'Outro', kbd: 'E' },
       ],
+    },
+    {
+      eyebrow: 'empresa',
+      title: 'Nome da empresa',
+      fields: [{ key: 'company', type: 'text', placeholder: 'Razão social ou nome fantasia', required: true }],
     },
     {
       eyebrow: 'porte',
@@ -85,6 +82,17 @@
       ],
     },
     {
+      eyebrow: 'presença online',
+      title: 'Site ou Instagram da empresa',
+      sub: 'Ou outra rede social onde a empresa está presente. Pelo menos um dos dois.',
+      requireOneOf: ['site', 'instagram'],
+      requireOneOfMsg: 'Informe o site ou uma rede social pra continuar',
+      fields: [
+        { key: 'site', type: 'text', placeholder: 'Site da empresa', required: false },
+        { key: 'instagram', type: 'text', placeholder: '@ ou link do perfil (Instagram, LinkedIn…)', required: false },
+      ],
+    },
+    {
       eyebrow: 'experiência',
       title: 'Tem time interno de marketing ou já trabalhou com agência?',
       fieldKey: 'experience',
@@ -95,7 +103,7 @@
     },
     {
       eyebrow: 'faturamento',
-      title: 'Faturamento mensal',
+      title: 'Faixa de faturamento mensal',
       fieldKey: 'revenue',
       choices: [
         { label: 'Até R$ 50 mil', kbd: 'A' },
@@ -107,7 +115,7 @@
     },
     {
       eyebrow: 'investimento',
-      title: 'Orçamento mensal para marketing e ads',
+      title: 'Quanto você costuma investir em Tráfego Pago?',
       fieldKey: 'investment',
       choices: [
         { label: 'Nunca investi em marketing', kbd: 'A' },
@@ -116,11 +124,12 @@
         { label: 'R$ 5 mil – R$ 10 mil', kbd: 'D' },
         { label: 'Acima de R$ 10 mil mensal', kbd: 'E' },
         { label: 'Acima de R$ 20 mil mensal', kbd: 'F' },
+        { label: 'Não sei dizer, não sou responsável por essa área', kbd: 'G' },
       ],
     },
     {
       eyebrow: 'urgência',
-      title: 'Quando pretende começar o trabalho com a agência',
+      title: 'Quando pretende começar o trabalho com a agência?',
       fieldKey: 'timing',
       choices: [
         { label: 'O quanto antes', kbd: 'A' },
@@ -131,7 +140,7 @@
     },
     {
       eyebrow: 'contexto',
-      title: 'Motivo do contato',
+      title: 'O que te levou a buscar a Digitals',
       sub: 'Campo opcional.',
       optional: true,
       fields: [{ key: 'pain', type: 'textarea', placeholder: 'O que motivou a busca e o que espera resolver.', required: false }],
