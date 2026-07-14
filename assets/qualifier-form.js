@@ -30,10 +30,9 @@
     },
     {
       eyebrow: 'contato',
-      title: 'Email e WhatsApp',
+      title: 'Seu WhatsApp',
       capturePartial: true, // ao passar daqui, dispara lead PARCIAL pro CRM
       fields: [
-        { key: 'email', type: 'email', placeholder: 'Email corporativo', required: true },
         { key: 'phone', type: 'tel', placeholder: 'WhatsApp com DDD', required: true },
       ],
     },
@@ -133,6 +132,13 @@
         { label: 'Nos próximos 30 dias', kbd: 'B' },
         { label: 'Daqui a 90 dias', kbd: 'C' },
         { label: 'Só estou avaliando as possibilidades', kbd: 'D' },
+      ],
+    },
+    {
+      eyebrow: 'contato',
+      title: 'Seu email',
+      fields: [
+        { key: 'email', type: 'email', placeholder: 'Email corporativo', required: true },
       ],
     },
     {
