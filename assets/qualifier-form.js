@@ -84,12 +84,9 @@
     {
       eyebrow: 'presença online',
       title: 'Site ou Instagram da empresa',
-      sub: 'Ou outra rede social onde a empresa está presente. Pelo menos um dos dois.',
-      requireOneOf: ['site', 'instagram'],
-      requireOneOfMsg: 'Informe o site ou uma rede social pra continuar',
+      sub: 'Ou outra rede social. Um deles basta — a gente localiza o resto.',
       fields: [
-        { key: 'site', type: 'text', placeholder: 'Site da empresa', required: false },
-        { key: 'instagram', type: 'text', placeholder: '@ ou link do perfil (Instagram, LinkedIn…)', required: false },
+        { key: 'social', type: 'text', placeholder: 'Site, @ ou link do perfil', required: true },
       ],
     },
     {
@@ -580,25 +577,46 @@
 
   // Lead parcial: fire-and-forget após a etapa de contato. Manda o que já
   // foi preenchido + _adspirit_partial=1. Roda no máximo uma vez.
+  // Nonce fresco via admin-ajax (nunca cacheado). O nonce embutido no HTML
+  // pode estar VENCIDO quando a página vem de page cache (LiteSpeed servia
+  // max-age de 7 dias; nonce vive 12-24h) — submeter com ele dava bad_nonce
+  // e o form mostrava "Falha de conexão" (incidente 2026-07-14). Resolve
+  // sempre (fallback = CFG.nonce atual); nunca rejeita.
+  function fetchFreshNonce() {
+    var fd = new FormData();
+    fd.append('action', 'adspirit_qualifier_nonce');
+    return fetch(CFG.ajax_url, { method: 'POST', body: fd, credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (json) {
+        if (json && json.success && json.data && json.data.nonce) {
+          CFG.nonce = json.data.nonce;
+        }
+        return CFG.nonce || '';
+      })
+      .catch(function () { return CFG.nonce || ''; });
+  }
+
   var partialSent = false;
   function submitPartialToServer() {
     if (partialSent) return;
     partialSent = true;
     try {
-      var fd = new FormData();
-      fd.append('action', 'adspirit_qualifier_submit');
-      fd.append('nonce', CFG.nonce || '');
-      fd.append('submission_id', qfSubmissionId());
-      fd.append('_adspirit_partial', '1');
-      appendAntibotMeta(fd);
-      Object.keys(state.responses).forEach(function (k) {
-        fd.append('fields[' + k + ']', state.responses[k] || '');
-      });
-      fetch(CFG.ajax_url, {
-        method: 'POST',
-        body: fd,
-        credentials: 'same-origin',
-        keepalive: true,
+      fetchFreshNonce().then(function (nonce) {
+        var fd = new FormData();
+        fd.append('action', 'adspirit_qualifier_submit');
+        fd.append('nonce', nonce);
+        fd.append('submission_id', qfSubmissionId());
+        fd.append('_adspirit_partial', '1');
+        appendAntibotMeta(fd);
+        Object.keys(state.responses).forEach(function (k) {
+          fd.append('fields[' + k + ']', state.responses[k] || '');
+        });
+        return fetch(CFG.ajax_url, {
+          method: 'POST',
+          body: fd,
+          credentials: 'same-origin',
+          keepalive: true,
+        });
       }).catch(function () {});
     } catch (e) { /* nunca quebra o fluxo do form */ }
   }
@@ -611,20 +629,22 @@
       nextBtn.setAttribute('disabled', 'disabled');
       nextBtn.querySelector('span').textContent = 'Enviando…';
     }
-    var formData = new FormData();
-    formData.append('action', 'adspirit_qualifier_submit');
-    formData.append('nonce', CFG.nonce || '');
-    formData.append('submission_id', qfSubmissionId());
-    appendAntibotMeta(formData);
-    Object.keys(state.responses).forEach(function (k) {
-      formData.append('fields[' + k + ']', state.responses[k] || '');
-    });
-
     var controller = new AbortController();
     window.__adspiritQfAbortController = controller;
     var timeoutId = setTimeout(function () { controller.abort(); }, 15000);
 
-    fetch(CFG.ajax_url, { method: 'POST', body: formData, credentials: 'same-origin', signal: controller.signal })
+    fetchFreshNonce()
+      .then(function (nonce) {
+        var formData = new FormData();
+        formData.append('action', 'adspirit_qualifier_submit');
+        formData.append('nonce', nonce);
+        formData.append('submission_id', qfSubmissionId());
+        appendAntibotMeta(formData);
+        Object.keys(state.responses).forEach(function (k) {
+          formData.append('fields[' + k + ']', state.responses[k] || '');
+        });
+        return fetch(CFG.ajax_url, { method: 'POST', body: formData, credentials: 'same-origin', signal: controller.signal });
+      })
       .then(function (r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         var ct = r.headers.get('content-type') || '';
