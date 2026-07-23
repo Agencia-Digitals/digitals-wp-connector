@@ -5,7 +5,12 @@
  * Pipeline na ordem:
  *   wpcf7_validate (anti-spam é registrado em outra classe; roda antes)
  *   ↓
- *   wpcf7_mail_sent (este handler, priority 99 — depois de n8n)
+ *   wpcf7_before_send_mail (este handler, priority 99) — Fase 1.1: capturamos
+ *   ANTES do envio do e-mail, NÃO no wpcf7_mail_sent. Motivo: mail_sent não
+ *   dispara se o e-mail falha (SMTP/Gmail fora) → o lead se perdia sem nem ser
+ *   gravado. before_send_mail roda após validação + anti-spam e antes do mail,
+ *   então o lead é gravado na rede de segurança + despachado mesmo se o e-mail
+ *   falhar. Não captura spam/inválido (esses não chegam aqui).
  *     1. Aplica field mapping (form_id → canonical names)
  *     2. POST pro CRM (fire-and-forget)
  *     3. Dispara Meta CAPI Lead event (paralelo)
@@ -31,8 +36,11 @@ class AdSpirit_Cf7_Handler {
     }
 
     private function __construct() {
+        // Fase 1.1: before_send_mail (não mail_sent) — captura o lead mesmo se
+        // o e-mail falhar (ex: SMTP/Gmail revogado). Dispara após validação +
+        // anti-spam do CF7 e antes do envio do e-mail.
         add_action(
-            'wpcf7_mail_sent',
+            'wpcf7_before_send_mail',
             AdSpirit_Safe_Hook::action(array($this, 'dispatch'), 'cf7_handler'),
             99,
             1

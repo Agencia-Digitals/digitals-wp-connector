@@ -139,7 +139,9 @@ class AdSpirit_Lead_Store {
         return AdSpirit_Safe_Hook::try_run(function () use ($submission_id, $payload, $source, $form_id) {
             global $wpdb;
             $contact = self::extract_contact($payload);
-            $now = current_time('mysql');
+            // GMT (segundo arg true): gravamos em UTC e comparamos como UTC no
+            // render → "X atrás" fica correto independente do fuso do site.
+            $now = current_time('mysql', true);
 
             $ok = $wpdb->insert(self::table_name(), array(
                 'submission_id' => substr((string) $submission_id, 0, 191),
@@ -198,12 +200,12 @@ class AdSpirit_Lead_Store {
                 'status'    => (string) $status,
                 'http_code' => (int) $http_code,
                 'error'     => $error !== null ? substr((string) $error, 0, 300) : null,
-                'at'        => current_time('mysql'),
+                'at'        => current_time('mysql', true),
             );
 
             $update = array(
                 'integrations' => wp_json_encode($integrations),
-                'updated_at'   => current_time('mysql'),
+                'updated_at'   => current_time('mysql', true),
             );
 
             // O status geral é guiado pelo CRM (destino primário do lead).
@@ -443,15 +445,18 @@ class AdSpirit_Lead_Store {
                     </thead>
                     <tbody>
                     <?php foreach ($rows as $r) :
-                        $ts = isset($r['created_at']) ? strtotime((string) $r['created_at']) : 0;
+                        // created_at é gravado em GMT → parse como UTC e compara
+                        // com time() (UTC). title mostra a hora no fuso do site.
+                        $ts = !empty($r['created_at']) ? strtotime((string) $r['created_at'] . ' UTC') : 0;
                         $when = $ts ? human_time_diff($ts, time()) . ' atrás' : '—';
+                        $when_title = $ts ? get_date_from_gmt((string) $r['created_at'], 'Y-m-d H:i') : '';
                         $status = (string) ($r['status'] ?? 'pending');
                         $badge = array('sent' => 'ok', 'pending' => 'warn', 'failed' => 'danger');
                         $status_cls = $badge[$status] ?? 'muted';
                         $can_resend = in_array($status, array('pending', 'failed'), true);
                     ?>
                         <tr>
-                            <td title="<?php echo esc_attr((string) ($r['created_at'] ?? '')); ?>"><?php echo esc_html($when); ?></td>
+                            <td title="<?php echo esc_attr($when_title); ?>"><?php echo esc_html($when); ?></td>
                             <td><span class="as-badge muted"><?php echo esc_html((string) ($r['source'] ?? '')); ?></span></td>
                             <td>
                                 <strong><?php echo esc_html((string) ($r['name'] ?? '—')); ?></strong><br>
