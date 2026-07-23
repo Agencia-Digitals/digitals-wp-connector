@@ -172,8 +172,7 @@ class AdSpirit_Setup_Wizard {
 
         $items = array();
 
-        $capi_ok = !empty($capi['enabled']) && $capi['enabled'] === '1'
-            && !empty($capi['pixel_id']) && !empty($capi['access_token']);
+        $capi_ok = class_exists('AdSpirit_Capi_Meta') && AdSpirit_Capi_Meta::is_configured($capi);
         $items[] = $this->item(
             $capi_ok ? 'ok' : 'warn',
             'Meta Conversions API (server-side)',
