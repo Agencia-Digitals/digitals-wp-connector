@@ -45,11 +45,53 @@ class AdSpirit_Cf7_Handler {
             99,
             1
         );
+
+        // P0-2: aba "CF7 · Escopo" (grupo Captura) — todos os forms (default)
+        // ou allowlist. Filtros de registro são baratos e não podem fatal;
+        // render/save vão wrapped.
+        add_filter('adspirit_connector_tabs', function ($tabs) {
+            $tabs['cf7-scope'] = 'CF7 · Escopo';
+            return $tabs;
+        });
+        add_filter('adspirit_connector_tab_groups', function ($groups) {
+            if (isset($groups['captura']['tabs']) && is_array($groups['captura']['tabs'])
+                && !in_array('cf7-scope', $groups['captura']['tabs'], true)) {
+                $groups['captura']['tabs'][] = 'cf7-scope';
+            }
+            return $groups;
+        });
+        add_action(
+            'adspirit_connector_render_tab_cf7-scope',
+            AdSpirit_Safe_Hook::action(array($this, 'render_scope_tab'), 'cf7_scope_render')
+        );
+        add_action(
+            'adspirit_connector_save_cf7-scope',
+            AdSpirit_Safe_Hook::action(array($this, 'handle_scope_save'), 'cf7_scope_save')
+        );
+    }
+
+    /**
+     * P0-2 — o form CF7 está no escopo de atuação do plugin?
+     * mode 'all' (default): sempre true — comportamento histórico.
+     * mode 'allowlist': só os form_ids marcados; allowlist vazia = nenhum.
+     * Usado pelo dispatch daqui E pelo anti-spam (honeypot + validate):
+     * form fora do escopo fica 100% intocado.
+     */
+    public static function form_in_scope($form_id) {
+        $scope = AdSpirit_Settings::get_cf7_scope();
+        if ($scope['mode'] !== 'allowlist') return true;
+        return in_array((int) $form_id, $scope['form_ids'], true);
     }
 
     public function dispatch($contact_form) {
         $settings = AdSpirit_Settings::get_core();
         if (empty($settings['cf7_enabled']) || $settings['cf7_enabled'] !== '1') {
+            return;
+        }
+        // P0-2: escopo — form fora da allowlist é 100% intocado. Sem log de
+        // 'skipped' de propósito: submissão fora do escopo não é assunto do
+        // plugin e não deve consumir o log circular (capado em 100).
+        if ($contact_form && !self::form_in_scope($contact_form->id())) {
             return;
         }
         if (empty($settings['endpoint_url']) || empty($settings['brand_slug']) || empty($settings['secret'])) {
@@ -198,6 +240,79 @@ class AdSpirit_Cf7_Handler {
 
         // 7) Hook genérico pra extensions custom
         do_action('adspirit_connector_cf7_dispatched', $data, $form_id);
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // P0-2: aba "CF7 · Escopo" (render + save)
+    // ─────────────────────────────────────────────────────────
+
+    public function render_scope_tab() {
+        $scope = AdSpirit_Settings::get_cf7_scope();
+        $forms = array();
+        if (class_exists('WPCF7_ContactForm')) {
+            $forms = WPCF7_ContactForm::find(array(
+                'posts_per_page' => -1,
+                'orderby'        => 'ID',
+                'order'          => 'ASC',
+            ));
+        }
+        AdSpirit_Menu::card_open(
+            'Escopo de captura — Contact Form 7',
+            'Em quais forms CF7 o plugin atua (captura pro CRM + anti-spam). Form fora do escopo fica 100% intocado.'
+        );
+        AdSpirit_Menu::form_open('cf7-scope');
+        ?>
+        <table class="form-table" role="presentation">
+            <tr>
+                <th scope="row">Modo</th>
+                <td>
+                    <label style="display:block; margin-bottom:6px;">
+                        <input type="radio" name="scope_mode" value="all" <?php checked($scope['mode'], 'all'); ?>>
+                        <strong>Todos os forms</strong> — comportamento padrão (retrocompatível): todo form CF7 do site é capturado e protegido.
+                    </label>
+                    <label style="display:block;">
+                        <input type="radio" name="scope_mode" value="allowlist" <?php checked($scope['mode'], 'allowlist'); ?>>
+                        <strong>Somente os selecionados</strong> — só os forms marcados abaixo passam pelo plugin; os demais seguem como se o plugin não existisse.
+                    </label>
+                </td>
+            </tr>
+            <tr>
+                <th scope="row">Forms no escopo</th>
+                <td>
+                    <?php if (empty($forms)) : ?>
+                        <p class="description">Nenhum form CF7 encontrado (Contact Form 7 inativo?).</p>
+                    <?php else : foreach ($forms as $f) : $fid = (int) $f->id(); ?>
+                        <label style="display:block; margin-bottom:4px;">
+                            <input type="checkbox" name="scope_form_ids[]" value="<?php echo esc_attr($fid); ?>"
+                                <?php checked(in_array($fid, $scope['form_ids'], true)); ?>>
+                            <?php echo esc_html($f->title()); ?> <span style="opacity:.6;">(id <?php echo esc_html($fid); ?>)</span>
+                        </label>
+                    <?php endforeach; endif; ?>
+                    <p class="description">
+                        Só vale no modo "Somente os selecionados". Allowlist vazia nesse modo = nenhum form capturado.
+                        Os forms nativos do plugin (<code>[adspirit_form]</code> / qualifier) não são afetados por este escopo.
+                    </p>
+                </td>
+            </tr>
+        </table>
+        <?php
+        AdSpirit_Menu::form_close('Salvar escopo');
+        AdSpirit_Menu::card_close();
+    }
+
+    public function handle_scope_save($post) {
+        $mode = (isset($post['scope_mode']) && $post['scope_mode'] === 'allowlist') ? 'allowlist' : 'all';
+        $ids  = array();
+        if (isset($post['scope_form_ids']) && is_array($post['scope_form_ids'])) {
+            foreach ($post['scope_form_ids'] as $v) {
+                $i = (int) $v;
+                if ($i > 0) $ids[] = $i;
+            }
+        }
+        AdSpirit_Settings::update_cf7_scope(array(
+            'mode'     => $mode,
+            'form_ids' => array_values(array_unique($ids)),
+        ));
     }
 
     public static function log($status, $http_code, $error = null, array $extra = array()) {

@@ -15,6 +15,7 @@ class AdSpirit_Settings {
     // 1 row pra config geral. Features grandes (field mapping, anti-spam stats,
     // cf7 log) têm options separadas porque crescem com uso.
     const OPTION_CORE         = 'adspirit_connector_settings';
+    const OPTION_CF7_SCOPE    = 'adspirit_connector_cf7_scope';
     const OPTION_FIELD_MAP    = 'adspirit_connector_field_mappings';
     const OPTION_ANTISPAM     = 'adspirit_connector_antispam';
     const OPTION_ANTISPAM_LOG = 'adspirit_connector_antispam_log';
@@ -128,6 +129,30 @@ class AdSpirit_Settings {
     public static function update_core(array $patch) {
         $current = self::get_core();
         update_option(self::OPTION_CORE, array_merge($current, $patch), false);
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // ESCOPO CF7 (P0-2)
+    //   mode 'all' (default, retrocompatível): captura + anti-spam em todos
+    //   os forms CF7, como sempre foi. mode 'allowlist': só os form_ids
+    //   listados — os demais ficam 100% intocados pelo plugin.
+    // ─────────────────────────────────────────────────────────
+    public static function cf7_scope_defaults() {
+        return array(
+            'mode'     => 'all',
+            'form_ids' => array(),
+        );
+    }
+    public static function get_cf7_scope() {
+        $v = wp_parse_args(get_option(self::OPTION_CF7_SCOPE, array()), self::cf7_scope_defaults());
+        $v['mode'] = ($v['mode'] === 'allowlist') ? 'allowlist' : 'all';
+        $ids = is_array($v['form_ids']) ? $v['form_ids'] : array();
+        $v['form_ids'] = array_values(array_unique(array_filter(array_map('intval', $ids))));
+        return $v;
+    }
+    public static function update_cf7_scope(array $patch) {
+        $current = self::get_cf7_scope();
+        update_option(self::OPTION_CF7_SCOPE, array_merge($current, $patch), false);
     }
 
     // ─────────────────────────────────────────────────────────
