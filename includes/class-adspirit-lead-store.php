@@ -139,12 +139,25 @@ class AdSpirit_Lead_Store {
 
             // Confirma que a tabela existe de fato antes de marcar disponível.
             $exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) === $table;
-            if ($exists) {
+
+            // P0-3: confirma também as colunas do schema v2. Sem isso, um
+            // ALTER falho (permissão, etc) marcaria a versão mesmo assim e o
+            // UPDATE de attempts/last_error falharia silencioso — status
+            // ficaria 'pending' pra sempre e o backoff nunca cresceria
+            // (retry eterno de 15min). Coluna ausente = indisponível → o
+            // fluxo inteiro cai no fallback legado, como antes da Fase 1.
+            $has_v2_cols = $exists
+                && $wpdb->get_var("SHOW COLUMNS FROM {$table} LIKE 'attempts'") !== null
+                && $wpdb->get_var("SHOW COLUMNS FROM {$table} LIKE 'last_error'") !== null;
+
+            if ($exists && $has_v2_cols) {
                 update_option(self::OPTION_DB_VERSION, self::DB_VERSION, true);
                 self::$available = true;
                 return true;
             }
-            error_log('[AdSpirit Connector] Lead_Store: tabela não criou — usando fallback (log legado).');
+            error_log('[AdSpirit Connector] Lead_Store: ' . ($exists
+                ? 'colunas do schema v2 (attempts/last_error) não criaram — usando fallback (log legado).'
+                : 'tabela não criou — usando fallback (log legado).'));
             self::$available = false;
             return false;
         }, false, 'lead_store_install');
