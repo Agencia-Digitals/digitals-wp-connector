@@ -203,6 +203,11 @@ register_activation_hook(__FILE__, 'adspirit_connector_activate');
  * Deactivation: preserva config. Reativar = pronto pra usar.
  */
 function adspirit_connector_deactivate() {
-    // No-op por design — settings preservadas
+    // Settings preservadas por design. Só desagenda o cron de retry do
+    // Lead Store (P0-3) — reagendado automaticamente no próximo boot se
+    // o plugin for reativado.
+    if (class_exists('AdSpirit_Lead_Store')) {
+        AdSpirit_Lead_Store::unschedule();
+    }
 }
 register_deactivation_hook(__FILE__, 'adspirit_connector_deactivate');

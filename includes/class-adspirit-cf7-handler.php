@@ -170,24 +170,6 @@ class AdSpirit_Cf7_Handler {
             substr(md5(wp_json_encode($data)), 0, 8)
         );
 
-        // 4) POST pro CRM
-        $endpoint = trailingslashit($settings['endpoint_url']) . 'api/webhooks/contact-form-7';
-        $body = wp_json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-
-        $args = array(
-            'timeout'     => 8,
-            'redirection' => 2,
-            'blocking'    => false,
-            'headers'     => array(
-                'Content-Type'        => 'application/json; charset=utf-8',
-                'x-brand-slug'        => $settings['brand_slug'],
-                'x-cf7-secret'        => $settings['secret'],
-                'x-cf7-submission-id' => $submission_id,
-                'User-Agent'          => 'AdSpirit-Connector/' . ADSPIRIT_CONNECTOR_VERSION,
-            ),
-            'body'        => $body,
-        );
-
         // Fase 1: grava local ANTES do POST pro CRM. Integridade NÃO bloqueia o
         // envio — se record_pending falhar (tabela ausente), retorna false e o
         // fluxo segue (lead vai pro CRM + log legado de fallback abaixo).
@@ -195,26 +177,57 @@ class AdSpirit_Cf7_Handler {
             AdSpirit_Lead_Store::record_pending($submission_id, $data, 'cf7', (string) $form_id);
         }
 
-        $response = wp_remote_post($endpoint, $args);
-        if (is_wp_error($response)) {
-            self::log('error', 0, $response->get_error_message());
-            error_log('[AdSpirit Connector] CF7 dispatch failed: ' . $response->get_error_message());
-            if (class_exists('AdSpirit_Lead_Store')) {
-                AdSpirit_Lead_Store::mark($submission_id, 'crm', 'failed', 0, $response->get_error_message());
+        // 4) POST pro CRM — P0-3: blocking, lendo a resposta REAL.
+        // 2xx = sent · 4xx/5xx = failed (código + corpo resumido) · timeout/
+        // rede = pending. Trade-off assumido: o submit do visitante espera o
+        // POST (timeout 5s, antes era fire-and-forget) — em troca, status
+        // verdadeiro + retry automático (cron 15min, backoff, mesmo
+        // submission_id; o fanout abaixo NÃO roda de novo no retry).
+        if (class_exists('AdSpirit_Lead_Store')) {
+            $result = AdSpirit_Lead_Store::dispatch_to_crm($submission_id, $data, 5);
+            $status = AdSpirit_Lead_Store::mark_crm_attempt($submission_id, $result);
+            if (!empty($result['ok'])) {
+                self::log('sent', (int) $result['code'], null, array(
+                    'form_id' => $form_id,
+                    'fields'  => array_keys($data),
+                ));
+                $data_with_form = array_merge($data, array('_form_id' => (string) $form_id));
+                do_action('adspirit_lead_dispatched', $data_with_form, $result['body'], 'cf7');
+            } else {
+                self::log('error', (int) $result['code'], $result['error']);
+                error_log(sprintf(
+                    '[AdSpirit Connector] CF7 dispatch: %s (status local: %s — cron de retry assume)',
+                    (string) $result['error'],
+                    $status
+                ));
             }
         } else {
-            self::log('sent', 0, null, array(
-                'form_id' => $form_id,
-                'fields'  => array_keys($data),
+            // Fallback raro (Lead_Store não carregou): comportamento legado
+            // fire-and-forget — melhor despachar às cegas do que perder o lead.
+            $endpoint = trailingslashit($settings['endpoint_url']) . 'api/webhooks/contact-form-7';
+            $response = wp_remote_post($endpoint, array(
+                'timeout'     => 8,
+                'redirection' => 2,
+                'blocking'    => false,
+                'headers'     => array(
+                    'Content-Type'        => 'application/json; charset=utf-8',
+                    'x-brand-slug'        => $settings['brand_slug'],
+                    'x-cf7-secret'        => $settings['secret'],
+                    'x-cf7-submission-id' => $submission_id,
+                    'User-Agent'          => 'AdSpirit-Connector/' . ADSPIRIT_CONNECTOR_VERSION,
+                ),
+                'body'        => wp_json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             ));
-            // Log local pra aba "Submissions" (não-bloqueante, response body
-            // não disponível em blocking=false — gravamos sem profile).
-            $data_with_form = array_merge($data, array('_form_id' => (string) $form_id));
-            do_action('adspirit_lead_dispatched', $data_with_form, null, 'cf7');
-            // blocking=false: "sent" = despachado sem erro local (não confirma
-            // aceite do CRM). O record durável permite reenvio se algo falhar.
-            if (class_exists('AdSpirit_Lead_Store')) {
-                AdSpirit_Lead_Store::mark($submission_id, 'crm', 'sent', 0, null);
+            if (is_wp_error($response)) {
+                self::log('error', 0, $response->get_error_message());
+                error_log('[AdSpirit Connector] CF7 dispatch failed: ' . $response->get_error_message());
+            } else {
+                self::log('sent', 0, null, array(
+                    'form_id' => $form_id,
+                    'fields'  => array_keys($data),
+                ));
+                $data_with_form = array_merge($data, array('_form_id' => (string) $form_id));
+                do_action('adspirit_lead_dispatched', $data_with_form, null, 'cf7');
             }
         }
 
