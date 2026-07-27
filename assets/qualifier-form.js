@@ -18,11 +18,11 @@
       isIntro: true,
       eyebrow: 'Avaliação para novos clientes',
       title: 'Preencha os seus dados',
-      sub: 'A Digitals trabalha com um número limitado de novos clientes a cada ciclo. Vamos avaliar o fit estratégico entre o seu negócio e o nosso modelo de crescimento. Avaliação individual, leva poucos minutos.',
+      sub: 'A Digitals trabalha com um número limitado de novos clientes a cada ciclo. Vamos avaliar o fit estratégico entre o seu negócio e o nosso modelo de crescimento. Avaliação individual, leva aproximadamente 2 minutos.',
     },
     {
       eyebrow: 'identificação',
-      title: 'Nome completo',
+      title: 'Seu nome',
       fields: [
         { key: 'first_name', type: 'text', placeholder: 'Nome', required: true },
         { key: 'last_name', type: 'text', placeholder: 'Sobrenome', required: true },
@@ -30,20 +30,11 @@
     },
     {
       eyebrow: 'contato',
-      title: 'Email, WhatsApp e presença online',
-      sub: 'A rede social é obrigatória (Instagram, LinkedIn ou outra). O site da empresa é opcional — nem toda empresa tem site, mas presença em rede social é essencial.',
+      title: 'Seu WhatsApp',
       capturePartial: true, // ao passar daqui, dispara lead PARCIAL pro CRM
       fields: [
-        { key: 'email', type: 'email', placeholder: 'Email corporativo', required: true },
         { key: 'phone', type: 'tel', placeholder: 'WhatsApp com DDD', required: true },
-        { key: 'instagram', type: 'text', placeholder: 'Instagram, LinkedIn ou outra rede (obrigatório)', required: true },
-        { key: 'site', type: 'text', placeholder: 'Site da empresa (opcional)', required: false },
       ],
-    },
-    {
-      eyebrow: 'empresa',
-      title: 'Nome da empresa',
-      fields: [{ key: 'company', type: 'text', placeholder: 'Razão social ou nome fantasia', required: true }],
     },
     {
       eyebrow: 'cargo',
@@ -56,6 +47,11 @@
         { label: 'Coordenador, analista ou especialista', kbd: 'D' },
         { label: 'Outro', kbd: 'E' },
       ],
+    },
+    {
+      eyebrow: 'empresa',
+      title: 'Nome da empresa',
+      fields: [{ key: 'company', type: 'text', placeholder: 'Razão social ou nome fantasia', required: true }],
     },
     {
       eyebrow: 'porte',
@@ -85,6 +81,14 @@
       ],
     },
     {
+      eyebrow: 'presença online',
+      title: 'Site ou Instagram da empresa',
+      sub: 'Ou outra rede social. Um deles basta — a gente localiza o resto.',
+      fields: [
+        { key: 'social', type: 'text', placeholder: 'Site, @ ou link do perfil', required: true },
+      ],
+    },
+    {
       eyebrow: 'experiência',
       title: 'Tem time interno de marketing ou já trabalhou com agência?',
       fieldKey: 'experience',
@@ -95,7 +99,7 @@
     },
     {
       eyebrow: 'faturamento',
-      title: 'Faturamento mensal',
+      title: 'Faixa de faturamento mensal',
       fieldKey: 'revenue',
       choices: [
         { label: 'Até R$ 50 mil', kbd: 'A' },
@@ -107,7 +111,7 @@
     },
     {
       eyebrow: 'investimento',
-      title: 'Orçamento mensal para marketing e ads',
+      title: 'Quanto você costuma investir em Tráfego Pago?',
       fieldKey: 'investment',
       choices: [
         { label: 'Nunca investi em marketing', kbd: 'A' },
@@ -116,11 +120,12 @@
         { label: 'R$ 5 mil – R$ 10 mil', kbd: 'D' },
         { label: 'Acima de R$ 10 mil mensal', kbd: 'E' },
         { label: 'Acima de R$ 20 mil mensal', kbd: 'F' },
+        { label: 'Não sei dizer, não sou responsável por essa área', kbd: 'G' },
       ],
     },
     {
       eyebrow: 'urgência',
-      title: 'Quando pretende começar o trabalho com a agência',
+      title: 'Quando pretende começar o trabalho com a agência?',
       fieldKey: 'timing',
       choices: [
         { label: 'O quanto antes', kbd: 'A' },
@@ -130,8 +135,15 @@
       ],
     },
     {
+      eyebrow: 'contato',
+      title: 'Seu email',
+      fields: [
+        { key: 'email', type: 'email', placeholder: 'Email corporativo', required: true },
+      ],
+    },
+    {
       eyebrow: 'contexto',
-      title: 'Motivo do contato',
+      title: 'O que te levou a buscar a Digitals',
       sub: 'Campo opcional.',
       optional: true,
       fields: [{ key: 'pain', type: 'textarea', placeholder: 'O que motivou a busca e o que espera resolver.', required: false }],
@@ -553,6 +565,42 @@
     }
   }
 
+  // P0-1: telemetria + atribuição no FormData. O submit AJAX do qualifier
+  // nunca passava pelos hidden _adspirit_t_* que o collector injeta em
+  // <form>s reais — collect_from_post() recebia tudo vazio neste caminho.
+  // Anexamos aqui o MESMO conjunto do attachHidden do collector.
+  function qfReadCookie(name) {
+    var m = document.cookie.match('(?:^|; )' + name.replace(/([.$?*|{}()[\]\\\/+^])/g, '\\$1') + '=([^;]*)');
+    return m ? decodeURIComponent(m[1]) : '';
+  }
+  function appendTelemetry(fd) {
+    try {
+      // Atribuição first/last-touch: cookies gravados pelo snippet ungated do
+      // plugin (padrão pixel/adspirit_vid — ver AdSpirit_Telemetry::inject_attribution).
+      fd.append('_adspirit_t_ft', qfReadCookie('adspirit_ft') || '');
+      fd.append('_adspirit_t_lt', qfReadCookie('adspirit_lt') || '');
+
+      // Telemetria de navegador: lê window.__adspirit_t, populado pelo
+      // collector (desde 2.13.1 sempre injetado — legítimo interesse; se um
+      // dia voltar a ser gated, os campos só vão vazios, nada quebra).
+      var t = window.__adspirit_t || {};
+      ['visitor_id', 'session_id', 'fbp', 'fbc', 'ga', 'gid', 'gcl_au',
+       'locale', 'timezone', 'color_scheme', 'screen', 'viewport', 'connection_type'].forEach(function (name) {
+        fd.append('_adspirit_t_' + name, String(t[name] || ''));
+      });
+      fd.append('_adspirit_t_time_on_page_ms', String(t.start_ts ? (Date.now() - t.start_ts) : 0));
+      fd.append('_adspirit_t_time_in_form_ms', String(t.form_focus_ts ? (Date.now() - t.form_focus_ts) : 0));
+      fd.append('_adspirit_t_fields_visited', String(t.fields_visited || 0));
+      fd.append('_adspirit_t_pages_in_session', String(t.pages_in_session || 1));
+      var bhv = '';
+      try {
+        var raw = sessionStorage.getItem('adspirit_bhv_v1') || '';
+        if (raw && raw.length <= 16384) bhv = raw; // cap alinhado ao server
+      } catch (e) {}
+      fd.append('_adspirit_t_behavior', bhv);
+    } catch (e) { /* telemetria nunca bloqueia o submit */ }
+  }
+
   // v2.10: monta widget Turnstile invisible quando configurado.
   // Cloudflare renderiza auto, callback salva token em window pra submit.
   // Token expira em ~5min; se expirar, callback executa de novo automaticamente.
@@ -571,25 +619,47 @@
 
   // Lead parcial: fire-and-forget após a etapa de contato. Manda o que já
   // foi preenchido + _adspirit_partial=1. Roda no máximo uma vez.
+  // Nonce fresco via admin-ajax (nunca cacheado). O nonce embutido no HTML
+  // pode estar VENCIDO quando a página vem de page cache (LiteSpeed servia
+  // max-age de 7 dias; nonce vive 12-24h) — submeter com ele dava bad_nonce
+  // e o form mostrava "Falha de conexão" (incidente 2026-07-14). Resolve
+  // sempre (fallback = CFG.nonce atual); nunca rejeita.
+  function fetchFreshNonce() {
+    var fd = new FormData();
+    fd.append('action', 'adspirit_qualifier_nonce');
+    return fetch(CFG.ajax_url, { method: 'POST', body: fd, credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (json) {
+        if (json && json.success && json.data && json.data.nonce) {
+          CFG.nonce = json.data.nonce;
+        }
+        return CFG.nonce || '';
+      })
+      .catch(function () { return CFG.nonce || ''; });
+  }
+
   var partialSent = false;
   function submitPartialToServer() {
     if (partialSent) return;
     partialSent = true;
     try {
-      var fd = new FormData();
-      fd.append('action', 'adspirit_qualifier_submit');
-      fd.append('nonce', CFG.nonce || '');
-      fd.append('submission_id', qfSubmissionId());
-      fd.append('_adspirit_partial', '1');
-      appendAntibotMeta(fd);
-      Object.keys(state.responses).forEach(function (k) {
-        fd.append('fields[' + k + ']', state.responses[k] || '');
-      });
-      fetch(CFG.ajax_url, {
-        method: 'POST',
-        body: fd,
-        credentials: 'same-origin',
-        keepalive: true,
+      fetchFreshNonce().then(function (nonce) {
+        var fd = new FormData();
+        fd.append('action', 'adspirit_qualifier_submit');
+        fd.append('nonce', nonce);
+        fd.append('submission_id', qfSubmissionId());
+        fd.append('_adspirit_partial', '1');
+        appendAntibotMeta(fd);
+        appendTelemetry(fd); // P0-1: atribuição + telemetria também no parcial
+        Object.keys(state.responses).forEach(function (k) {
+          fd.append('fields[' + k + ']', state.responses[k] || '');
+        });
+        return fetch(CFG.ajax_url, {
+          method: 'POST',
+          body: fd,
+          credentials: 'same-origin',
+          keepalive: true,
+        });
       }).catch(function () {});
     } catch (e) { /* nunca quebra o fluxo do form */ }
   }
@@ -602,20 +672,23 @@
       nextBtn.setAttribute('disabled', 'disabled');
       nextBtn.querySelector('span').textContent = 'Enviando…';
     }
-    var formData = new FormData();
-    formData.append('action', 'adspirit_qualifier_submit');
-    formData.append('nonce', CFG.nonce || '');
-    formData.append('submission_id', qfSubmissionId());
-    appendAntibotMeta(formData);
-    Object.keys(state.responses).forEach(function (k) {
-      formData.append('fields[' + k + ']', state.responses[k] || '');
-    });
-
     var controller = new AbortController();
     window.__adspiritQfAbortController = controller;
     var timeoutId = setTimeout(function () { controller.abort(); }, 15000);
 
-    fetch(CFG.ajax_url, { method: 'POST', body: formData, credentials: 'same-origin', signal: controller.signal })
+    fetchFreshNonce()
+      .then(function (nonce) {
+        var formData = new FormData();
+        formData.append('action', 'adspirit_qualifier_submit');
+        formData.append('nonce', nonce);
+        formData.append('submission_id', qfSubmissionId());
+        appendAntibotMeta(formData);
+        appendTelemetry(formData); // P0-1: atribuição + telemetria no submit final
+        Object.keys(state.responses).forEach(function (k) {
+          formData.append('fields[' + k + ']', state.responses[k] || '');
+        });
+        return fetch(CFG.ajax_url, { method: 'POST', body: formData, credentials: 'same-origin', signal: controller.signal });
+      })
       .then(function (r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         var ct = r.headers.get('content-type') || '';

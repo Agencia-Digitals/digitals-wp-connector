@@ -41,6 +41,17 @@ class AdSpirit_Form_Qualifier {
         add_action('wp_ajax_nopriv_adspirit_qualifier_submit',
             AdSpirit_Safe_Hook::action(array($this, 'handle_submit'), 'qualifier_submit'));
 
+        // Nonce fresco sob demanda. O HTML da página fica atrás de page cache
+        // (LiteSpeed servia max-age de 7 DIAS), mas o nonce embutido vive
+        // 12-24h — visitante com cópia cacheada levava bad_nonce e o form
+        // mostrava "Falha de conexão" (incidente 2026-07-14). admin-ajax
+        // nunca é cacheado, então o front busca o nonce daqui na hora do
+        // submit em vez de confiar no que veio no HTML.
+        add_action('wp_ajax_adspirit_qualifier_nonce',
+            AdSpirit_Safe_Hook::action(array($this, 'handle_nonce'), 'qualifier_nonce'));
+        add_action('wp_ajax_nopriv_adspirit_qualifier_nonce',
+            AdSpirit_Safe_Hook::action(array($this, 'handle_nonce'), 'qualifier_nonce'));
+
         // Aba de ajuda no admin: qual shortcode usar + classe do botão.
         add_filter('adspirit_connector_tabs',
             AdSpirit_Safe_Hook::filter(array($this, 'register_tab'), 'qualifier_tab_register'));
@@ -271,6 +282,16 @@ class AdSpirit_Form_Qualifier {
      * AJAX handler: recebe payload do form, repassa pro CRM, retorna
      * { redirect_url, profile } pro JS fazer countdown + redirect.
      */
+    // Devolve um nonce fresco do action de submit. Sem auth de propósito:
+    // o nonce de visitante anônimo é público por natureza (vem no HTML de
+    // qualquer pageview) — aqui só contornamos o page cache.
+    public function handle_nonce() {
+        nocache_headers();
+        wp_send_json_success(array(
+            'nonce' => wp_create_nonce('adspirit_qualifier_submit'),
+        ));
+    }
+
     public function handle_submit() {
         // Nonce check
         $nonce = isset($_POST['nonce']) ? (string) $_POST['nonce'] : '';
