@@ -565,6 +565,42 @@
     }
   }
 
+  // P0-1: telemetria + atribuição no FormData. O submit AJAX do qualifier
+  // nunca passava pelos hidden _adspirit_t_* que o collector injeta em
+  // <form>s reais — collect_from_post() recebia tudo vazio neste caminho.
+  // Anexamos aqui o MESMO conjunto do attachHidden do collector.
+  function qfReadCookie(name) {
+    var m = document.cookie.match('(?:^|; )' + name.replace(/([.$?*|{}()[\]\\\/+^])/g, '\\$1') + '=([^;]*)');
+    return m ? decodeURIComponent(m[1]) : '';
+  }
+  function appendTelemetry(fd) {
+    try {
+      // Atribuição first/last-touch: cookies gravados pelo snippet ungated do
+      // plugin (padrão pixel/adspirit_vid — ver AdSpirit_Telemetry::inject_attribution).
+      fd.append('_adspirit_t_ft', qfReadCookie('adspirit_ft') || '');
+      fd.append('_adspirit_t_lt', qfReadCookie('adspirit_lt') || '');
+
+      // Telemetria de navegador: lê window.__adspirit_t, populado pelo
+      // collector (desde 2.13.1 sempre injetado — legítimo interesse; se um
+      // dia voltar a ser gated, os campos só vão vazios, nada quebra).
+      var t = window.__adspirit_t || {};
+      ['visitor_id', 'session_id', 'fbp', 'fbc', 'ga', 'gid', 'gcl_au',
+       'locale', 'timezone', 'color_scheme', 'screen', 'viewport', 'connection_type'].forEach(function (name) {
+        fd.append('_adspirit_t_' + name, String(t[name] || ''));
+      });
+      fd.append('_adspirit_t_time_on_page_ms', String(t.start_ts ? (Date.now() - t.start_ts) : 0));
+      fd.append('_adspirit_t_time_in_form_ms', String(t.form_focus_ts ? (Date.now() - t.form_focus_ts) : 0));
+      fd.append('_adspirit_t_fields_visited', String(t.fields_visited || 0));
+      fd.append('_adspirit_t_pages_in_session', String(t.pages_in_session || 1));
+      var bhv = '';
+      try {
+        var raw = sessionStorage.getItem('adspirit_bhv_v1') || '';
+        if (raw && raw.length <= 16384) bhv = raw; // cap alinhado ao server
+      } catch (e) {}
+      fd.append('_adspirit_t_behavior', bhv);
+    } catch (e) { /* telemetria nunca bloqueia o submit */ }
+  }
+
   // v2.10: monta widget Turnstile invisible quando configurado.
   // Cloudflare renderiza auto, callback salva token em window pra submit.
   // Token expira em ~5min; se expirar, callback executa de novo automaticamente.
@@ -614,6 +650,7 @@
         fd.append('submission_id', qfSubmissionId());
         fd.append('_adspirit_partial', '1');
         appendAntibotMeta(fd);
+        appendTelemetry(fd); // P0-1: atribuição + telemetria também no parcial
         Object.keys(state.responses).forEach(function (k) {
           fd.append('fields[' + k + ']', state.responses[k] || '');
         });
@@ -646,6 +683,7 @@
         formData.append('nonce', nonce);
         formData.append('submission_id', qfSubmissionId());
         appendAntibotMeta(formData);
+        appendTelemetry(formData); // P0-1: atribuição + telemetria no submit final
         Object.keys(state.responses).forEach(function (k) {
           formData.append('fields[' + k + ']', state.responses[k] || '');
         });
