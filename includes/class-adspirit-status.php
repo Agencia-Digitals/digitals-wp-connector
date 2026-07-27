@@ -161,7 +161,15 @@ class AdSpirit_Status {
                             <td><?php echo esc_html($form['title']); ?></td>
                             <td><?php echo esc_html(count($form['fields'])); ?> campos</td>
                             <td>
-                                <?php if ($form['mapped_count'] > 0): ?>
+                                <?php $match = $form['match']; ?>
+                                <?php if ($match && $match['unmatched_count'] > 0): ?>
+                                    <span class="as-badge danger"><?php echo (int) $match['unmatched_count']; ?> não reconhecido<?php echo $match['unmatched_count'] > 1 ? 's' : ''; ?></span>
+                                    <a href="<?php echo esc_url(admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=forms&form_id=' . $form['id'])); ?>" style="margin-left:6px; font-size:12px;">resolver na aba Forms</a>
+                                <?php elseif ($match && $match['has_explicit_map']): ?>
+                                    <span class="as-badge ok">mapeado (<?php echo (int) $match['matched_count']; ?>/<?php echo (int) $match['total']; ?>)</span>
+                                <?php elseif ($match): ?>
+                                    <span class="as-badge ok">reconhecido automaticamente</span>
+                                <?php elseif ($form['mapped_count'] > 0): ?>
                                     <span class="as-badge ok"><?php echo esc_html($form['mapped_count']); ?> mapeados</span>
                                 <?php else: ?>
                                     <span class="as-badge warn">não mapeado</span>
@@ -414,6 +422,10 @@ class AdSpirit_Status {
             'order' => 'DESC',
         ));
         $mappings = AdSpirit_Settings::get_field_mappings();
+        // Mesma fonte de verdade da aba Forms: campos canônicos/aliases
+        // contam como reconhecidos mesmo sem mapping manual salvo.
+        $mapper = class_exists('AdSpirit_Field_Mapping') ? AdSpirit_Field_Mapping::instance() : null;
+        $canonical = AdSpirit_Settings::canonical_fields();
         $out = array();
         foreach ($forms as $form) {
             $id = $form->id();
@@ -429,6 +441,7 @@ class AdSpirit_Status {
                 'title'        => $form->title(),
                 'fields'       => $fields,
                 'mapped_count' => count(array_filter($map)),
+                'match'        => $mapper ? $mapper->form_match_status($form, $canonical) : null,
             );
         }
         return $out;

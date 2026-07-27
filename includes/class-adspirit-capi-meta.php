@@ -54,12 +54,22 @@ class AdSpirit_Capi_Meta {
     }
 
     /**
+     * Critério único de "CAPI pronta pra disparar": enabled + pixel_id +
+     * access_token. Gate de envio, badge da aba e Setup Wizard usam este
+     * método — a regra não pode viver em mais de um lugar.
+     */
+    public static function is_configured($cfg = null) {
+        if (!is_array($cfg)) $cfg = AdSpirit_Settings::get_capi_meta();
+        return !empty($cfg['enabled']) && $cfg['enabled'] === '1'
+            && !empty($cfg['pixel_id']) && !empty($cfg['access_token']);
+    }
+
+    /**
      * Chamado pelo CF7 handler quando lead é enviado pro CRM.
      */
     public static function send_lead_for_submission($submission_id, array $data, $referrer_url = '') {
         $cfg = AdSpirit_Settings::get_capi_meta();
-        if ($cfg['enabled'] !== '1' || $cfg['send_lead'] !== '1') return null;
-        if (empty($cfg['pixel_id']) || empty($cfg['access_token'])) return null;
+        if (!self::is_configured($cfg) || $cfg['send_lead'] !== '1') return null;
 
         $user_data = self::build_user_data($data);
         $event = array(
@@ -78,9 +88,8 @@ class AdSpirit_Capi_Meta {
 
     public function maybe_send_page_view() {
         $cfg = AdSpirit_Settings::get_capi_meta();
-        if ($cfg['enabled'] !== '1' || $cfg['send_page_view'] !== '1') return;
+        if (!self::is_configured($cfg) || $cfg['send_page_view'] !== '1') return;
         if (is_admin() || wp_doing_ajax() || wp_doing_cron()) return;
-        if (empty($cfg['pixel_id']) || empty($cfg['access_token'])) return;
 
         // Throttling: 1 page_view por session_id por minuto (transient)
         $session_id = self::session_id();
@@ -155,7 +164,16 @@ class AdSpirit_Capi_Meta {
 
     public function render_tab() {
         $c = AdSpirit_Settings::get_capi_meta();
-        $status_badge = $c['enabled'] === '1' ? '<span class="as-badge ok">Ativo</span>' : '<span class="as-badge muted">Desligado</span>';
+        if (self::is_configured($c)) {
+            $status_badge = '<span class="as-badge ok">Ativo</span>';
+        } elseif ($c['enabled'] === '1') {
+            $missing = array();
+            if (empty($c['pixel_id'])) $missing[] = 'pixel_id';
+            if (empty($c['access_token'])) $missing[] = 'access_token';
+            $status_badge = '<span class="as-badge warn">Incompleto — falta ' . esc_html(implode(' e ', $missing)) . '</span>';
+        } else {
+            $status_badge = '<span class="as-badge muted">Desligado</span>';
+        }
         ?>
         <h2 class="as-section"><span class="as-kicker-inline">Meta CAPI</span>Conversion API server-side</h2>
         <p class="as-section-help">
