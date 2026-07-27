@@ -70,6 +70,8 @@ class AdSpirit_Anti_Spam {
     public function inject_honeypot($form_elements) {
         $cfg = AdSpirit_Settings::get_antispam();
         if ($cfg['enabled'] !== '1' || $cfg['honeypot'] !== '1') return $form_elements;
+        // P0-2: form fora do escopo fica 100% intocado (nem honeypot).
+        if (!$this->cf7_current_form_in_scope()) return $form_elements;
 
         $hidden = sprintf(
             '<div style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden;" aria-hidden="true">
@@ -102,9 +104,23 @@ class AdSpirit_Anti_Spam {
         <?php
     }
 
+    /**
+     * P0-2: o form CF7 sendo renderizado/validado agora está no escopo?
+     * Sem form identificável → true (comportamento histórico, não bloqueia).
+     * A checagem real (allowlist) vive em AdSpirit_Cf7_Handler::form_in_scope.
+     */
+    private function cf7_current_form_in_scope() {
+        if (!class_exists('AdSpirit_Cf7_Handler')) return true;
+        $form = function_exists('wpcf7_get_current_contact_form') ? wpcf7_get_current_contact_form() : null;
+        if (!$form) return true;
+        return AdSpirit_Cf7_Handler::form_in_scope($form->id());
+    }
+
     public function validate_submission($result, $tags) {
         $cfg = AdSpirit_Settings::get_antispam();
         if ($cfg['enabled'] !== '1') return $result;
+        // P0-2: form fora do escopo não passa pelo anti-spam do plugin.
+        if (!$this->cf7_current_form_in_scope()) return $result;
 
         // (1) Honeypot
         if ($cfg['honeypot'] === '1') {

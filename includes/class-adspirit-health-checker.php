@@ -76,7 +76,16 @@ class AdSpirit_Health_Checker {
             ? round(($cf7['sent_30d'] / $total_attempts) * 100, 1)
             : 100;
 
+        // P0-3: credenciais rejeitadas pelo CRM (401/403) — setado/limpo pelo
+        // Lead Store a cada tentativa de envio. null = sem problema.
+        $auth_error = get_option(
+            class_exists('AdSpirit_Lead_Store')
+                ? AdSpirit_Lead_Store::OPTION_AUTH_ERROR
+                : 'adspirit_connector_crm_auth_error'
+        );
+
         return array(
+            'crm_auth_error'       => (is_array($auth_error) && !empty($auth_error)) ? $auth_error : null,
             'cf7_sent_24h'         => $cf7['sent_24h'],
             'cf7_sent_7d'          => $cf7['sent_7d'],
             'cf7_sent_30d'         => $cf7['sent_30d'],
