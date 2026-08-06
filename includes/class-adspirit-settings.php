@@ -200,7 +200,29 @@ class AdSpirit_Settings {
 
     // Campos canônicos que o CRM (cf7-processor) reconhece. Plugin mapeia
     // campos do CF7 pra esses nomes antes do POST.
+    // v2.19: a lista vem do sync com o CRM (Field_Mapping_Sync baixa
+    // {canonical,label,aliases} de /api/wp/field-mapping — inclui os campos
+    // PERSONALIZADOS da brand criados em /settings do AdSpirit). Lê a option
+    // DIRETO, sem Field_Mapping_Sync::get_defaults(): o lazy-refresh de lá
+    // faz wp_remote_get síncrono (até 10s) quando o cache de 1h expira, e
+    // canonical_fields() roda em render de admin. Fallback obrigatório no
+    // array hardcoded: sync nunca rodou / falhou / Safe Mode.
     public static function canonical_fields() {
+        if (class_exists('AdSpirit_Field_Mapping_Sync')) {
+            $synced = get_option(AdSpirit_Field_Mapping_Sync::OPTION_DEFAULTS, array());
+            if (is_array($synced) && !empty($synced)) {
+                $out = array();
+                foreach ($synced as $entry) {
+                    if (!is_array($entry) || empty($entry['canonical'])) continue;
+                    $canonical = (string) $entry['canonical'];
+                    $label = isset($entry['label']) && $entry['label'] !== ''
+                        ? (string) $entry['label']
+                        : $canonical;
+                    $out[$canonical] = $label;
+                }
+                if (!empty($out)) return $out;
+            }
+        }
         return array(
             'your-name'           => 'Nome',
             'your-email'          => 'Email',
