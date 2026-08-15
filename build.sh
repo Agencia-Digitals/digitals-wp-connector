@@ -23,12 +23,25 @@ fi
 
 SLUG="adspirit-connector"
 DIST="dist"
+OLD="${DIST}/old"
 TARGET="${DIST}/${SLUG}"
 ZIP_NAME="${SLUG}-v${VERSION}.zip"
 
 echo "Building ${SLUG} v${VERSION}…"
 
-rm -rf "${DIST}"
+# Zips já buildados vão pra dist/old antes da limpeza. Até 2026-08-13 o
+# build fazia `rm -rf dist` e apagava a versão anterior — na hora de um
+# rollback só sobrava reconstruir do git. Rollback é sempre no pior
+# momento possível, então guardar o zip anterior é barato demais pra não
+# fazer.
+mkdir -p "${OLD}"
+for z in "${DIST}"/*.zip; do
+  [ -e "$z" ] || continue   # glob sem match vira literal; ignora
+  mv -f "$z" "${OLD}/"
+done
+
+# Limpa só a área de montagem, nunca o dist inteiro (levaria o old junto).
+rm -rf "${TARGET}"
 mkdir -p "${TARGET}"
 
 # Copia files essenciais

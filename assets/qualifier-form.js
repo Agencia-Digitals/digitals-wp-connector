@@ -13,7 +13,12 @@
   var STORAGE_KEY = 'adspirit_qf_v1';
 
   // --- STEPS DEFINITION ---
-  var STEPS = [
+  // DEFAULT_STEPS é o roteiro da Digitals. Um tenant com perguntas próprias
+  // manda as dele em CFG.steps (option `adspirit_qualifier.steps`, editável
+  // na aba "Form de avaliação") e NADA aqui muda — mesmo runtime, mesma UI,
+  // mesmo lead parcial. Sem config custom, cai neste array e o site da
+  // Digitals segue byte a byte como estava.
+  var DEFAULT_STEPS = [
     {
       isIntro: true,
       eyebrow: 'Avaliação para novos clientes',
@@ -151,6 +156,11 @@
     { isSuccess: true },
   ];
 
+  // Config custom vence o default. Validação de forma (intro no começo,
+  // success no fim, campos com key) é feita no PHP antes de salvar a option
+  // — aqui só exigimos um array não-vazio pra nunca renderizar tela em branco.
+  var STEPS = (CFG.steps && CFG.steps.length) ? CFG.steps : DEFAULT_STEPS;
+
   // --- STATE ---
   var state = {
     currentStep: 0,
@@ -165,12 +175,22 @@
         if (parsed && typeof parsed.responses === 'object') {
           state.responses = parsed.responses;
         }
+        // Retoma de onde parou. Sem isso, fechar o form (ou um tropeço de
+        // rolagem no celular) devolvia a pessoa pra primeira pergunta e ela
+        // desistia. Nunca retoma na tela de sucesso nem fora do intervalo.
+        var st = parsed && parsed.currentStep;
+        if (typeof st === 'number' && st > 0 && st < STEPS.length - 1) {
+          state.currentStep = st;
+        }
       }
     } catch (e) {}
   }
   function saveState() {
     try {
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ responses: state.responses }));
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
+        responses: state.responses,
+        currentStep: state.currentStep,
+      }));
     } catch (e) {}
   }
   function clearState() {
@@ -277,6 +297,7 @@
 
   function render(direction) {
     var step = STEPS[state.currentStep];
+    saveState(); // grava a etapa atual a cada navegação (retomada)
     var root = document.querySelector('.adspirit-qualifier-root');
     if (!root) return;
     ensureShell(root);
@@ -751,14 +772,53 @@
     countdownTimer = setInterval(tick, 1000);
   }
 
+  // --- CHROME DO NAVEGADOR (iOS) ---
+  // Safari pinta a barra de status e a barra inferior com a cor de
+  // `theme-color` (ou o fundo da página). Com o form escuro por cima de uma
+  // LP de fundo claro, sobra uma tira branca em cima e um degradê branco
+  // embaixo. Enquanto o form full-screen está aberto trocamos a cor e
+  // devolvemos exatamente como estava ao fechar. Modo `embed` não mexe —
+  // ali o form é um card dentro da página, o resto continua claro.
+  var chromeState = null;
+  function setDarkBrowserChrome(on) {
+    try {
+      var meta = document.querySelector('meta[name="theme-color"]:not([media])');
+      if (on) {
+        if (chromeState) return; // já aplicado
+        chromeState = {
+          criouMeta: !meta,
+          corAnterior: meta ? meta.getAttribute('content') : null,
+          bgAnterior: document.documentElement.style.backgroundColor,
+        };
+        if (!meta) {
+          meta = document.createElement('meta');
+          meta.setAttribute('name', 'theme-color');
+          document.head.appendChild(meta);
+        }
+        meta.setAttribute('content', '#060606');
+        document.documentElement.style.backgroundColor = '#060606';
+      } else {
+        if (!chromeState) return;
+        if (chromeState.criouMeta) {
+          if (meta && meta.parentNode) meta.parentNode.removeChild(meta);
+        } else if (meta && chromeState.corAnterior !== null) {
+          meta.setAttribute('content', chromeState.corAnterior);
+        }
+        document.documentElement.style.backgroundColor = chromeState.bgAnterior || '';
+        chromeState = null;
+      }
+    } catch (e) {}
+  }
+
   // --- POPUP OPEN/CLOSE ---
   function openPopup() {
     var root = document.querySelector('.adspirit-qualifier-root[data-mode="popup"]');
     if (!root) return;
     root.removeAttribute('hidden');
     document.body.style.overflow = 'hidden';
-    loadState();
+    setDarkBrowserChrome(true);
     state.currentStep = 0;
+    loadState(); // pode restaurar o step salvo — por isso vem DEPOIS do reset
     render();
     mountTurnstile(); // v2.10: monta widget invisível pra capturar token
   }
@@ -767,6 +827,7 @@
     if (!root) return;
     root.setAttribute('hidden', 'hidden');
     document.body.style.overflow = '';
+    setDarkBrowserChrome(false);
     if (countdownTimer) clearInterval(countdownTimer);
     if (window.__adspiritQfAbortController) {
       try { window.__adspiritQfAbortController.abort(); } catch (e) {}
@@ -818,6 +879,7 @@
       // Inline (full-screen) e embed (contido) renderizam direto no load.
       var auto = document.querySelector('.adspirit-qualifier-root[data-mode="inline"], .adspirit-qualifier-root[data-mode="embed"]');
       if (auto) {
+        if (auto.getAttribute('data-mode') === 'inline') setDarkBrowserChrome(true);
         loadState();
         render();
         mountTurnstile(); // v2.10

@@ -77,11 +77,214 @@ class AdSpirit_Form_Qualifier {
     }
 
     public static function defaults() {
-        return array('sitewide' => '0');
+        return array('sitewide' => '0', 'steps' => array());
     }
 
     public static function get_settings() {
         return wp_parse_args(get_option(self::OPTION_KEY, array()), self::defaults());
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // Roteiro de perguntas (multi-tenant)
+    // ─────────────────────────────────────────────────────────
+    //
+    // O runtime (assets/qualifier-form.js) é genérico: ele desenha o que
+    // estiver em STEPS. O roteiro da Digitals mora no DEFAULT_STEPS do JS;
+    // um tenant com outras perguntas salva o roteiro dele aqui e ganha o
+    // MESMO form — mesma UI, mesmo lead parcial, mesma telemetria — só com
+    // outro conteúdo. Sem roteiro salvo, o JS cai no default e o site da
+    // Digitals não muda em nada.
+
+    const MAX_STEPS = 40;
+
+    /** Tipos de input aceitos numa etapa de campo aberto. */
+    public static function allowed_field_types() {
+        return array('text', 'email', 'tel', 'url', 'textarea');
+    }
+
+    /** Roteiro custom salvo (array vazio = usa o default do JS). */
+    public static function get_steps() {
+        $s = self::get_settings();
+        return (isset($s['steps']) && is_array($s['steps'])) ? $s['steps'] : array();
+    }
+
+    /**
+     * Valida/normaliza um roteiro vindo de JSON.
+     *
+     * Formato (mesmo shape do DEFAULT_STEPS do JS):
+     *   [
+     *     { "isIntro": true, "eyebrow": "...", "title": "...", "sub": "..." },
+     *     { "eyebrow": "...", "title": "...", "capturePartial": true,
+     *       "fields": [ {"key":"phone","type":"tel","placeholder":"WhatsApp com DDD",
+     *                    "required":true,"canonical":"Telefone"} ] },
+     *     { "eyebrow": "...", "title": "...", "fieldKey": "role", "canonical": "cargo",
+     *       "choices": [ {"label":"Sócio(a)","meta":"decisor direto"} ] },
+     *     { "isSuccess": true }
+     *   ]
+     *
+     * `canonical` é a chave com que a resposta chega no CRM (your-name,
+     * your-email, Telefone, empresa, cargo, revenue, Investimento, urgencia,
+     * pain…). Sem ele, usa a própria key — e o CRM guarda mas não exibe.
+     *
+     * @return array{ok:bool, steps?:array, error?:string}
+     */
+    public static function sanitize_steps($raw) {
+        if (!is_array($raw) || empty($raw)) {
+            return array('ok' => false, 'error' => 'O JSON precisa ser uma lista de etapas não-vazia.');
+        }
+        if (count($raw) > self::MAX_STEPS) {
+            return array('ok' => false, 'error' => sprintf('Roteiro grande demais (%d etapas, máximo %d).', count($raw), self::MAX_STEPS));
+        }
+
+        $first = is_array($raw[0]) ? $raw[0] : array();
+        if (empty($first['isIntro'])) {
+            return array('ok' => false, 'error' => 'A primeira etapa precisa ser a de abertura — o objeto com <code>"isIntro": true</code>, que é a tela do botão "Iniciar avaliação".');
+        }
+
+        $types = self::allowed_field_types();
+        $out = array();
+        $seen_keys = array();
+        $canonicals = array();
+        $questions = 0;
+
+        foreach (array_values($raw) as $i => $step) {
+            if (!is_array($step)) continue;
+
+            // Tela final: só um marcador, o texto vive no JS.
+            if (!empty($step['isSuccess'])) continue; // re-adicionada no fim
+
+            $clean = array();
+            if (!empty($step['isIntro'])) $clean['isIntro'] = true;
+            foreach (array('eyebrow', 'title', 'sub') as $k) {
+                if (isset($step[$k]) && $step[$k] !== '') {
+                    $clean[$k] = sanitize_text_field((string) $step[$k]);
+                }
+            }
+            if (!empty($step['isIntro'])) {
+                $out[] = $clean;
+                continue;
+            }
+
+            if (empty($clean['title'])) {
+                return array('ok' => false, 'error' => sprintf('Etapa %d está sem <code>title</code> — é a pergunta que aparece grande na tela.', $i + 1));
+            }
+            if (!empty($step['optional'])) $clean['optional'] = true;
+            if (!empty($step['capturePartial'])) $clean['capturePartial'] = true;
+
+            // Etapa de escolha (cards) — o formato que dá a experiência do
+            // qualifier. Ou etapa de campo aberto (input/textarea).
+            if (isset($step['choices']) && is_array($step['choices']) && !empty($step['choices'])) {
+                $field_key = self::sanitize_key_name(isset($step['fieldKey']) ? $step['fieldKey'] : '');
+                if ($field_key === '') {
+                    return array('ok' => false, 'error' => sprintf('Etapa %d tem opções mas está sem <code>fieldKey</code> (o nome do campo onde a resposta é guardada).', $i + 1));
+                }
+                if (isset($seen_keys[$field_key])) {
+                    return array('ok' => false, 'error' => sprintf('Campo repetido: <code>%s</code> aparece em mais de uma etapa. Cada resposta precisa de uma chave própria.', esc_html($field_key)));
+                }
+                $seen_keys[$field_key] = true;
+
+                $choices = array();
+                $letters = range('A', 'Z');
+                foreach (array_values($step['choices']) as $ci => $choice) {
+                    if (is_string($choice)) $choice = array('label' => $choice);
+                    if (!is_array($choice) || !isset($choice['label']) || trim((string) $choice['label']) === '') continue;
+                    $c = array('label' => sanitize_text_field((string) $choice['label']));
+                    if (isset($choice['meta']) && $choice['meta'] !== '') {
+                        $c['meta'] = sanitize_text_field((string) $choice['meta']);
+                    }
+                    // kbd = atalho de teclado do card. Auto A, B, C… quando omitido.
+                    $c['kbd'] = isset($choice['kbd']) && $choice['kbd'] !== ''
+                        ? strtoupper(substr(sanitize_text_field((string) $choice['kbd']), 0, 1))
+                        : (isset($letters[$ci]) ? $letters[$ci] : '');
+                    $choices[] = $c;
+                }
+                if (empty($choices)) {
+                    return array('ok' => false, 'error' => sprintf('Etapa %d ficou sem opção válida — cada opção precisa de <code>label</code>.', $i + 1));
+                }
+                $clean['fieldKey'] = $field_key;
+                $clean['canonical'] = self::sanitize_key_name(isset($step['canonical']) ? $step['canonical'] : $field_key);
+                $canonicals[] = $clean['canonical'];
+                $clean['choices'] = $choices;
+                $out[] = $clean;
+                $questions++;
+                continue;
+            }
+
+            $fields_in = isset($step['fields']) && is_array($step['fields']) ? $step['fields'] : array();
+            $fields_out = array();
+            foreach ($fields_in as $f) {
+                if (!is_array($f)) continue;
+                $key = self::sanitize_key_name(isset($f['key']) ? $f['key'] : '');
+                if ($key === '') continue;
+                if (isset($seen_keys[$key])) {
+                    return array('ok' => false, 'error' => sprintf('Campo repetido: <code>%s</code> aparece em mais de uma etapa. Cada resposta precisa de uma chave própria.', esc_html($key)));
+                }
+                $seen_keys[$key] = true;
+                $type = (isset($f['type']) && in_array($f['type'], $types, true)) ? $f['type'] : 'text';
+                $canonical = self::sanitize_key_name(isset($f['canonical']) ? $f['canonical'] : $key);
+                $canonicals[] = $canonical;
+                $fields_out[] = array(
+                    'key'         => $key,
+                    'type'        => $type,
+                    'placeholder' => sanitize_text_field((string) (isset($f['placeholder']) ? $f['placeholder'] : '')),
+                    // Campo nasce obrigatório; só é opcional se disser.
+                    'required'    => !(isset($f['required']) && $f['required'] === false),
+                    'canonical'   => $canonical,
+                );
+            }
+            if (empty($fields_out)) {
+                return array('ok' => false, 'error' => sprintf('Etapa %d não tem nem <code>choices</code> nem <code>fields</code> com <code>key</code>.', $i + 1));
+            }
+            $clean['fields'] = $fields_out;
+            $out[] = $clean;
+            $questions++;
+        }
+
+        if ($questions === 0) {
+            return array('ok' => false, 'error' => 'O roteiro não tem nenhuma pergunta — só abertura e final.');
+        }
+
+        // O CRM recusa lead sem e-mail E sem telefone. Barrar aqui evita
+        // descobrir isso só quando o primeiro visitante terminar o form.
+        if (!in_array('your-email', $canonicals, true) && !in_array('Telefone', $canonicals, true)) {
+            return array('ok' => false, 'error' => 'O roteiro precisa de pelo menos uma pergunta com <code>"canonical": "your-email"</code> ou <code>"canonical": "Telefone"</code> — sem e-mail nem telefone o CRM recusa o lead.');
+        }
+
+        // Tela de sucesso é sempre a última (o JS conta a partir dela pra
+        // saber qual etapa é a de envio).
+        $out[] = array('isSuccess' => true);
+
+        return array('ok' => true, 'steps' => $out);
+    }
+
+    /** Chave de campo/canônico: sem espaço, acento ou char estranho. */
+    private static function sanitize_key_name($raw) {
+        $s = trim((string) $raw);
+        if ($s === '') return '';
+        if (function_exists('remove_accents')) $s = remove_accents($s);
+        $s = preg_replace('/[^A-Za-z0-9_-]+/', '-', $s);
+        $s = preg_replace('/-+/', '-', $s);
+        return trim($s, '-');
+    }
+
+    /**
+     * Mapa key-da-resposta → chave canônica do CRM, derivado do roteiro
+     * custom. Vazio quando o site roda o roteiro default (aí vale o
+     * mapeamento fixo da Digitals em handle_submit).
+     */
+    public static function canonical_map() {
+        $map = array();
+        foreach (self::get_steps() as $step) {
+            if (!is_array($step)) continue;
+            if (!empty($step['fieldKey'])) {
+                $map[$step['fieldKey']] = !empty($step['canonical']) ? $step['canonical'] : $step['fieldKey'];
+            }
+            foreach ((array) (isset($step['fields']) ? $step['fields'] : array()) as $f) {
+                if (empty($f['key'])) continue;
+                $map[$f['key']] = !empty($f['canonical']) ? $f['canonical'] : $f['key'];
+            }
+        }
+        return $map;
     }
 
     /** Enqueue do CSS/JS/fonte + config. Idempotente (WP dedupa por handle). */
@@ -121,6 +324,9 @@ class AdSpirit_Form_Qualifier {
             'mode' => $mode,
             'button_label' => esc_html($button_label),
             'turnstile' => $turnstile_cfg,
+            // Roteiro custom do tenant. Array vazio → o JS usa DEFAULT_STEPS
+            // (Digitals) e nada muda pra quem nunca importou roteiro.
+            'steps' => self::get_steps(),
         ));
     }
 
@@ -141,10 +347,190 @@ class AdSpirit_Form_Qualifier {
     }
 
     public function handle_save($post) {
-        $patch = array('sitewide' => !empty($post['sitewide']) ? '1' : '0');
-        $merged = wp_parse_args($patch, self::get_settings());
-        update_option(self::OPTION_KEY, $merged, false);
+        $section = isset($post['qualifier_section']) ? sanitize_key((string) $post['qualifier_section']) : 'sitewide';
+        $settings = self::get_settings();
+
+        if ($section === 'steps') {
+            $this->handle_steps_save($post, $settings);
+            return;
+        }
+
+        if ($section === 'template') {
+            $this->handle_template_save($post, $settings);
+            return;
+        }
+
+        // Card "site todo". O checkbox só existe nesse form — por isso o
+        // patch é escopado: sem o marcador de seção, salvar o roteiro
+        // desligaria o sitewide sem ninguém pedir.
+        $settings['sitewide'] = !empty($post['sitewide']) ? '1' : '0';
+        update_option(self::OPTION_KEY, $settings, false);
         add_settings_error(self::OPTION_KEY, 'saved', 'Configurações do form salvas.', 'updated');
+    }
+
+    /** Importa/remove o roteiro custom de perguntas. */
+    private function handle_steps_save($post, $settings) {
+        if (!empty($post['reset_steps'])) {
+            $settings['steps'] = array();
+            update_option(self::OPTION_KEY, $settings, false);
+            add_settings_error(self::OPTION_KEY, 'steps_reset', 'Roteiro custom removido — o form voltou pras perguntas padrão.', 'updated');
+            return;
+        }
+
+        // wp_unslash antes do decode: o WP escapa aspas no $_POST e o JSON
+        // chega com \" — sem isso, json_decode devolve null sempre.
+        $raw = isset($post['steps_json']) ? (string) wp_unslash($post['steps_json']) : '';
+        if (trim($raw) === '') {
+            add_settings_error(self::OPTION_KEY, 'steps_empty', 'Cole o JSON do roteiro pra importar. Nada foi alterado.');
+            return;
+        }
+
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded)) {
+            add_settings_error(self::OPTION_KEY, 'steps_json', 'JSON inválido: ' . esc_html(json_last_error_msg()) . '. Nada foi alterado.');
+            return;
+        }
+        // Aceita a lista crua ou embrulhada em { "steps": [...] }.
+        if (isset($decoded['steps']) && is_array($decoded['steps'])) {
+            $decoded = $decoded['steps'];
+        }
+
+        $res = self::sanitize_steps($decoded);
+        if (empty($res['ok'])) {
+            add_settings_error(self::OPTION_KEY, 'steps_invalid', $res['error']);
+            return;
+        }
+
+        $settings['steps'] = $res['steps'];
+        update_option(self::OPTION_KEY, $settings, false);
+
+        // F3: roteiro feito à mão ganha uma régua inicial derivada das
+        // próprias perguntas no CRM (origin auto:roteiro — nunca sobrescreve
+        // régua manual). Falha aqui não desfaz o import.
+        $regua = $this->notify_roteiro_imported($res['steps']);
+        $base = sprintf(
+            'Roteiro importado — %d telas no total (abertura + perguntas + tela final). Confira numa página publicada.',
+            count($res['steps'])
+        );
+        if ($regua === 'applied') {
+            $base .= ' Uma régua inicial foi derivada das suas perguntas no AdSpirit — revise em Configurações → Lead scoring antes de confiar.';
+        } elseif ($regua === 'manual_config') {
+            $base .= ' A marca já tem régua própria no AdSpirit; ela foi mantida.';
+        } else {
+            $base .= ' Não consegui gerar a régua automaticamente — configure em Configurações → Lead scoring.';
+        }
+        add_settings_error(self::OPTION_KEY, 'steps_ok', $base, 'updated');
+    }
+
+    /** POSTa o roteiro recém-importado pro CRM derivar a régua inicial.
+     *  Retorna 'applied' | 'manual_config' | 'failed'. */
+    private function notify_roteiro_imported($steps) {
+        if (!class_exists('AdSpirit_Connect') || !AdSpirit_Connect::is_connected()) return 'failed';
+        $core = AdSpirit_Settings::get_core();
+        $resp = wp_remote_post(rtrim($core['endpoint_url'], '/') . '/api/wp/qualifier-roteiro', array(
+            'timeout' => 10,
+            'headers' => array('Content-Type' => 'application/json', 'x-cf7-secret' => $core['secret']),
+            'body' => wp_json_encode(array('brand_slug' => $core['brand_slug'], 'steps' => $steps)),
+        ));
+        if (is_wp_error($resp) || wp_remote_retrieve_response_code($resp) !== 200) return 'failed';
+        $body = json_decode((string) wp_remote_retrieve_body($resp), true);
+        if (is_array($body) && !empty($body['applied'])) return 'applied';
+        if (is_array($body) && isset($body['reason']) && $body['reason'] === 'manual_config') return 'manual_config';
+        return 'failed';
+    }
+
+    /** Galeria: busca os modelos prontos no CRM. Cache 1h em option;
+     *  fail-soft pro cache anterior quando a rede falha. */
+    private function fetch_templates($force = false) {
+        $cached = get_option('adspirit_qualifier_templates', null);
+        $at = (int) get_option('adspirit_qualifier_templates_at', 0);
+        if (!$force && is_array($cached) && (time() - $at) < 3600) {
+            return $cached;
+        }
+        if (!class_exists('AdSpirit_Connect') || !AdSpirit_Connect::is_connected()) {
+            return is_array($cached) ? $cached : null;
+        }
+        $core = AdSpirit_Settings::get_core();
+        $url = rtrim($core['endpoint_url'], '/')
+            . '/api/wp/qualifier-templates?brand_slug=' . rawurlencode($core['brand_slug']);
+        $resp = wp_remote_get($url, array(
+            'timeout' => 10,
+            'headers' => array('x-cf7-secret' => $core['secret'], 'Accept' => 'application/json'),
+        ));
+        if (is_wp_error($resp) || wp_remote_retrieve_response_code($resp) !== 200) {
+            return is_array($cached) ? $cached : null;
+        }
+        $data = json_decode((string) wp_remote_retrieve_body($resp), true);
+        if (!is_array($data) || empty($data['templates']) || !is_array($data['templates'])) {
+            return is_array($cached) ? $cached : null;
+        }
+        update_option('adspirit_qualifier_templates', $data['templates'], false);
+        update_option('adspirit_qualifier_templates_at', time(), false);
+        return $data['templates'];
+    }
+
+    /** Aplica um modelo da galeria: importa o roteiro (mesma validação do
+     *  import por JSON) e avisa o CRM pra aplicar a régua correspondente.
+     *  O CRM NUNCA sobrescreve régua manual — responde reason=manual_config. */
+    private function handle_template_save($post, $settings) {
+        $tid = isset($post['template_id']) ? sanitize_text_field((string) $post['template_id']) : '';
+        if ($tid === '') {
+            add_settings_error(self::OPTION_KEY, 'tpl_missing', 'Escolha um modelo antes de aplicar.');
+            return;
+        }
+        $templates = $this->fetch_templates(true);
+        if (!is_array($templates)) {
+            add_settings_error(self::OPTION_KEY, 'tpl_fetch', 'Não consegui buscar os modelos no AdSpirit. Confira a aba Conexão.');
+            return;
+        }
+        $tpl = null;
+        foreach ($templates as $t) {
+            if (isset($t['id']) && $t['id'] === $tid) { $tpl = $t; break; }
+        }
+        if (!$tpl || empty($tpl['steps']) || !is_array($tpl['steps'])) {
+            add_settings_error(self::OPTION_KEY, 'tpl_notfound', 'Modelo não encontrado. Recarregue a página e tente de novo.');
+            return;
+        }
+        $res = self::sanitize_steps($tpl['steps']);
+        if (empty($res['ok'])) {
+            add_settings_error(self::OPTION_KEY, 'tpl_invalid', 'O modelo veio inválido do CRM: ' . $res['error']);
+            return;
+        }
+        $settings['steps'] = $res['steps'];
+        update_option(self::OPTION_KEY, $settings, false);
+
+        // Adoção da régua no CRM (fire com feedback; falha não desfaz o roteiro).
+        $core = AdSpirit_Settings::get_core();
+        $resp = wp_remote_post(rtrim($core['endpoint_url'], '/') . '/api/wp/qualifier-templates', array(
+            'timeout' => 10,
+            'headers' => array('Content-Type' => 'application/json', 'x-cf7-secret' => $core['secret']),
+            'body' => wp_json_encode(array('brand_slug' => $core['brand_slug'], 'template_id' => $tid)),
+        ));
+        $applied = false;
+        $reason = '';
+        if (!is_wp_error($resp) && wp_remote_retrieve_response_code($resp) === 200) {
+            $body = json_decode((string) wp_remote_retrieve_body($resp), true);
+            $applied = is_array($body) && !empty($body['applied']);
+            $reason = is_array($body) && isset($body['reason']) ? (string) $body['reason'] : '';
+        }
+
+        $telas = count($res['steps']);
+        if ($applied) {
+            add_settings_error(self::OPTION_KEY, 'tpl_ok', sprintf(
+                'Modelo aplicado — %d telas. A régua de pontuação correspondente foi aplicada no AdSpirit; revise em Configurações → Lead scoring.',
+                $telas
+            ), 'updated');
+        } elseif ($reason === 'manual_config') {
+            add_settings_error(self::OPTION_KEY, 'tpl_ok_manual', sprintf(
+                'Modelo aplicado — %d telas. A marca já tem régua própria no AdSpirit e ela foi MANTIDA (modelo nunca sobrescreve configuração manual).',
+                $telas
+            ), 'updated');
+        } else {
+            add_settings_error(self::OPTION_KEY, 'tpl_ok_noscore', sprintf(
+                'Modelo aplicado — %d telas. Não consegui aplicar a régua automaticamente; configure em Configurações → Lead scoring no AdSpirit.',
+                $telas
+            ), 'updated');
+        }
     }
 
     public function register_tab($tabs) {
@@ -167,6 +553,7 @@ class AdSpirit_Form_Qualifier {
 
         <?php AdSpirit_Menu::card_open('Disponibilizar no site todo', 'Sem precisar do shortcode em cada página', ($qs['sitewide'] ?? '0') === '1' ? '<span class="as-badge ok">Ligado</span>' : '<span class="as-badge muted">Desligado</span>'); ?>
         <?php AdSpirit_Menu::form_open('qualifier'); ?>
+        <input type="hidden" name="qualifier_section" value="sitewide">
         <table class="form-table">
             <tr>
                 <th>Site todo</th>
@@ -177,6 +564,86 @@ class AdSpirit_Form_Qualifier {
             </tr>
         </table>
         <?php AdSpirit_Menu::form_close('Salvar'); ?>
+        <?php AdSpirit_Menu::card_close(); ?>
+
+        <?php
+        $custom_steps = self::get_steps();
+        $is_custom = !empty($custom_steps);
+        $badge = $is_custom
+            ? '<span class="as-badge ok">Roteiro próprio · ' . count($custom_steps) . ' telas</span>'
+            : '<span class="as-badge muted">Perguntas padrão</span>';
+        AdSpirit_Menu::card_open(
+            'Perguntas do formulário',
+            'Cole um roteiro em JSON pra este site fazer outras perguntas. O formulário continua o mesmo — mesma tela cheia, mesmos cards de escolha, mesmo lead parcial —, muda só o conteúdo.',
+            $badge
+        );
+        ?>
+        <?php if ($is_custom): ?>
+            <p style="margin:0 0 12px; color:var(--as-ink-soft);">Este site roda um roteiro próprio. O JSON abaixo é o que está no ar — edite e reimporte pra mudar.</p>
+            <textarea readonly rows="8" style="width:100%; font-family:monospace; font-size:11.5px;" onclick="this.select();"><?php
+                echo esc_textarea(wp_json_encode($custom_steps, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+            ?></textarea>
+        <?php else: ?>
+            <p style="margin:0 0 12px; color:var(--as-ink-soft);">Este site usa as perguntas padrão. Importar um roteiro <strong>não apaga</strong> nada — dá pra voltar ao padrão a qualquer momento.</p>
+        <?php endif; ?>
+
+        <?php AdSpirit_Menu::form_open('qualifier'); ?>
+        <input type="hidden" name="qualifier_section" value="steps">
+        <p style="margin:14px 0 6px; font-weight:600; color:var(--as-ink);">Importar roteiro</p>
+        <textarea name="steps_json" rows="8" style="width:100%; font-family:monospace; font-size:11.5px;" placeholder='[{"isIntro": true, "eyebrow": "...", "title": "...", "sub": "..."}, ...]'></textarea>
+        <p class="submit">
+            <button type="submit" class="button button-primary">Importar roteiro</button>
+            <?php if ($is_custom): ?>
+                <button type="submit" class="button" name="reset_steps" value="1"
+                        onclick="return confirm('Voltar pras perguntas padrão? O roteiro próprio deste site será removido.');">Voltar ao padrão</button>
+            <?php endif; ?>
+        </p>
+        </form>
+
+        <details style="margin-top:6px;">
+            <summary>Como o JSON é montado</summary>
+            <p class="as-field-help" style="margin-top:8px;">Uma tela por objeto, na ordem. A primeira é a abertura (<code>isIntro</code>); a tela final de sucesso é acrescentada sozinha.</p>
+            <ul style="margin:0; padding-left:18px; line-height:1.9; color:var(--as-ink-soft);">
+                <li><strong>Pergunta com opções</strong> (os cards): <code>title</code>, <code>fieldKey</code>, <code>canonical</code> e <code>choices</code> — cada opção com <code>label</code> e, se quiser, <code>meta</code>. O atalho de teclado é atribuído sozinho.</li>
+                <li><strong>Pergunta aberta</strong>: <code>title</code> e <code>fields</code>, cada campo com <code>key</code>, <code>type</code> (text, email, tel, url, textarea), <code>placeholder</code> e <code>canonical</code>.</li>
+                <li><strong><code>canonical</code></strong> é o nome com que a resposta chega no CRM: <code>your-name</code>, <code>your-email</code>, <code>Telefone</code>, <code>empresa</code>, <code>cargo</code>, <code>revenue</code>, <code>Investimento</code>, <code>urgencia</code>, <code>pain</code>. Dois campos com o mesmo <code>canonical</code> chegam juntos (é assim que Nome + Sobrenome viram um nome só).</li>
+                <li><strong><code>"capturePartial": true</code></strong> na etapa de contato: ao passar dela, o lead já é gravado no CRM mesmo se a pessoa abandonar depois.</li>
+                <li><strong><code>"optional": true</code></strong> na etapa deixa a resposta opcional.</li>
+            </ul>
+        </details>
+        <?php AdSpirit_Menu::card_close(); ?>
+
+        <?php
+        $tpls = $this->fetch_templates();
+        AdSpirit_Menu::card_open(
+            'Modelos prontos',
+            'Roteiros de referência por mercado, direto do AdSpirit. Aplicar um modelo importa o formulário E a régua de pontuação correspondente.'
+        );
+        if (!class_exists('AdSpirit_Connect') || !AdSpirit_Connect::is_connected()): ?>
+            <p style="margin:0; color:var(--as-ink-faint); font-size:13px;">Conecte o site ao AdSpirit (aba <strong>Conexão</strong>) pra ver os modelos.</p>
+        <?php elseif (!is_array($tpls) || empty($tpls)): ?>
+            <p style="margin:0; color:var(--as-ink-faint); font-size:13px;">Não consegui carregar os modelos agora — recarregue a página pra tentar de novo.</p>
+        <?php else: ?>
+            <?php AdSpirit_Menu::form_open('qualifier'); ?>
+            <input type="hidden" name="qualifier_section" value="template">
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <select name="template_id" style="min-width:320px;">
+                    <option value="">— escolha um mercado —</option>
+                    <?php foreach ($tpls as $t): if (empty($t['id']) || empty($t['label'])) continue; ?>
+                        <option value="<?php echo esc_attr($t['id']); ?>"><?php echo esc_html($t['label']); ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <button type="submit" class="button button-primary"
+                        onclick="return confirm('Aplicar este modelo substitui o roteiro atual deste site. Continuar?');">Aplicar modelo</button>
+            </div>
+            </form>
+            <ul style="margin:12px 0 0; padding-left:18px; line-height:1.8; color:var(--as-ink-soft); font-size:12.5px;">
+                <?php foreach ($tpls as $t): if (empty($t['label'])) continue; ?>
+                    <li><strong><?php echo esc_html($t['label']); ?></strong><?php echo !empty($t['description']) ? ' — ' . esc_html($t['description']) : ''; ?></li>
+                <?php endforeach; ?>
+            </ul>
+            <p class="as-field-help" style="margin-top:10px;">O modelo é um ponto de partida: depois de aplicar, edite o JSON no card acima pra ajustar perguntas e opções — e ajuste a régua no AdSpirit junto.</p>
+        <?php endif; ?>
         <?php AdSpirit_Menu::card_close(); ?>
 
         <?php AdSpirit_Menu::card_open('Qual shortcode usar', 'Se NÃO ligar o "site todo", escolha conforme onde o form vai aparecer'); ?>
@@ -397,6 +864,25 @@ class AdSpirit_Form_Qualifier {
             ? sanitize_text_field((string) $_POST['submission_id'])
             : '';
 
+        // Roteiro custom (outro tenant): o mapeamento key → canônico vem da
+        // config, não do de-para fixo da Digitals abaixo. Dois campos no
+        // mesmo canônico entram concatenados na ordem do roteiro (é assim
+        // que "Nome" + "Sobrenome" viram um `your-name` só).
+        $custom_map = self::canonical_map();
+        if (!empty($custom_map)) {
+            $payload = array();
+            foreach ($custom_map as $key => $canonical) {
+                $val = isset($sanitized[$key]) ? trim((string) $sanitized[$key]) : '';
+                if ($val === '') continue;
+                $payload[$canonical] = (isset($payload[$canonical]) && $payload[$canonical] !== '')
+                    ? $payload[$canonical] . ' ' . $val
+                    : $val;
+            }
+            $payload['cf7_time'] = current_time('c');
+            $payload['cf7_url'] = isset($_SERVER['HTTP_REFERER']) ? esc_url_raw($_SERVER['HTTP_REFERER']) : home_url('/');
+            return $this->dispatch_payload($payload, $is_partial, $client_sid);
+        }
+
         // Presença online: form coleta Instagram + site separados (pelo menos
         // um obrigatório). Combinamos no campo canônico `site-empresa` —
         // mesmo destino do antigo `social`, então o CRM/website column não muda.
@@ -435,6 +921,16 @@ class AdSpirit_Form_Qualifier {
             'cf7_time' => current_time('c'),
             'cf7_url' => isset($_SERVER['HTTP_REFERER']) ? esc_url_raw($_SERVER['HTTP_REFERER']) : home_url('/'),
         );
+        return $this->dispatch_payload($payload, $is_partial, $client_sid);
+    }
+
+    /**
+     * Tronco comum de envio: marca o parcial, anexa telemetria, grava na
+     * rede de segurança, POSTa pro CRM e responde o JS. Vale tanto pro
+     * roteiro default quanto pro custom — nenhum tenant ganha caminho de
+     * envio próprio, então correção aqui vale pra todos.
+     */
+    private function dispatch_payload($payload, $is_partial, $client_sid) {
         if ($is_partial) {
             $payload['_adspirit_partial'] = '1';
         }

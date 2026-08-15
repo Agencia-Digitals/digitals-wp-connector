@@ -144,7 +144,14 @@
   inset: 0;
   z-index: 999999;
   display: flex;
-  align-items: center;
+  /* NÃO usar align-items: center aqui. Quando o step é mais alto que a
+     tela (etapa com muitas opções num celular), o centramento por
+     align-items empurra o topo do card PRA FORA do container e o
+     overflow-y não alcança — a pergunta some e não tem como rolar até
+     ela. O card fica preso, o visitante desiste. Centrar por
+     `margin: auto` no filho tem o mesmo efeito visual quando cabe e
+     degrada pra topo-alinhado quando não cabe (incidente 2026-08-14,
+     form da Zatz com 9 opções no iPhone). */
   justify-content: center;
   padding: 64px 24px 80px;
   overflow-y: auto;
@@ -158,6 +165,14 @@
   -webkit-font-smoothing: antialiased;
 }
 
+/* iOS: `position: fixed; inset: 0` mede a viewport GRANDE (barra do Safari
+   escondida), então com a barra à vista o rodapé do form fica atrás dela —
+   o último botão/opção some. 100dvh acompanha a área realmente visível.
+   Em @supports pra não afetar navegador antigo, que segue com inset: 0. */
+@supports (height: 100dvh) {
+  .adspirit-qf-main { height: 100dvh; }
+}
+
 /* Stage: empilha o step que sai e o que entra na MESMA célula do grid.
    SEM clip aqui — senão o card parece dentro de uma caixa cortada durante
    o deslize. Ele desliza livre pro lado e some no fade; o clip anti-scrollbar
@@ -167,6 +182,9 @@
   width: 100%;
   max-width: 640px;
   display: grid;
+  /* Centra na vertical sem prender o topo quando o conteúdo passa da tela
+     (ver comentário em .adspirit-qf-main). */
+  margin: auto;
 }
 .adspirit-qf-stage > .adspirit-qf-step { grid-area: 1 / 1; }
 

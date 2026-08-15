@@ -16,7 +16,7 @@ class AdSpirit_Quickwins {
     const UPDATE_TRANSIENT = 'adspirit_connector_update_check';
     const UPDATE_INTERVAL = 21600; // 6h
     const HEALTH_CRON_HOOK = 'adspirit_connector_health_check';
-    const GITHUB_REPO = 'agenciadigitals/digitals-wp-connector';
+    const GITHUB_REPO = 'Agencia-Digitals/digitals-wp-connector';
 
     private static $instance = null;
     public static function instance() {
