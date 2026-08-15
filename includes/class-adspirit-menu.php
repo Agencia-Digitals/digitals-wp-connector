@@ -159,8 +159,8 @@ class AdSpirit_Menu {
             . $sel . '{background-image:none!important;}'
             . $sel . '::before{content:"";display:block;width:20px;height:20px;margin:7px auto 0;'
             . 'background-color:currentColor;'
-            . '-webkit-mask:url(\'' . $mask . '\') no-repeat center/20px 20px;'
-            . 'mask:url(\'' . $mask . '\') no-repeat center/20px 20px;}'
+            . '-webkit-mask:url(\'' . $mask . '\') no-repeat center/contain;'
+            . 'mask:url(\'' . $mask . '\') no-repeat center/contain;}'
             . '</style>';
     }
 
