@@ -856,7 +856,13 @@
       // plugins (CF7, etc) em sites onde o script foi enfileirado mas o
       // qualifier não é usado naquela página.
       var hasRoot = !!document.querySelector('.adspirit-qualifier-root');
-      var hasTrigger = !!document.querySelector('.adspirit-qualifier-trigger, [data-adspirit-qualifier], a[href$="#adspirit-avaliacao"]');
+      // Com o "site todo" ligado, botões/links com a classe `lead` também
+      // disparam o form. Restringido a <a>/<button> DE PROPÓSITO: `.lead` é
+      // classe genérica de tipografia (Bootstrap usa em parágrafo) — sem o
+      // restritor, clicar num texto abriria o popup.
+      var TRIGGER_SEL = '.adspirit-qualifier-trigger, [data-adspirit-qualifier], a[href$="#adspirit-avaliacao"]';
+      if (String(CFG.sitewide) === '1') TRIGGER_SEL += ', a.lead, button.lead';
+      var hasTrigger = !!document.querySelector(TRIGGER_SEL);
       if (!hasRoot && !hasTrigger) {
         return; // página não usa o qualifier — silent no-op
       }
@@ -866,9 +872,7 @@
         try {
           var el = e.target;
           if (el && el.nodeType === 3) el = el.parentElement; // text node → elemento
-          var trigger = el && el.closest
-            ? el.closest('.adspirit-qualifier-trigger, [data-adspirit-qualifier], a[href$="#adspirit-avaliacao"]')
-            : null;
+          var trigger = el && el.closest ? el.closest(TRIGGER_SEL) : null;
           if (!trigger) return;
           e.preventDefault();
           openPopup();
