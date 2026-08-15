@@ -966,6 +966,17 @@
           console.warn('[AdSpirit Qualifier] click handler erro:', e2);
         }
       });
+      // Deep link: URL que já CHEGA com o hash abre o form direto — pra
+      // anúncio, mensagem de WhatsApp, QR. #adspirit-avaliacao é o canônico;
+      // #adspirit-qualifier é aceito como apelido. Clique em link interno
+      // pro hash não passa por aqui (o handler acima dá preventDefault).
+      function maybeOpenFromHash() {
+        var h = window.location.hash;
+        if (h === '#adspirit-avaliacao' || h === '#adspirit-qualifier') openPopup();
+      }
+      maybeOpenFromHash();
+      window.addEventListener('hashchange', maybeOpenFromHash);
+
       // Inline (full-screen) e embed (contido) renderizam direto no load.
       var auto = document.querySelector('.adspirit-qualifier-root[data-mode="inline"], .adspirit-qualifier-root[data-mode="embed"]');
       if (auto) {
