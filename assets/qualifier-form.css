@@ -548,8 +548,8 @@ textarea.adspirit-qf-input { min-height: 130px; resize: vertical; line-height: 1
   border-radius: 3px 3px 0 0;
 }
 
-/* Nav fixa: pílula no canto inferior direito — MESMA posição em toda
-   pergunta (a nav inline mudava de lugar com a altura do conteúdo). */
+/* Setinhas fixas no canto inferior direito (híbrido Typeform): navegação
+   SECUNDÁRIA — o botão principal continua inline, abaixo do campo. */
 .adspirit-qf-footer {
   position: fixed;
   right: 24px;
@@ -557,28 +557,45 @@ textarea.adspirit-qf-input { min-height: 130px; resize: vertical; line-height: 1
   z-index: 1000001;
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(8px);
 }
 .adspirit-qf-footer[hidden] { display: none; }
-.adspirit-qf-footer .adspirit-qf-kbd-hint { margin: 0; }
-/* Conteúdo nunca fica escondido atrás da pílula. */
-.adspirit-qf-main { padding-bottom: 132px; }
-/* No embed, a nav ancora no card (não na viewport). */
+.adspirit-qf-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 36px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #F2F2F2;
+  cursor: pointer;
+}
+.adspirit-qf-arrow:hover { background: rgba(255, 255, 255, 0.12); }
+.adspirit-qf-arrow:disabled { opacity: 0.35; cursor: default; }
+.adspirit-qf-arrow:disabled:hover { background: transparent; }
+.adspirit-qf-arrow svg { width: 18px; height: 18px; }
+.adspirit-qf-arrow:focus-visible { outline: 2px solid #F2F2F2; outline-offset: 2px; }
+/* Conteúdo nunca fica atrás das setas. */
+.adspirit-qf-main { padding-bottom: 96px; }
+/* No embed, as setas ancoram no card (não na viewport). */
 .adspirit-qf-embed .adspirit-qf-footer {
   position: absolute;
-  right: 20px;
-  bottom: 20px;
+  right: 16px;
+  bottom: 16px;
 }
-.adspirit-qf-embed { padding-bottom: 96px; }
+.adspirit-qf-embed { padding-bottom: 80px; }
 
 @media (max-width: 640px) {
-  .adspirit-qf-footer {
-    left: 18px;
-    right: 18px;
-    justify-content: stretch;
-  }
-  .adspirit-qf-footer .adspirit-qf-nav-actions { width: 100%; gap: 10px; }
-  .adspirit-qf-main { padding-bottom: 120px; }
+  /* Mobile: a nav inline já é bloco full-width perto do polegar; as setas
+     seriam redundância em tela apertada (e brigam com o teclado). */
+  .adspirit-qf-footer { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
