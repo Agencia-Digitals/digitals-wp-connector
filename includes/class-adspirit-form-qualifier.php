@@ -327,6 +327,9 @@ class AdSpirit_Form_Qualifier {
             // Roteiro custom do tenant. Array vazio → o JS usa DEFAULT_STEPS
             // (Digitals) e nada muda pra quem nunca importou roteiro.
             'steps' => self::get_steps(),
+            // Habilita o gatilho extra a.lead/button.lead no front (JS só o
+            // ativa quando o "site todo" está ligado).
+            'sitewide' => (string) (self::get_settings()['sitewide'] ?? '0'),
         ));
     }
 
@@ -559,7 +562,7 @@ class AdSpirit_Form_Qualifier {
                 <th>Site todo</th>
                 <td>
                     <label><input type="checkbox" name="sitewide" value="1" <?php checked($qs['sitewide'] ?? '0', '1'); ?>> <strong>Carregar o form em todas as páginas</strong> (escondido até clicarem)</label>
-                    <p class="description">Ligado, você <strong>não precisa de shortcode em página nenhuma</strong> — é só criar um botão e apontar o link dele pra <code>#adspirit-avaliacao</code> (veja o card abaixo). Custo: o CSS/JS do form carrega em todo o site.</p>
+                    <p class="description">Ligado, você <strong>não precisa de shortcode em página nenhuma</strong> — é só criar um botão e apontar o link dele pra <code>#adspirit-avaliacao</code>, ou dar a ele a classe <code>lead</code> (vale pra botões e links; veja o card abaixo). Custo: o CSS/JS do form carrega em todo o site.</p>
                 </td>
             </tr>
         </table>
