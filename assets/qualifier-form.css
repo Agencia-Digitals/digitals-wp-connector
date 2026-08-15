@@ -521,3 +521,66 @@ textarea.adspirit-qf-input { min-height: 130px; resize: vertical; line-height: 1
   /* Inputs com fonte ≥16px evitam o zoom automático do iOS no focus. */
   .adspirit-qf-input { font-size: 16px; padding: 16px 18px; }
 }
+
+/* ============================================================
+   2026-08-15 — paridade com o wizard do CRM (padrão Typeform):
+   progresso no topo + nav FIXA no canto inferior direito.
+   ============================================================ */
+
+/* Barra de progresso — topo da viewport (overlay/inline). */
+.adspirit-qf-progress {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  z-index: 1000001;
+  background: rgba(255, 255, 255, 0.10);
+}
+.adspirit-qf-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: #F2F2F2;
+  transition: width 480ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+/* No embed a barra pertence ao card, não à viewport. */
+.adspirit-qf-embed { position: relative; }
+.adspirit-qf-embed .adspirit-qf-progress {
+  position: absolute;
+  border-radius: 3px 3px 0 0;
+}
+
+/* Nav fixa: pílula no canto inferior direito — MESMA posição em toda
+   pergunta (a nav inline mudava de lugar com a altura do conteúdo). */
+.adspirit-qf-footer {
+  position: fixed;
+  right: 24px;
+  bottom: max(20px, env(safe-area-inset-bottom));
+  z-index: 1000001;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.adspirit-qf-footer[hidden] { display: none; }
+.adspirit-qf-footer .adspirit-qf-kbd-hint { margin: 0; }
+/* Conteúdo nunca fica escondido atrás da pílula. */
+.adspirit-qf-main { padding-bottom: 132px; }
+/* No embed, a nav ancora no card (não na viewport). */
+.adspirit-qf-embed .adspirit-qf-footer {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+}
+.adspirit-qf-embed { padding-bottom: 96px; }
+
+@media (max-width: 640px) {
+  .adspirit-qf-footer {
+    left: 18px;
+    right: 18px;
+    justify-content: stretch;
+  }
+  .adspirit-qf-footer .adspirit-qf-nav-actions { width: 100%; gap: 10px; }
+  .adspirit-qf-main { padding-bottom: 120px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .adspirit-qf-progress-fill { transition: none !important; }
+}
