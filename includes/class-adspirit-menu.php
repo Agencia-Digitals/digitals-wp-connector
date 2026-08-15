@@ -157,7 +157,7 @@ class AdSpirit_Menu {
         $sel = '#toplevel_page_' . self::PAGE_SLUG . ' .wp-menu-image';
         echo '<style id="adspirit-menu-icon">'
             . $sel . '{background-image:none!important;}'
-            . $sel . '::before{content:"";display:block;width:20px;height:20px;margin:7px auto 0;'
+            . $sel . '::before{content:"";display:block;width:24px;height:20px;margin:7px auto 0;'
             . 'background-color:currentColor;'
             . '-webkit-mask:url(\'' . $mask . '\') no-repeat center/contain;'
             . 'mask:url(\'' . $mask . '\') no-repeat center/contain;}'

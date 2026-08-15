@@ -245,7 +245,12 @@
     // Modo "embed": form contido na seção (sem overlay full-screen). Os mesmos
     // steps/inputs/transições rodam dentro de um card dark .adspirit-qf-embed.
     if (root.getAttribute('data-mode') === 'embed') {
-      root.innerHTML = '<div class="adspirit-qf-embed"><div class="adspirit-qf-stage"></div></div>';
+      root.innerHTML = '<div class="adspirit-qf-embed">' +
+        '<div class="adspirit-qf-progress"><div class="adspirit-qf-progress-fill"></div></div>' +
+        '<div class="adspirit-qf-stage"></div>' +
+        buildFooter() +
+      '</div>';
+      bindFooter(root);
       return;
     }
     // Modos popup/inline: overlay full-screen + botão fechar.
@@ -254,11 +259,73 @@
       '<button class="adspirit-qf-close" aria-label="Fechar">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
       '</button>' +
-      '<div class="adspirit-qf-main"><div class="adspirit-qf-stage"></div></div>';
+      '<div class="adspirit-qf-progress"><div class="adspirit-qf-progress-fill"></div></div>' +
+      '<div class="adspirit-qf-main"><div class="adspirit-qf-stage"></div></div>' +
+      buildFooter();
     var closeBtn = root.querySelector('.adspirit-qf-close');
     var overlay = root.querySelector('.adspirit-qf-overlay');
     if (closeBtn) closeBtn.addEventListener('click', closePopup);
     if (overlay) overlay.addEventListener('click', closePopup);
+    bindFooter(root);
+  }
+
+  // NAV FIXA no canto inferior direito (2026-08-15, mesmo padrão do wizard
+  // do CRM/Typeform): posição idêntica em toda pergunta — a nav inline
+  // mudava de lugar conforme a altura do conteúdo. Montada UMA vez no shell;
+  // updateChrome() ajusta rótulo/disabled/visibilidade por step.
+  function buildFooter() {
+    return '' +
+      '<div class="adspirit-qf-footer" hidden>' +
+        '<span class="adspirit-qf-kbd-hint">Pressione <span class="adspirit-qf-kbd">Enter</span> pra avançar</span>' +
+        '<div class="adspirit-qf-nav-actions">' +
+          '<button class="adspirit-qf-btn adspirit-qf-btn-back" data-action="back">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>' +
+            '<span>Voltar</span>' +
+          '</button>' +
+          '<button class="adspirit-qf-btn" data-action="next">' +
+            '<span>Continuar</span>' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>' +
+          '</button>' +
+        '</div>' +
+      '</div>';
+  }
+  function bindFooter(root) {
+    var f = root.querySelector('.adspirit-qf-footer');
+    if (!f) return;
+    var n = f.querySelector('[data-action="next"]');
+    var b = f.querySelector('[data-action="back"]');
+    if (n) n.addEventListener('click', next);
+    if (b) b.addEventListener('click', back);
+  }
+
+  // Progresso honesto com arranque de 8% (curva do wizard do CRM): os
+  // primeiros passos andam mais que o linear — reduz a sensação de caminho
+  // longo num form de 13 perguntas.
+  function updateChrome(root, step) {
+    var fill = root.querySelector('.adspirit-qf-progress-fill');
+    if (fill) {
+      var total = STEPS.length - 1; // sem contar o success
+      var real = Math.min(1, (state.currentStep + 1) / total);
+      var pct = step.isSuccess ? 100 : 8 + Math.pow(real, 0.6) * 92;
+      fill.style.width = pct + '%';
+    }
+    var f = root.querySelector('.adspirit-qf-footer');
+    if (f) {
+      // Intro tem CTA próprio ("Iniciar avaliação") e o success não navega —
+      // rodapé some (mesma regra das capas do wizard: sem botão duplicado).
+      if (step.isIntro || step.isSuccess) f.setAttribute('hidden', 'hidden');
+      else f.removeAttribute('hidden');
+      var backBtn = f.querySelector('[data-action="back"]');
+      if (backBtn) {
+        if (state.currentStep <= 1) backBtn.setAttribute('disabled', 'disabled');
+        else backBtn.removeAttribute('disabled');
+      }
+      var nextSpan = f.querySelector('[data-action="next"] span');
+      if (nextSpan && !submitting) {
+        nextSpan.textContent =
+          state.currentStep === STEPS.length - 2 ? 'Enviar para análise' : 'Continuar';
+      }
+    }
   }
 
   function buildStepEl(step) {
@@ -306,6 +373,7 @@
     if (!stage) return;
     if (main) main.scrollTop = 0;
 
+    updateChrome(root, step);
     var prev = stage.querySelector('.adspirit-qf-step');
     var nextEl = buildStepEl(step);
     var back = direction === 'back';
@@ -394,27 +462,12 @@
     } else if (step.choices) {
       body = renderChoices(step);
     }
-    var isFirst = state.currentStep <= 1;
-    var isLast = state.currentStep === STEPS.length - 2;
     return '' +
       '<p class="adspirit-qf-eyebrow">' + escapeHtml(step.eyebrow) + '</p>' +
       '<h1 class="adspirit-qf-title">' + escapeHtml(step.title) + '</h1>' +
       (step.sub ? '<p class="adspirit-qf-sub">' + escapeHtml(step.sub) + '</p>' : '') +
       body +
-      '<p class="adspirit-qf-error" id="adspirit-qf-error"></p>' +
-      '<div class="adspirit-qf-nav">' +
-        '<span class="adspirit-qf-kbd-hint">Pressione <span class="adspirit-qf-kbd">Enter</span> pra avançar</span>' +
-        '<div class="adspirit-qf-nav-actions">' +
-          '<button class="adspirit-qf-btn adspirit-qf-btn-back" data-action="back"' + (isFirst ? ' disabled' : '') + '>' +
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>' +
-            '<span>Voltar</span>' +
-          '</button>' +
-          '<button class="adspirit-qf-btn" data-action="next">' +
-            '<span>' + (isLast ? 'Enviar para análise' : 'Continuar') + '</span>' +
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>' +
-          '</button>' +
-        '</div>' +
-      '</div>';
+      '<p class="adspirit-qf-error" id="adspirit-qf-error"></p>';
   }
 
   function renderSuccess() {
@@ -841,6 +894,33 @@
     if (!visible) return;
     if (e.key === 'Escape') closePopup();
     if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'BUTTON' && !e.isComposing) { e.preventDefault(); next(); }
+    var inField = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName || '');
+    if (e.metaKey || e.ctrlKey || e.altKey || inField) return;
+    // Setas navegam (padrão do wizard do CRM) — fora de campo de texto.
+    if (e.key === 'ArrowRight') { e.preventDefault(); next(); return; }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); back(); return; }
+    // LETRA seleciona a opção — os chips A/B/C sempre estiveram na tela;
+    // agora o atalho existe de verdade (2026-08-15).
+    var step = STEPS[state.currentStep];
+    if (!step || !step.choices || e.key.length !== 1) return;
+    var k = e.key.toUpperCase();
+    if (k < 'A' || k > 'Z') return;
+    var choice = null;
+    for (var i = 0; i < step.choices.length; i++) {
+      if ((step.choices[i].kbd || '').toUpperCase() === k) { choice = step.choices[i]; break; }
+    }
+    if (!choice) return;
+    e.preventDefault();
+    var stepEl = visible.querySelector('.adspirit-qf-step');
+    var el = stepEl
+      ? stepEl.querySelector('.adspirit-qf-choice[data-label="' + (window.CSS && CSS.escape ? CSS.escape(choice.label) : choice.label) + '"]')
+      : null;
+    if (el) { el.click(); }
+    else {
+      state.responses[step.fieldKey] = choice.label;
+      saveState();
+      setTimeout(next, 240);
+    }
   });
 
   // --- INIT ---
