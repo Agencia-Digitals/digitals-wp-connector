@@ -403,10 +403,40 @@ class AdSpirit_Form_Qualifier {
 
         $settings['steps'] = $res['steps'];
         update_option(self::OPTION_KEY, $settings, false);
-        add_settings_error(self::OPTION_KEY, 'steps_ok', sprintf(
+
+        // F3: roteiro feito à mão ganha uma régua inicial derivada das
+        // próprias perguntas no CRM (origin auto:roteiro — nunca sobrescreve
+        // régua manual). Falha aqui não desfaz o import.
+        $regua = $this->notify_roteiro_imported($res['steps']);
+        $base = sprintf(
             'Roteiro importado — %d telas no total (abertura + perguntas + tela final). Confira numa página publicada.',
             count($res['steps'])
-        ), 'updated');
+        );
+        if ($regua === 'applied') {
+            $base .= ' Uma régua inicial foi derivada das suas perguntas no AdSpirit — revise em Configurações → Lead scoring antes de confiar.';
+        } elseif ($regua === 'manual_config') {
+            $base .= ' A marca já tem régua própria no AdSpirit; ela foi mantida.';
+        } else {
+            $base .= ' Não consegui gerar a régua automaticamente — configure em Configurações → Lead scoring.';
+        }
+        add_settings_error(self::OPTION_KEY, 'steps_ok', $base, 'updated');
+    }
+
+    /** POSTa o roteiro recém-importado pro CRM derivar a régua inicial.
+     *  Retorna 'applied' | 'manual_config' | 'failed'. */
+    private function notify_roteiro_imported($steps) {
+        if (!class_exists('AdSpirit_Connect') || !AdSpirit_Connect::is_connected()) return 'failed';
+        $core = AdSpirit_Settings::get_core();
+        $resp = wp_remote_post(rtrim($core['endpoint_url'], '/') . '/api/wp/qualifier-roteiro', array(
+            'timeout' => 10,
+            'headers' => array('Content-Type' => 'application/json', 'x-cf7-secret' => $core['secret']),
+            'body' => wp_json_encode(array('brand_slug' => $core['brand_slug'], 'steps' => $steps)),
+        ));
+        if (is_wp_error($resp) || wp_remote_retrieve_response_code($resp) !== 200) return 'failed';
+        $body = json_decode((string) wp_remote_retrieve_body($resp), true);
+        if (is_array($body) && !empty($body['applied'])) return 'applied';
+        if (is_array($body) && isset($body['reason']) && $body['reason'] === 'manual_config') return 'manual_config';
+        return 'failed';
     }
 
     /** Galeria: busca os modelos prontos no CRM. Cache 1h em option;

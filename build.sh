@@ -61,6 +61,17 @@ cd ..
 echo ""
 echo "✓ Built: ${DIST}/${ZIP_NAME}"
 echo "  Size:  $(du -h "${DIST}/${ZIP_NAME}" | cut -f1)"
+# Publica no CRM local pro auto-update dos sites (servido como estático do
+# Next em /plugin/*). Fluxo de release: build → commit no AGD-CRM → deploy.
+CRM_PLUGIN_DIR="$HOME/Documents/GitHub/AGD-CRM/public/plugin"
+if [ -d "$HOME/Documents/GitHub/AGD-CRM/public" ]; then
+  mkdir -p "$CRM_PLUGIN_DIR"
+  cp "${DIST}/${ZIP_NAME}" "$CRM_PLUGIN_DIR/adspirit-connector-latest.zip"
+  printf '{"version":"%s","zip":"adspirit-connector-latest.zip","updated_at":"%s"}\n' \
+    "$VERSION" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$CRM_PLUGIN_DIR/manifest.json"
+  echo "✓ Publicado em AGD-CRM/public/plugin/ — commit + deploy do CRM pra liberar o update"
+fi
+
 echo ""
 echo "Pra instalar:"
 echo "  wp-admin → Plugins → Adicionar novo → Enviar plugin → ${DIST}/${ZIP_NAME}"
