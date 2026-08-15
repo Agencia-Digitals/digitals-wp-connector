@@ -155,12 +155,18 @@ class AdSpirit_Menu {
     public function print_menu_icon_css() {
         $mask = self::mark_data_uri();
         $sel = '#toplevel_page_' . self::PAGE_SLUG . ' .wp-menu-image';
+        // Mask no PRÓPRIO div do ícone (36×34): centrado pelos dois eixos
+        // sem depender do ::before — o core aplica padding:7px 0 no ::before
+        // dos ícones de menu e deslocava a caixa (bug das v2.22-2.24).
+        // @supports: navegador sem mask cai no background-image do WP
+        // (glifo escuro, mas presente) em vez de um quadrado pintado.
         echo '<style id="adspirit-menu-icon">'
-            . $sel . '{background-image:none!important;}'
-            . $sel . '::before{content:"";display:block;width:24px;height:20px;margin:7px auto 0;'
-            . 'background-color:currentColor;'
-            . '-webkit-mask:url(\'' . $mask . '\') no-repeat center/contain;'
-            . 'mask:url(\'' . $mask . '\') no-repeat center/contain;}'
+            . '@supports ((-webkit-mask-image: url("")) or (mask-image: url(""))) {'
+            . $sel . '{background-image:none!important;background-color:currentColor;'
+            . '-webkit-mask:url(\'' . $mask . '\') no-repeat center/22px auto;'
+            . 'mask:url(\'' . $mask . '\') no-repeat center/22px auto;}'
+            . $sel . '::before{display:none!important;}'
+            . '}'
             . '</style>';
     }
 
