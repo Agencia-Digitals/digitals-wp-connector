@@ -3,7 +3,7 @@
  * Plugin Name:       AdSpirit Connector
  * Plugin URI:        https://crm.agenciadigitals.com.br
  * Description:       Conecta o site WordPress ao CRM AdSpirit (Digitals). CF7 real-time, anti-spam, field mapping, CAPI Meta, GA4 server-side, cross-domain decoration. Configurado via wp-admin.
- * Version:           2.25.0
+ * Version:           2.25.1
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Tested up to:      6.7
@@ -19,7 +19,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('ADSPIRIT_CONNECTOR_VERSION', '2.25.0');
+define('ADSPIRIT_CONNECTOR_VERSION', '2.25.1');
 define('ADSPIRIT_CONNECTOR_FILE', __FILE__);
 define('ADSPIRIT_CONNECTOR_DIR', plugin_dir_path(__FILE__));
 define('ADSPIRIT_CONNECTOR_URL', plugin_dir_url(__FILE__));
@@ -172,6 +172,45 @@ function adspirit_connector_init_always() {
 }
 add_action('plugins_loaded', 'adspirit_connector_init_always', 5);
 add_action('plugins_loaded', 'adspirit_connector_init');
+
+/**
+ * Auto-purge de cache na troca de versao. Incidente 2026-08-15: update do
+ * plugin trocou o PHP (?ver= novo no HTML) mas o LiteSpeed seguiu servindo o
+ * CORPO antigo de qualifier-form.js (max-age=1000000, cache de estatico que
+ * ignora query string). "Atualizei e nao mudou nada." Detecta a troca de
+ * versao no boot (cobre update via GitHub, onde o activation hook NAO roda)
+ * e purga os caches conhecidos — fail-soft.
+ */
+function adspirit_connector_maybe_purge_caches() {
+    $stored = get_option('adspirit_connector_version', '');
+    if ($stored === ADSPIRIT_CONNECTOR_VERSION) {
+        return;
+    }
+    update_option('adspirit_connector_version', ADSPIRIT_CONNECTOR_VERSION, false);
+    if ($stored === '') {
+        return; // instalacao nova — nada do plugin cacheado ainda
+    }
+    try {
+        if (has_action('litespeed_purge_all')) {
+            do_action('litespeed_purge_all'); // LiteSpeed (o dos nossos sites)
+        }
+        if (function_exists('rocket_clean_domain')) {
+            rocket_clean_domain(); // WP Rocket
+        }
+        if (function_exists('w3tc_flush_all')) {
+            w3tc_flush_all(); // W3 Total Cache
+        }
+        if (function_exists('wp_cache_clear_cache')) {
+            wp_cache_clear_cache(); // WP Super Cache
+        }
+        if (class_exists('autoptimizeCache') && method_exists('autoptimizeCache', 'clearall')) {
+            autoptimizeCache::clearall(); // Autoptimize (cache proprio de JS)
+        }
+    } catch (Throwable $e) {
+        // purge e cortesia — nunca derruba o boot do plugin
+    }
+}
+add_action('plugins_loaded', 'adspirit_connector_maybe_purge_caches', 20);
 
 /**
  * Activation: valida ambiente. Se PHP/WP for incompatível, plugin se
