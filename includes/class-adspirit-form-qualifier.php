@@ -355,6 +355,11 @@ class AdSpirit_Form_Qualifier {
             return;
         }
 
+        if ($section === 'template') {
+            $this->handle_template_save($post, $settings);
+            return;
+        }
+
         // Card "site todo". O checkbox só existe nesse form — por isso o
         // patch é escopado: sem o marcador de seção, salvar o roteiro
         // desligaria o sitewide sem ninguém pedir.
@@ -402,6 +407,100 @@ class AdSpirit_Form_Qualifier {
             'Roteiro importado — %d telas no total (abertura + perguntas + tela final). Confira numa página publicada.',
             count($res['steps'])
         ), 'updated');
+    }
+
+    /** Galeria: busca os modelos prontos no CRM. Cache 1h em option;
+     *  fail-soft pro cache anterior quando a rede falha. */
+    private function fetch_templates($force = false) {
+        $cached = get_option('adspirit_qualifier_templates', null);
+        $at = (int) get_option('adspirit_qualifier_templates_at', 0);
+        if (!$force && is_array($cached) && (time() - $at) < 3600) {
+            return $cached;
+        }
+        if (!class_exists('AdSpirit_Connect') || !AdSpirit_Connect::is_connected()) {
+            return is_array($cached) ? $cached : null;
+        }
+        $core = AdSpirit_Settings::get_core();
+        $url = rtrim($core['endpoint_url'], '/')
+            . '/api/wp/qualifier-templates?brand_slug=' . rawurlencode($core['brand_slug']);
+        $resp = wp_remote_get($url, array(
+            'timeout' => 10,
+            'headers' => array('x-cf7-secret' => $core['secret'], 'Accept' => 'application/json'),
+        ));
+        if (is_wp_error($resp) || wp_remote_retrieve_response_code($resp) !== 200) {
+            return is_array($cached) ? $cached : null;
+        }
+        $data = json_decode((string) wp_remote_retrieve_body($resp), true);
+        if (!is_array($data) || empty($data['templates']) || !is_array($data['templates'])) {
+            return is_array($cached) ? $cached : null;
+        }
+        update_option('adspirit_qualifier_templates', $data['templates'], false);
+        update_option('adspirit_qualifier_templates_at', time(), false);
+        return $data['templates'];
+    }
+
+    /** Aplica um modelo da galeria: importa o roteiro (mesma validação do
+     *  import por JSON) e avisa o CRM pra aplicar a régua correspondente.
+     *  O CRM NUNCA sobrescreve régua manual — responde reason=manual_config. */
+    private function handle_template_save($post, $settings) {
+        $tid = isset($post['template_id']) ? sanitize_text_field((string) $post['template_id']) : '';
+        if ($tid === '') {
+            add_settings_error(self::OPTION_KEY, 'tpl_missing', 'Escolha um modelo antes de aplicar.');
+            return;
+        }
+        $templates = $this->fetch_templates(true);
+        if (!is_array($templates)) {
+            add_settings_error(self::OPTION_KEY, 'tpl_fetch', 'Não consegui buscar os modelos no AdSpirit. Confira a aba Conexão.');
+            return;
+        }
+        $tpl = null;
+        foreach ($templates as $t) {
+            if (isset($t['id']) && $t['id'] === $tid) { $tpl = $t; break; }
+        }
+        if (!$tpl || empty($tpl['steps']) || !is_array($tpl['steps'])) {
+            add_settings_error(self::OPTION_KEY, 'tpl_notfound', 'Modelo não encontrado. Recarregue a página e tente de novo.');
+            return;
+        }
+        $res = self::sanitize_steps($tpl['steps']);
+        if (empty($res['ok'])) {
+            add_settings_error(self::OPTION_KEY, 'tpl_invalid', 'O modelo veio inválido do CRM: ' . $res['error']);
+            return;
+        }
+        $settings['steps'] = $res['steps'];
+        update_option(self::OPTION_KEY, $settings, false);
+
+        // Adoção da régua no CRM (fire com feedback; falha não desfaz o roteiro).
+        $core = AdSpirit_Settings::get_core();
+        $resp = wp_remote_post(rtrim($core['endpoint_url'], '/') . '/api/wp/qualifier-templates', array(
+            'timeout' => 10,
+            'headers' => array('Content-Type' => 'application/json', 'x-cf7-secret' => $core['secret']),
+            'body' => wp_json_encode(array('brand_slug' => $core['brand_slug'], 'template_id' => $tid)),
+        ));
+        $applied = false;
+        $reason = '';
+        if (!is_wp_error($resp) && wp_remote_retrieve_response_code($resp) === 200) {
+            $body = json_decode((string) wp_remote_retrieve_body($resp), true);
+            $applied = is_array($body) && !empty($body['applied']);
+            $reason = is_array($body) && isset($body['reason']) ? (string) $body['reason'] : '';
+        }
+
+        $telas = count($res['steps']);
+        if ($applied) {
+            add_settings_error(self::OPTION_KEY, 'tpl_ok', sprintf(
+                'Modelo aplicado — %d telas. A régua de pontuação correspondente foi aplicada no AdSpirit; revise em Configurações → Lead scoring.',
+                $telas
+            ), 'updated');
+        } elseif ($reason === 'manual_config') {
+            add_settings_error(self::OPTION_KEY, 'tpl_ok_manual', sprintf(
+                'Modelo aplicado — %d telas. A marca já tem régua própria no AdSpirit e ela foi MANTIDA (modelo nunca sobrescreve configuração manual).',
+                $telas
+            ), 'updated');
+        } else {
+            add_settings_error(self::OPTION_KEY, 'tpl_ok_noscore', sprintf(
+                'Modelo aplicado — %d telas. Não consegui aplicar a régua automaticamente; configure em Configurações → Lead scoring no AdSpirit.',
+                $telas
+            ), 'updated');
+        }
     }
 
     public function register_tab($tabs) {
@@ -482,6 +581,39 @@ class AdSpirit_Form_Qualifier {
                 <li><strong><code>"optional": true</code></strong> na etapa deixa a resposta opcional.</li>
             </ul>
         </details>
+        <?php AdSpirit_Menu::card_close(); ?>
+
+        <?php
+        $tpls = $this->fetch_templates();
+        AdSpirit_Menu::card_open(
+            'Modelos prontos',
+            'Roteiros de referência por mercado, direto do AdSpirit. Aplicar um modelo importa o formulário E a régua de pontuação correspondente.'
+        );
+        if (!class_exists('AdSpirit_Connect') || !AdSpirit_Connect::is_connected()): ?>
+            <p style="margin:0; color:var(--as-ink-faint); font-size:13px;">Conecte o site ao AdSpirit (aba <strong>Conexão</strong>) pra ver os modelos.</p>
+        <?php elseif (!is_array($tpls) || empty($tpls)): ?>
+            <p style="margin:0; color:var(--as-ink-faint); font-size:13px;">Não consegui carregar os modelos agora — recarregue a página pra tentar de novo.</p>
+        <?php else: ?>
+            <?php AdSpirit_Menu::form_open('qualifier'); ?>
+            <input type="hidden" name="qualifier_section" value="template">
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <select name="template_id" style="min-width:320px;">
+                    <option value="">— escolha um mercado —</option>
+                    <?php foreach ($tpls as $t): if (empty($t['id']) || empty($t['label'])) continue; ?>
+                        <option value="<?php echo esc_attr($t['id']); ?>"><?php echo esc_html($t['label']); ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <button type="submit" class="button button-primary"
+                        onclick="return confirm('Aplicar este modelo substitui o roteiro atual deste site. Continuar?');">Aplicar modelo</button>
+            </div>
+            </form>
+            <ul style="margin:12px 0 0; padding-left:18px; line-height:1.8; color:var(--as-ink-soft); font-size:12.5px;">
+                <?php foreach ($tpls as $t): if (empty($t['label'])) continue; ?>
+                    <li><strong><?php echo esc_html($t['label']); ?></strong><?php echo !empty($t['description']) ? ' — ' . esc_html($t['description']) : ''; ?></li>
+                <?php endforeach; ?>
+            </ul>
+            <p class="as-field-help" style="margin-top:10px;">O modelo é um ponto de partida: depois de aplicar, edite o JSON no card acima pra ajustar perguntas e opções — e ajuste a régua no AdSpirit junto.</p>
+        <?php endif; ?>
         <?php AdSpirit_Menu::card_close(); ?>
 
         <?php AdSpirit_Menu::card_open('Qual shortcode usar', 'Se NÃO ligar o "site todo", escolha conforme onde o form vai aparecer'); ?>
