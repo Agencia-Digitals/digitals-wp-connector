@@ -861,7 +861,9 @@
       // classe genérica de tipografia (Bootstrap usa em parágrafo) — sem o
       // restritor, clicar num texto abriria o popup.
       var TRIGGER_SEL = '.adspirit-qualifier-trigger, [data-adspirit-qualifier], a[href$="#adspirit-avaliacao"]';
-      if (String(CFG.sitewide) === '1') TRIGGER_SEL += ', a.lead, button.lead';
+      // agd_lead é o padrão da ferramenta (namespaced, sem colisão). a.lead/
+      // button.lead ficam por compat: o site da Digitals já usa .lead nos CTAs.
+      if (String(CFG.sitewide) === '1') TRIGGER_SEL += ', .agd_lead, a.lead, button.lead';
       var hasTrigger = !!document.querySelector(TRIGGER_SEL);
       if (!hasRoot && !hasTrigger) {
         return; // página não usa o qualifier — silent no-op
