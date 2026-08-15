@@ -269,24 +269,20 @@
     bindFooter(root);
   }
 
-  // NAV FIXA no canto inferior direito (2026-08-15, mesmo padrão do wizard
-  // do CRM/Typeform): posição idêntica em toda pergunta — a nav inline
-  // mudava de lugar conforme a altura do conteúdo. Montada UMA vez no shell;
-  // updateChrome() ajusta rótulo/disabled/visibilidade por step.
+  // SETINHAS fixas no canto inferior direito (feedback do Pedro 2026-08-15):
+  // o Typeform real é HÍBRIDO — botão de avançar/voltar INLINE abaixo do
+  // campo (ação primária, perto da mão) + setas compactas no canto
+  // (navegação secundária, posição constante). A 2.24.0 tinha movido o
+  // botão principal pro canto e piorou; revertido pro híbrido.
   function buildFooter() {
     return '' +
-      '<div class="adspirit-qf-footer" hidden>' +
-        '<span class="adspirit-qf-kbd-hint">Pressione <span class="adspirit-qf-kbd">Enter</span> pra avançar</span>' +
-        '<div class="adspirit-qf-nav-actions">' +
-          '<button class="adspirit-qf-btn adspirit-qf-btn-back" data-action="back">' +
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>' +
-            '<span>Voltar</span>' +
-          '</button>' +
-          '<button class="adspirit-qf-btn" data-action="next">' +
-            '<span>Continuar</span>' +
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>' +
-          '</button>' +
-        '</div>' +
+      '<div class="adspirit-qf-footer" hidden aria-label="Navegação">' +
+        '<button class="adspirit-qf-arrow" data-action="back" aria-label="Pergunta anterior">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>' +
+        '</button>' +
+        '<button class="adspirit-qf-arrow" data-action="next" aria-label="Próxima pergunta">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>' +
+        '</button>' +
       '</div>';
   }
   function bindFooter(root) {
@@ -319,11 +315,6 @@
       if (backBtn) {
         if (state.currentStep <= 1) backBtn.setAttribute('disabled', 'disabled');
         else backBtn.removeAttribute('disabled');
-      }
-      var nextSpan = f.querySelector('[data-action="next"] span');
-      if (nextSpan && !submitting) {
-        nextSpan.textContent =
-          state.currentStep === STEPS.length - 2 ? 'Enviar para análise' : 'Continuar';
       }
     }
   }
@@ -467,7 +458,20 @@
       '<h1 class="adspirit-qf-title">' + escapeHtml(step.title) + '</h1>' +
       (step.sub ? '<p class="adspirit-qf-sub">' + escapeHtml(step.sub) + '</p>' : '') +
       body +
-      '<p class="adspirit-qf-error" id="adspirit-qf-error"></p>';
+      '<p class="adspirit-qf-error" id="adspirit-qf-error"></p>' +
+      '<div class="adspirit-qf-nav">' +
+        '<span class="adspirit-qf-kbd-hint">Pressione <span class="adspirit-qf-kbd">Enter</span> pra avançar</span>' +
+        '<div class="adspirit-qf-nav-actions">' +
+          '<button class="adspirit-qf-btn adspirit-qf-btn-back" data-action="back"' + (state.currentStep <= 1 ? ' disabled' : '') + '>' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>' +
+            '<span>Voltar</span>' +
+          '</button>' +
+          '<button class="adspirit-qf-btn" data-action="next">' +
+            '<span>' + (state.currentStep === STEPS.length - 2 ? 'Enviar para análise' : 'Continuar') + '</span>' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>' +
+          '</button>' +
+        '</div>' +
+      '</div>';
   }
 
   function renderSuccess() {
