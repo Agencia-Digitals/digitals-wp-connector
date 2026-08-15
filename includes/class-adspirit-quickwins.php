@@ -28,6 +28,10 @@ class AdSpirit_Quickwins {
         // 1. Auto-update
         add_filter('pre_set_site_transient_update_plugins',
             AdSpirit_Safe_Hook::filter(array($this, 'check_for_update'), 'qw_update_check'));
+        // 1b. Atualizou ESTE plugin → derruba o cache da release na hora,
+        // pra checagem pós-update já oferecer a próxima se existir.
+        add_action('upgrader_process_complete',
+            AdSpirit_Safe_Hook::action(array($this, 'flush_update_cache_after_upgrade'), 'qw_upgrade_flush'), 10, 2);
         add_filter('plugins_api',
             AdSpirit_Safe_Hook::filter(array($this, 'plugin_info'), 'qw_plugin_info'), 10, 3);
 
@@ -53,6 +57,18 @@ class AdSpirit_Quickwins {
         return array('svg' => $svg, '1x' => $svg, '2x' => $svg, 'default' => $svg);
     }
 
+    /** upgrader_process_complete: se o pacote atualizado inclui este plugin,
+     *  esvazia o cache interno da release. */
+    public function flush_update_cache_after_upgrade($upgrader, $hook_extra) {
+        if (!is_array($hook_extra) || ($hook_extra['type'] ?? '') !== 'plugin') return;
+        $me = plugin_basename(ADSPIRIT_CONNECTOR_FILE);
+        $plugins = (array) ($hook_extra['plugins'] ?? array());
+        if (!empty($hook_extra['plugin'])) $plugins[] = $hook_extra['plugin'];
+        if (in_array($me, $plugins, true)) {
+            delete_transient(self::UPDATE_TRANSIENT);
+        }
+    }
+
     public function check_for_update($transient) {
         if (empty($transient->checked)) return $transient;
 
@@ -60,11 +76,23 @@ class AdSpirit_Quickwins {
         $current = ADSPIRIT_CONNECTOR_VERSION;
 
         $cached = get_transient(self::UPDATE_TRANSIENT);
+        $fetched_at = is_array($cached) ? (int) ($cached['fetched_at'] ?? 0) : 0;
+        $has_newer = is_array($cached) && !empty($cached['version'])
+            && version_compare($cached['version'], $current, '>');
+        // Cache SEM update pra oferecer (pós-update, ou instalada já é a
+        // última) envelhece em 15 min — releases publicadas em sequência
+        // aparecem na checagem seguinte, sem o "atualizar duas vezes".
+        // O cache de 6h só vale enquanto ele ainda oferece algo.
+        if (!$has_newer && (time() - $fetched_at) > 900) {
+            $cached = false;
+        }
         if ($cached === false) {
-            $cached = $this->fetch_latest_release();
+            $fresh = $this->fetch_latest_release();
+            $cached = is_array($fresh) ? $fresh : array();
+            $cached['fetched_at'] = time(); // falha de rede vira backoff de 15 min
             set_transient(self::UPDATE_TRANSIENT, $cached, self::UPDATE_INTERVAL);
         }
-        if (!$cached || empty($cached['version'])) return $transient;
+        if (empty($cached['version'])) return $transient;
 
         if (version_compare($cached['version'], $current, '>')) {
             $transient->response[$plugin_basename] = (object) array(
