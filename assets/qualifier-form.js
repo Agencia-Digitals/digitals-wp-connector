@@ -97,9 +97,14 @@
       eyebrow: 'experiência',
       title: 'Tem time interno de marketing ou já trabalhou com agência?',
       fieldKey: 'experience',
+      // Redação C + troca (2026-08-15), do maior sinal pro menor. A régua
+      // AGD v4 pontua cada uma; Sim/Não antigos têm defensiva no CRM.
       choices: [
-        { label: 'Sim', kbd: 'A' },
-        { label: 'Não', kbd: 'B' },
+        { label: 'Quero trocar a minha agência atual', kbd: 'A' },
+        { label: 'Sim, trabalhamos com agência atualmente', kbd: 'B' },
+        { label: 'Já tivemos agência, hoje não', kbd: 'C' },
+        { label: 'Sim, temos time interno', kbd: 'D' },
+        { label: 'Não, seria a primeira vez', kbd: 'E' },
       ],
     },
     {
