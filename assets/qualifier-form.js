@@ -107,11 +107,14 @@
       title: 'Faixa de faturamento mensal',
       fieldKey: 'revenue',
       choices: [
+        // Faixas alinhadas ao ICP (piso 100k/mês) — a antiga 50–200
+        // atravessava o piso e a régua não conseguia expressar o corte.
         { label: 'Até R$ 50 mil', kbd: 'A' },
-        { label: 'R$ 50 mil – R$ 200 mil', kbd: 'B' },
-        { label: 'R$ 200 mil – R$ 1 milhão', kbd: 'C' },
-        { label: 'R$ 1 milhão – R$ 5 milhões', kbd: 'D' },
-        { label: 'Acima de R$ 5 milhões', kbd: 'E' },
+        { label: 'R$ 50 mil – R$ 100 mil', kbd: 'B' },
+        { label: 'R$ 100 mil – R$ 200 mil', kbd: 'C' },
+        { label: 'R$ 200 mil – R$ 1 milhão', kbd: 'D' },
+        { label: 'R$ 1 milhão – R$ 5 milhões', kbd: 'E' },
+        { label: 'Acima de R$ 5 milhões', kbd: 'F' },
       ],
     },
     {
