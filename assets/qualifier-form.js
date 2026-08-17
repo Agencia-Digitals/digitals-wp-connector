@@ -460,7 +460,9 @@
       body +
       '<p class="adspirit-qf-error" id="adspirit-qf-error"></p>' +
       '<div class="adspirit-qf-nav">' +
-        '<span class="adspirit-qf-kbd-hint">Pressione <span class="adspirit-qf-kbd">Enter</span> pra avançar</span>' +
+      (step.fields && step.fields.some(function (f) { return f.type === 'textarea'; })
+        ? '<span class="adspirit-qf-kbd-hint"><span class="adspirit-qf-kbd">Enter</span> avança · <span class="adspirit-qf-kbd">Shift+Enter</span> pula linha</span>'
+        : '<span class="adspirit-qf-kbd-hint">Pressione <span class="adspirit-qf-kbd">Enter</span> pra avançar</span>') +
         '<div class="adspirit-qf-nav-actions">' +
           '<button class="adspirit-qf-btn adspirit-qf-btn-back" data-action="back"' + (state.currentStep <= 1 ? ' disabled' : '') + '>' +
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>' +
@@ -897,7 +899,17 @@
     var visible = document.querySelector('.adspirit-qualifier-root:not([hidden])');
     if (!visible) return;
     if (e.key === 'Escape') closePopup();
-    if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'BUTTON' && !e.isComposing) { e.preventDefault(); next(); }
+    if (e.key === 'Enter' && e.target.tagName !== 'BUTTON' && !e.isComposing) {
+      // Textarea: Enter AVANÇA como em toda outra tela — a quebra de linha
+      // fica no Shift+Enter (padrão Typeform). Antes o Enter pulava linha
+      // só aqui, quebrando a expectativa criada pelas telas anteriores.
+      if (e.target.tagName === 'TEXTAREA' && e.shiftKey) {
+        // deixa o navegador inserir a quebra
+      } else {
+        e.preventDefault();
+        next();
+      }
+    }
     var inField = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName || '');
     if (e.metaKey || e.ctrlKey || e.altKey || inField) return;
     // Setas navegam (padrão do wizard do CRM) — fora de campo de texto.
