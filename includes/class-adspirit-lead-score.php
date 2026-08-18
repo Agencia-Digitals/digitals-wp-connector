@@ -103,8 +103,10 @@ class AdSpirit_Lead_Score {
         // Rate limit: 10 calls/min/IP. Plugin debounces 600ms client-side
         // mas precisamos proteger admin-ajax de flood externo (atacante
         // anônimo poderia spammar /api/wp/preview-score do CRM via cá).
-        $ip = isset($_SERVER['REMOTE_ADDR']) ? (string) $_SERVER['REMOTE_ADDR'] : '0.0.0.0';
-        if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) $ip = (string) $_SERVER['HTTP_CF_CONNECTING_IP'];
+        // v2.30: helper canônico (ganha X-Forwarded-For — corrige bucket
+        // colapsado no IP do proxy, mesmo racional do qualifier).
+        $ip = class_exists('AdSpirit_Telemetry') ? AdSpirit_Telemetry::client_ip() : '';
+        if ($ip === '') $ip = isset($_SERVER['REMOTE_ADDR']) ? (string) $_SERVER['REMOTE_ADDR'] : '0.0.0.0';
         $rl_key = 'adspirit_score_rl_' . md5($ip);
         $count = (int) get_transient($rl_key);
         if ($count >= 10) {

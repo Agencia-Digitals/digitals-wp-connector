@@ -149,7 +149,7 @@ class AdSpirit_Anti_Spam {
         // (3) Rate limit por IP
         if ($cfg['rate_limit'] === '1') {
             $max = max(1, intval($cfg['rate_limit_max']));
-            $ip = $this->client_ip();
+            $ip = self::client_ip();
             $key = 'adspirit_rl_' . md5($ip);
             $count = (int) get_transient($key);
             if ($count >= $max) {
@@ -264,9 +264,8 @@ class AdSpirit_Anti_Spam {
         // (3) Rate limit por IP — bucket dedicado pra payload validation
         if ($cfg['rate_limit'] === '1') {
             $max = max(1, intval($cfg['rate_limit_max']));
-            $ip = isset($_SERVER['HTTP_CF_CONNECTING_IP']) ? trim((string) $_SERVER['HTTP_CF_CONNECTING_IP'])
-                : (isset($_SERVER['HTTP_X_FORWARDED_FOR']) ? trim(explode(',', (string) $_SERVER['HTTP_X_FORWARDED_FOR'])[0])
-                : (isset($_SERVER['REMOTE_ADDR']) ? (string) $_SERVER['REMOTE_ADDR'] : ''));
+            $ip = self::client_ip();
+            if ($ip === '0.0.0.0') $ip = '';
             if ($ip !== '') {
                 $key = 'adspirit_rl_payload_' . md5($ip);
                 $count = (int) get_transient($key);
@@ -358,15 +357,14 @@ class AdSpirit_Anti_Spam {
         }
     }
 
-    private function client_ip() {
-        $ip = isset($_SERVER['REMOTE_ADDR']) ? (string) $_SERVER['REMOTE_ADDR'] : '0.0.0.0';
-        // Trust proxy headers comuns em hosts modernos
-        if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) return (string) $_SERVER['HTTP_CF_CONNECTING_IP'];
-        if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-            $parts = explode(',', (string) $_SERVER['HTTP_X_FORWARDED_FOR']);
-            return trim($parts[0]);
+    private static function client_ip() {
+        // Delegado ao helper canônico (mesma cascata CF > XFF > REMOTE_ADDR);
+        // mantém o default '0.0.0.0' histórico deste módulo.
+        if (class_exists('AdSpirit_Telemetry')) {
+            $ip = AdSpirit_Telemetry::client_ip();
+            if ($ip !== '') return $ip;
         }
-        return $ip;
+        return isset($_SERVER['REMOTE_ADDR']) ? (string) $_SERVER['REMOTE_ADDR'] : '0.0.0.0';
     }
 
     public function log_block($code, $message) {
@@ -376,7 +374,7 @@ class AdSpirit_Anti_Spam {
             'at'      => current_time('c'),
             'code'    => $code,
             'message' => $message,
-            'ip'      => $this->client_ip(),
+            'ip'      => self::client_ip(),
         ));
         if (count($log) > self::LOG_MAX) {
             $log = array_slice($log, 0, self::LOG_MAX);

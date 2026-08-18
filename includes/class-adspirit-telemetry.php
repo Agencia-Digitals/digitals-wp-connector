@@ -232,6 +232,14 @@ class AdSpirit_Telemetry {
         return $out;
     }
 
+    /**
+     * IP real do cliente — helper CANÔNICO do plugin (v2.30 unifica as 6
+     * derivações que existiam espalhadas). Cascata: CF-Connecting-IP >
+     * X-Forwarded-For (primeiro) > REMOTE_ADDR; '' quando nada existe.
+     * Fica na Telemetry por ser classe sempre carregada cedo (linha 68 do
+     * bootstrap) — NÃO mover sem revisar os delegantes (anti-spam, form,
+     * lead-score, qualifier).
+     */
     public static function client_ip() {
         if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) return (string) $_SERVER['HTTP_CF_CONNECTING_IP'];
         if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {

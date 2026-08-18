@@ -788,17 +788,11 @@ class AdSpirit_Form_Qualifier {
             wp_send_json_error(array('error' => 'no_ip'), 400);
             return;
         }
-        $ip = (string) $_SERVER['REMOTE_ADDR'];
-        // Se REMOTE_ADDR é proxy conhecido, prefere header X-Forwarded
-        // (não validamos ranges exatos — pragmatismo, mas pelo menos
-        // exigimos REMOTE_ADDR confirmando um proxy real está intermediando).
-        if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
-            $ip = trim((string) $_SERVER['HTTP_CF_CONNECTING_IP']);
-        } elseif (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-            $parts = explode(',', (string) $_SERVER['HTTP_X_FORWARDED_FOR']);
-            $candidate = trim($parts[0]);
-            if ($candidate !== '') $ip = $candidate;
-        }
+        // Cascata delegada ao helper canônico (v2.30). O deny acima quando
+        // falta REMOTE_ADDR permanece — é a garantia de que headers de proxy
+        // só são honrados com um proxy real intermediando.
+        $ip = class_exists('AdSpirit_Telemetry') ? AdSpirit_Telemetry::client_ip() : '';
+        if ($ip === '') $ip = (string) $_SERVER['REMOTE_ADDR'];
         $bucket = 'adspirit_qualifier_rl_' . md5($ip);
         $hits = (int) get_transient($bucket);
         if ($hits >= 30) {

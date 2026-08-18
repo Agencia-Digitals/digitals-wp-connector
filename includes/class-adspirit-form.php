@@ -341,8 +341,11 @@ class AdSpirit_Form {
             wp_send_json(array('ok' => false, 'error' => 'nonce_invalido'), 403);
         }
 
-        $ip = isset($_SERVER['REMOTE_ADDR']) ? (string) $_SERVER['REMOTE_ADDR'] : '0.0.0.0';
-        if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) $ip = (string) $_SERVER['HTTP_CF_CONNECTING_IP'];
+        // v2.30: helper canônico (ganha X-Forwarded-For — sem ele o bucket
+        // colapsava no IP do proxy e o rate limit virava global; mesma
+        // decisão já tomada no rate limit do qualifier).
+        $ip = class_exists('AdSpirit_Telemetry') ? AdSpirit_Telemetry::client_ip() : '';
+        if ($ip === '') $ip = isset($_SERVER['REMOTE_ADDR']) ? (string) $_SERVER['REMOTE_ADDR'] : '0.0.0.0';
         $rl_key = 'adspirit_form_rl_' . md5($ip);
         $count = (int) get_transient($rl_key);
         if ($count >= 5) {
