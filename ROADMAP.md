@@ -60,8 +60,10 @@ Captação:
       do CRM) — fase 2 do widget
 - [ ] Quiz framing do qualifier: título de diagnóstico + resultado por perfil
       (mecânica Thrive/Interact — gate de contato no pico de investimento)
-- [ ] A/B maduro (padrão WPFunnels): pesos com trava, vencedor automático,
-      arquivar variantes (nunca apagar)
+- [x] A/B maduro: variant="auto" (divisão pelo plugin com pesos+trava),
+      vencedora manual e automática (critério simples declarado),
+      arquivamento preservando números; card minimalista (form único,
+      ações nos tiles, ajuda recolhida)
 
 ## Estratégico — produto (junto com o CRM)
 
