@@ -53,6 +53,7 @@ class AdSpirit_Setup_Wizard {
                 if ($it['status'] === 'ok') $total_ok++;
                 elseif ($it['status'] === 'warn') $total_warn++;
                 elseif ($it['status'] === 'error') $total_error++;
+                elseif ($it['status'] === 'off') $total_items--; // opcional parado não conta no placar
             }
         }
         $progress = $total_items > 0 ? round(($total_ok / $total_items) * 100) : 0;
@@ -85,7 +86,7 @@ class AdSpirit_Setup_Wizard {
         <?php foreach ($sections as $sec) :
             $sec_ok = true;
             foreach ($sec['items'] as $it2) {
-                if (($it2['status'] ?? '') !== 'ok') { $sec_ok = false; break; }
+                if (!in_array(($it2['status'] ?? ''), array('ok', 'off'), true)) { $sec_ok = false; break; }
             }
         ?>
             <?php if ($sec_ok) : ?>
@@ -108,8 +109,8 @@ class AdSpirit_Setup_Wizard {
 
                 <ul class="adspirit-setup-list">
                     <?php foreach ($sec['items'] as $item) :
-                        $st = $item['status'] === 'ok' ? 'ok' : ($item['status'] === 'warn' ? 'warn' : 'err');
-                        $icon = $item['status'] === 'ok' ? '✓' : ($item['status'] === 'warn' ? '!' : '✕');
+                        $map = array('ok' => array('ok', '✓'), 'warn' => array('warn', '!'), 'off' => array('off', '·'));
+                        list($st, $icon) = isset($map[$item['status']]) ? $map[$item['status']] : array('err', '✕');
                     ?>
                         <li>
                             <span class="st-ic <?php echo esc_attr($st); ?>"><?php echo esc_html($icon); ?></span>
@@ -120,7 +121,7 @@ class AdSpirit_Setup_Wizard {
                                 <?php endif; ?>
                             </div>
                             <?php if (!empty($item['cta_url']) && $item['status'] !== 'ok') : ?>
-                                <a href="<?php echo esc_url($item['cta_url']); ?>" class="button" target="<?php echo esc_attr(!empty($item['cta_external']) ? '_blank' : '_self'); ?>"><?php echo esc_html($item['cta_label'] ?? 'Configurar'); ?></a>
+                                <a href="<?php echo esc_url($item['cta_url']); ?>" class="<?php echo $item['status'] === 'off' ? 'button-link' : 'button'; ?>" target="<?php echo esc_attr(!empty($item['cta_external']) ? '_blank' : '_self'); ?>"><?php echo esc_html($item['cta_label'] ?? 'Configurar'); ?></a>
                             <?php endif; ?>
                         </li>
                     <?php endforeach; ?>
@@ -144,6 +145,7 @@ class AdSpirit_Setup_Wizard {
             .adspirit-setup-list .st-ic.ok  { background:var(--as-bg-success); color:var(--as-success); }
             .adspirit-setup-list .st-ic.warn{ background:var(--as-bg-warning); color:var(--as-warning); }
             .adspirit-setup-list .st-ic.err { background:var(--as-bg-danger);  color:var(--as-danger); }
+            .adspirit-setup-list .st-ic.off { background:var(--as-bg-subtle);  color:var(--as-ink-faint); }
         </style>
         <?php
     }
@@ -198,13 +200,17 @@ class AdSpirit_Setup_Wizard {
 
         $items = array();
 
+        // Doutrina: opcional NÃO configurado é 'off' (silencioso) — âmbar é
+        // reservado pra algo que pede ação de verdade. Nota: a marca pode já
+        // ter CAPI CENTRAL no AdSpirit; o item daqui é o disparo do LADO DO
+        // SITE (complementar, com dedup) — por isso é opcional por site.
         $capi_ok = class_exists('AdSpirit_Capi_Meta') && AdSpirit_Capi_Meta::is_configured($capi);
         $items[] = $this->item(
-            $capi_ok ? 'ok' : 'warn',
-            'Meta Conversions API (server-side)',
+            $capi_ok ? 'ok' : 'off',
+            'Conversões Meta (deste site)',
             $capi_ok
-                ? 'Pixel <code>' . esc_html($capi['pixel_id']) . '</code> · CAPI ativa'
-                : 'Configure <code>pixel_id</code> e <code>access_token</code>. Resolve ~15-30% de subnotificação por ad-blockers / iOS Private. Plus dedup automático com Pixel browser-side via <code>event_id</code>.',
+                ? 'Pixel <code>' . esc_html($capi['pixel_id']) . '</code> · enviando do site'
+                : 'Opcional — o AdSpirit já pode disparar conversões centralmente pela marca. Ativar aqui adiciona o disparo do próprio site (recupera ~15-30% perdido por bloqueadores), com dedup automático entre os dois.',
             $capi_url,
             $capi_ok ? 'Editar' : 'Configurar'
         );
@@ -212,11 +218,11 @@ class AdSpirit_Setup_Wizard {
         $ga4_ok = !empty($ga4['enabled']) && $ga4['enabled'] === '1'
             && !empty($ga4['measurement_id']) && !empty($ga4['api_secret']);
         $items[] = $this->item(
-            $ga4_ok ? 'ok' : 'warn',
-            'GA4 Measurement Protocol (server-side)',
+            $ga4_ok ? 'ok' : 'off',
+            'Conversões Google (deste site)',
             $ga4_ok
-                ? 'Stream <code>' . esc_html($ga4['measurement_id']) . '</code> · server-side ativo'
-                : 'Configure <code>measurement_id</code> e <code>api_secret</code>. Necessário pro <code>[adspirit_thank_you]</code> disparar conversão server-side em GA4.',
+                ? 'Stream <code>' . esc_html($ga4['measurement_id']) . '</code> · enviando do site'
+                : 'Opcional — necessário só se a página de obrigado deste site dispara conversão direto no GA4.',
             $ga4_url,
             $ga4_ok ? 'Editar' : 'Configurar'
         );
@@ -226,21 +232,21 @@ class AdSpirit_Setup_Wizard {
         // v2.10: Turnstile como opcional (recomendado pra anti-bot avançado)
         $turnstile_active = class_exists('AdSpirit_Turnstile') && AdSpirit_Turnstile::is_active();
         $items[] = $this->item(
-            $turnstile_active ? 'ok' : 'warn',
-            'Cloudflare Turnstile (anti-bot invisível)',
+            $turnstile_active ? 'ok' : 'off',
+            'Verificação Cloudflare (anti-bot invisível)',
             $turnstile_active
-                ? 'Configurado e ativo. Pega bots sofisticados que honeypot/time-trap não pegam.'
-                : 'Opcional, mas recomendado. <strong>Grátis e ilimitado.</strong> Substitui reCAPTCHA + complementa o Anti-Spam Pro.',
+                ? 'Ativa. Pega bots sofisticados que as camadas básicas não pegam.'
+                : 'Opcional e grátis — camada extra recomendada se o site sofrer com bots que passam pelo anti-spam.',
             admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=turnstile'),
             $turnstile_active ? 'Editar' : 'Configurar'
         );
 
         $items[] = $this->item(
-            $pixel_status ? 'ok' : 'warn',
-            'Pixel Meta (browser-side)',
+            $pixel_status ? 'ok' : 'off',
+            'Rastreador no site (pixel)',
             $pixel_status
-                ? 'Pixel injetado no <code>&lt;head&gt;</code> via plugin. Cuidado com Pixel duplicado em Code Block manual.'
-                : 'Pixel browser-side desligado no plugin. Se já está injetado via Code Block manual, OK — não duplicar.',
+                ? 'Injetado pelo plugin. Atenção pra não duplicar com um pixel colado manualmente no tema.'
+                : 'Desligado no plugin. Se o rastreio já está colado manualmente no tema, tudo certo — não duplicar.',
             admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=connection'),
             'Configurar'
         );
