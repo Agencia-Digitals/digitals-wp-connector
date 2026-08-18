@@ -24,18 +24,30 @@ class AdSpirit_Telemetry {
     }
 
     private function __construct() {
+        // v2.30 "inline → arquivos": os dois scripts (atribuição + coletor)
+        // viraram assets/telemetry.js — cacheável, versionado, UM observer.
+        // Comportamento byte-equivalente (cookies, hidden _adspirit_t_*,
+        // global __adspirit_t que o qualifier lê). Config mínima inline.
         add_action(
-            'wp_footer',
-            AdSpirit_Safe_Hook::action(array($this, 'inject_collector'), 'telemetry_collector'),
-            99
+            'wp_enqueue_scripts',
+            AdSpirit_Safe_Hook::action(array($this, 'enqueue_assets'), 'telemetry_enqueue')
         );
-        // P0-1: captura de atribuição (gclid/UTM → cookies first/last-touch)
-        // + emissão dos hidden _adspirit_t_ft/_adspirit_t_lt. Prioridade 98:
-        // roda antes do collector. Gate de consent: ver inject_attribution().
-        add_action(
-            'wp_footer',
-            AdSpirit_Safe_Hook::action(array($this, 'inject_attribution'), 'telemetry_attribution'),
-            98
+    }
+
+    /** Enfileira o arquivo de telemetria no front (footer) + whitelist. */
+    public function enqueue_assets() {
+        if (is_admin()) return;
+        wp_enqueue_script(
+            'adspirit-telemetry',
+            ADSPIRIT_CONNECTOR_URL . 'assets/telemetry.js',
+            array(),
+            ADSPIRIT_CONNECTOR_VERSION,
+            true
+        );
+        wp_add_inline_script(
+            'adspirit-telemetry',
+            'window.__adspiritTelemetryCfg={wl:' . wp_json_encode(self::attribution_params()) . '};',
+            'before'
         );
     }
 
@@ -47,264 +59,6 @@ class AdSpirit_Telemetry {
         );
     }
 
-    /**
-     * P0-1 — Captura de atribuição first/last-touch (client-side).
-     *
-     * Lê da URL apenas a whitelist de attribution_params(), sanitiza
-     * (trim, 200 chars, sem <>"') e persiste em dois cookies first-party
-     * (90 dias, path=/, SameSite=Lax):
-     *   - adspirit_ft (first-touch): gravado UMA vez, nunca sobrescrito.
-     *     Gravado já na primeira visita mesmo sem parâmetros (first-touch
-     *     orgânico: referrer + landing_url + ts).
-     *   - adspirit_lt (last-touch): sobrescrito sempre que a visita atual
-     *     trouxer >=1 parâmetro da whitelist.
-     * Em seguida injeta os hidden _adspirit_t_ft/_adspirit_t_lt (JSON) nos
-     * mesmos forms que o collector cobre; o valor é setado na CRIAÇÃO do
-     * input (cookie é estático no pageload), imune à ordem dos listeners de
-     * submit (o form nativo constrói FormData no primeiro listener).
-     *
-     * CONSENT: intencionalmente SEM gate de has_telemetry_consent(), seguindo
-     * o padrão do pixel injector (pixel.js/adspirit_vid também roda ungated).
-     * Motivo: o cookie adspirit_consent só nasce client-side após interação,
-     * então o gate PHP sempre falha no PRIMEIRO pageview — exatamente onde o
-     * gclid chega; gated, a atribuição de tráfego pago se perderia. Só
-     * parâmetros de URL + referrer (sem PII, sem fingerprinting). Decisão a
-     * revisitar no trabalho de LGPD (consentimento com recusa real).
-     */
-    public function inject_attribution() {
-        if (is_admin()) return;
-        ?>
-        <script>
-        (function() {
-          try {
-            var WL = <?php echo wp_json_encode(self::attribution_params()); ?>;
-            function clean(v) {
-              return String(v || '').replace(/[<>"']/g, '').trim().slice(0, 200);
-            }
-            function readCookie(name) {
-              var m = document.cookie.match('(?:^|; )' + name.replace(/([.$?*|{}()[\]\\\/+^])/g, '\\$1') + '=([^;]*)');
-              return m ? decodeURIComponent(m[1]) : '';
-            }
-            function writeCookie(name, value) {
-              document.cookie = name + '=' + encodeURIComponent(value)
-                + ';max-age=' + (90 * 86400) + ';path=/;samesite=lax';
-            }
-            var params = {}, has = false;
-            try {
-              var sp = new URLSearchParams(window.location.search);
-              WL.forEach(function(k) {
-                var v = sp.get(k);
-                if (v) { params[k] = clean(v); has = true; }
-              });
-            } catch (e) {}
-
-            function touch() {
-              var t = {};
-              for (var k in params) t[k] = params[k];
-              t.referrer = clean(document.referrer);
-              t.landing_url = clean(window.location.href.split('#')[0]);
-              t.ts = new Date().toISOString();
-              return JSON.stringify(t);
-            }
-            // first-touch: gravado uma vez, nunca sobrescrito
-            if (!readCookie('adspirit_ft')) writeCookie('adspirit_ft', touch());
-            // last-touch: só atualiza quando a visita traz parâmetro novo
-            if (has) writeCookie('adspirit_lt', touch());
-
-            // Emissão: hidden _adspirit_t_ft/_adspirit_t_lt (JSON) nos mesmos
-            // forms do collector. Server-side re-sanitiza (whitelist + cap).
-            function attach() {
-              document.querySelectorAll('form.wpcf7-form, form.adspirit-form, .gform_wrapper form, form.wpforms-form').forEach(function(form) {
-                if (form.dataset.adspiritAttrAttached) return;
-                form.dataset.adspiritAttrAttached = '1';
-                [['_adspirit_t_ft', 'adspirit_ft'], ['_adspirit_t_lt', 'adspirit_lt']].forEach(function(pair) {
-                  var input = document.createElement('input');
-                  input.type = 'hidden';
-                  input.name = pair[0];
-                  input.value = readCookie(pair[1]) || '';
-                  form.appendChild(input);
-                });
-              });
-            }
-            if (document.readyState === 'loading') {
-              document.addEventListener('DOMContentLoaded', attach);
-            } else {
-              attach();
-            }
-            if (typeof MutationObserver !== 'undefined') {
-              new MutationObserver(attach).observe(document.body, { childList: true, subtree: true });
-            }
-          } catch (e) { /* silenciado */ }
-        })();
-        </script>
-        <?php
-    }
-
-    /**
-     * JS coleta browser data e popula campos hidden em todos os forms
-     * relevantes (CF7, Gravity, etc) com prefix `_adspirit_t_*`.
-     * Plugin server-side lê esses campos no submit.
-     */
-    public function inject_collector() {
-        if (is_admin()) return;
-
-        // Coletor injetado SEMPRE (base legal: legítimo interesse; consistente
-        // com o pixel, que já carrega sem gate). Antes era travado em
-        // has_telemetry_consent() NO RENDER, causando 2 bugs: (a) no 1º acesso
-        // (sem cookie de consent) o coletor nem aparecia → CF7 ia sem
-        // visitor_id; (b) pra ter consent precisava do reload do banner, que
-        // apagava o formulário. Os dados só são ENVIADOS no submit (ação
-        // deliberada do visitante). §126.
-
-        ?>
-        <script>
-        (function() {
-          try {
-            var t = window.__adspirit_t = window.__adspirit_t || {};
-            t.start_ts = t.start_ts || Date.now();
-            t.locale = navigator.language || '';
-            t.timezone = (Intl && Intl.DateTimeFormat && Intl.DateTimeFormat().resolvedOptions().timeZone) || '';
-            t.color_scheme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-            t.screen = (window.screen ? (window.screen.width + 'x' + window.screen.height) : '');
-            t.viewport = (window.innerWidth + 'x' + window.innerHeight);
-            t.connection_type = (navigator.connection && navigator.connection.effectiveType) || '';
-
-            function cookie(name) {
-              var m = document.cookie.match('(?:^|; )' + name.replace(/([.$?*|{}()[\]\\\/+^])/g, '\\$1') + '=([^;]*)');
-              return m ? decodeURIComponent(m[1]) : '';
-            }
-            // O pixel do CRM grava _dosvi/_dossi (NÃO adspirit_vid). Ler o nome
-            // errado deixava visitor_id vazio em 100% dos leads e quebrava todo
-            // o stitching lead↔jornada↔canal. Fallback ao nome legado por
-            // segurança (instalações antigas).
-            t.visitor_id = cookie('_dosvi') || cookie('adspirit_vid') || '';
-            t.session_id = cookie('_dossi') || cookie('adspirit_sid') || '';
-            // Atribuição first-party mantida pelo pixel em localStorage
-            // (_dos_attr): primeiro+último toque (UTM/landing/referrer) + os 6
-            // click ids de mídia paga. Resolve o cf7_url vazio (~63% na prod).
-            function readPixelAttr() {
-              try {
-                if (window.dos && typeof window.dos.getAttribution === 'function') {
-                  return window.dos.getAttribution() || {};
-                }
-                return JSON.parse(localStorage.getItem('_dos_attr') || '{}') || {};
-              } catch (e) { return {}; }
-            }
-            t.fbp = cookie('_fbp');
-            t.fbc = cookie('_fbc');
-            t.ga = cookie('_ga');
-            t.gid = cookie('_gid');
-            t.gcl_au = cookie('_gcl_au');
-
-            // Tempo no form (focus no primeiro campo até submit)
-            t.form_focus_ts = null;
-            t.fields_visited = 0;
-            var visited = {};
-            document.addEventListener('focusin', function(e) {
-              var el = e.target;
-              if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT')) {
-                if (!t.form_focus_ts) t.form_focus_ts = Date.now();
-                if (el.name && !visited[el.name]) {
-                  visited[el.name] = true;
-                  t.fields_visited++;
-                }
-              }
-            });
-
-            // Last 5 pages visitadas nesta sessão (via sessionStorage)
-            try {
-              var history = JSON.parse(sessionStorage.getItem('adspirit_history') || '[]');
-              t.pages_in_session = history.length;
-            } catch(e) {}
-
-            // Behavior summary (escrito pelo behavior tracker em sessionStorage)
-            // Lido como JSON cru aqui e ressubmetido como string no submit.
-            function readBehavior() {
-              try {
-                var raw = sessionStorage.getItem('adspirit_bhv_v1') || '';
-                if (!raw) return '';
-                // cap em 16KB (alinhado com server-side BEHAVIOR_PAYLOAD_MAX_BYTES)
-                if (raw.length > 16384) return '';
-                return raw;
-              } catch(e) { return ''; }
-            }
-
-            // Hook em CF7 submit: popula campos hidden com a telemetria
-            // antes de enviar, pra plugin server-side ler dos $_POST.
-            function attachHidden() {
-              document.querySelectorAll('form.wpcf7-form, form.adspirit-form, .gform_wrapper form, form.wpforms-form').forEach(function(form) {
-                if (form.dataset.adspiritAttached) return;
-                form.dataset.adspiritAttached = '1';
-                var fields = ['visitor_id', 'session_id', 'fbp', 'fbc', 'ga', 'gid', 'gcl_au',
-                              'locale', 'timezone', 'color_scheme', 'screen', 'viewport', 'connection_type',
-                              // Identidade de navegação (lida do _dos_attr do pixel no submit).
-                              'landing_page', 'conversion_page', 'referrer', 'first_seen_at', 'last_seen_at',
-                              'utm_first', 'utm_last',
-                              'fbclid', 'gclid', 'gbraid', 'wbraid', 'li_fat_id', 'ttclid'];
-                fields.forEach(function(name) {
-                  var input = document.createElement('input');
-                  input.type = 'hidden';
-                  input.name = '_adspirit_t_' + name;
-                  input.value = '';
-                  form.appendChild(input);
-                });
-                // Time on page + time in form + fields visited preenchidos no submit
-                form.addEventListener('submit', function() {
-                  // Snapshot da atribuição do pixel NO MOMENTO do submit (o pixel
-                  // atualiza _dos_attr de forma assíncrona após o load).
-                  var attr = readPixelAttr();
-                  var ci = attr.click_ids || {};
-                  t.landing_page = attr.landing_page || '';
-                  t.conversion_page = location.href;
-                  t.referrer = (attr.first_referrer != null ? attr.first_referrer : (document.referrer || ''));
-                  t.first_seen_at = attr.first_seen_at || '';
-                  t.last_seen_at = attr.last_seen_at || '';
-                  t.utm_first = attr.utm_first ? JSON.stringify(attr.utm_first) : '';
-                  t.utm_last = attr.utm_last ? JSON.stringify(attr.utm_last) : '';
-                  t.fbclid = ci.fbclid || ''; t.gclid = ci.gclid || ''; t.gbraid = ci.gbraid || '';
-                  t.wbraid = ci.wbraid || ''; t.li_fat_id = ci.li_fat_id || ''; t.ttclid = ci.ttclid || '';
-                  // vid/sid: re-ler cookie no submit (pixel pode setar após o load).
-                  if (!t.visitor_id) t.visitor_id = cookie('_dosvi') || cookie('adspirit_vid') || '';
-                  if (!t.session_id) t.session_id = cookie('_dossi') || cookie('adspirit_sid') || '';
-                  fields.forEach(function(name) {
-                    var el = form.querySelector('input[name="_adspirit_t_' + name + '"]');
-                    if (el) el.value = String(t[name] || '');
-                  });
-                  var i = document.createElement('input');
-                  i.type = 'hidden'; i.name = '_adspirit_t_time_on_page_ms'; i.value = String(Date.now() - t.start_ts);
-                  form.appendChild(i);
-                  var j = document.createElement('input');
-                  j.type = 'hidden'; j.name = '_adspirit_t_time_in_form_ms';
-                  j.value = String(t.form_focus_ts ? (Date.now() - t.form_focus_ts) : 0);
-                  form.appendChild(j);
-                  var k = document.createElement('input');
-                  k.type = 'hidden'; k.name = '_adspirit_t_fields_visited'; k.value = String(t.fields_visited);
-                  form.appendChild(k);
-                  var l = document.createElement('input');
-                  l.type = 'hidden'; l.name = '_adspirit_t_pages_in_session'; l.value = String(t.pages_in_session || 1);
-                  form.appendChild(l);
-                  // Behavior summary (JSON string lido de sessionStorage no momento do submit).
-                  var bhv = document.createElement('input');
-                  bhv.type = 'hidden'; bhv.name = '_adspirit_t_behavior';
-                  bhv.value = readBehavior();
-                  form.appendChild(bhv);
-                });
-              });
-            }
-            if (document.readyState === 'loading') {
-              document.addEventListener('DOMContentLoaded', attachHidden);
-            } else {
-              attachHidden();
-            }
-            // Re-attach pra forms dinâmicos
-            if (typeof MutationObserver !== 'undefined') {
-              new MutationObserver(attachHidden).observe(document.body, { childList: true, subtree: true });
-            }
-          } catch (e) { /* silenciado */ }
-        })();
-        </script>
-        <?php
-    }
 
     /**
      * Lê do $_POST tudo que o JS injetou + adiciona server-side data.
