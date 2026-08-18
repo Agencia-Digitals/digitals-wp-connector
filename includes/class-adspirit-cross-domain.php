@@ -39,13 +39,12 @@ class AdSpirit_Cross_Domain {
             AdSpirit_Safe_Hook::action(array($this, 'handle_save'), 'cross_domain_save')
         );
         add_action(
-            'wp_footer',
-            AdSpirit_Safe_Hook::action(array($this, 'inject_script'), 'cross_domain_inject'),
-            99
+            'wp_enqueue_scripts',
+            AdSpirit_Safe_Hook::action(array($this, 'enqueue_assets'), 'cross_domain_enqueue')
         );
     }
 
-    public function inject_script() {
+    public function enqueue_assets() {
         $cfg = AdSpirit_Settings::get_cross_domain();
         if ($cfg['enabled'] !== '1') return;
         $raw = (string) ($cfg['domains'] ?? '');
@@ -58,66 +57,19 @@ class AdSpirit_Cross_Domain {
         }, preg_split('/\r?\n/', $raw)));
         if (empty($domains)) return;
 
-        $domains_json = wp_json_encode(array_values($domains));
-        ?>
-        <script>
-        (function() {
-            try {
-                var DOMAINS = <?php echo $domains_json; ?>;
-                if (!DOMAINS.length) return;
-
-                function getCookie(name) {
-                    var m = document.cookie.match('(?:^|; )' + name.replace(/([.$?*|{}()[\]\\\/+^])/g, '\\$1') + '=([^;]*)');
-                    return m ? decodeURIComponent(m[1]) : null;
-                }
-                function setCookie(name, value, days) {
-                    var d = new Date(); d.setTime(d.getTime() + days * 86400000);
-                    document.cookie = name + '=' + encodeURIComponent(value) + ';expires=' + d.toUTCString() + ';path=/;samesite=lax';
-                }
-                function uuid() {
-                    return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, function(c) {
-                        return (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c/4)).toString(16);
-                    });
-                }
-                var vid = getCookie('adspirit_vid');
-                if (!vid) {
-                    vid = uuid();
-                    setCookie('adspirit_vid', vid, 90);
-                }
-
-                function decorate(a) {
-                    if (!a.href || a.dataset.dosDecorated === '1') return;
-                    try {
-                        var u = new URL(a.href);
-                        if (DOMAINS.indexOf(u.hostname.toLowerCase()) !== -1) {
-                            u.searchParams.set('dos_vid', vid);
-                            a.href = u.toString();
-                            a.dataset.dosDecorated = '1';
-                        }
-                    } catch (e) { /* ignore invalid URLs */ }
-                }
-
-                document.querySelectorAll('a[href]').forEach(decorate);
-
-                // Watch dinamicamente-injetados
-                if (typeof MutationObserver !== 'undefined') {
-                    var mo = new MutationObserver(function(mutations) {
-                        mutations.forEach(function(m) {
-                            m.addedNodes.forEach(function(node) {
-                                if (!node.querySelectorAll) return;
-                                if (node.tagName === 'A') decorate(node);
-                                node.querySelectorAll && node.querySelectorAll('a[href]').forEach(decorate);
-                            });
-                        });
-                    });
-                    mo.observe(document.body, { childList: true, subtree: true });
-                }
-            } catch (e) {
-                /* silenciado */
-            }
-        })();
-        </script>
-        <?php
+        $version = defined('ADSPIRIT_CONNECTOR_VERSION') ? ADSPIRIT_CONNECTOR_VERSION : '2.30.0';
+        wp_enqueue_script(
+            'adspirit-cross-domain',
+            ADSPIRIT_CONNECTOR_URL . 'assets/cross-domain.js',
+            array(),
+            $version,
+            true
+        );
+        wp_add_inline_script(
+            'adspirit-cross-domain',
+            'window.__adspiritXDomainCfg = ' . wp_json_encode(array('domains' => array_values($domains))) . ';',
+            'before'
+        );
     }
 
     public function render_tab() {
