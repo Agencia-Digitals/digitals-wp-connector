@@ -38,7 +38,9 @@ UI/admin (prioridade declarada do Pedro: "nossa interface está muito ruim"):
       o grupo de leads
 - [x] Aba Submissões completa (bulk, filtros, histórico, paginação,
       integrações secundárias na linha)
-- [ ] Aba de logs com request+response por tentativa (diagnóstico sem SSH)
+- [x] Aba de logs com request+response por tentativa: histórico por POST
+      (data + HTTP + corpo da resposta resumido) + expander "dados enviados"
+      com o payload pretty-printed na própria linha (2.30)
 - [x] Quarentena de spam revisável (status `spam` + motivo na aba
       Submissões; resgate pelo Reenviar; TTL 30d; anti-flood 10/min)
 
@@ -47,11 +49,14 @@ Tracking/analytics:
       +generate_lead, file_download → dataLayer, arquivo versionado)
 - [x] `form_step_view {step_number}` no qualifier (drop-off por etapa) +
       `generate_lead` com perfil no sucesso do submit
-- [ ] Pixel servido de path first-party (anti ad-blocker, padrão Stape) +
-      migrar JS inline (telemetria/LGPD/cross-domain) pra arquivos versionados
-- [ ] Verificar dedup×cache do event_id CAPI (lição PYS) — Lead ok
-      (server-side por submissão); atenção: thank-you em page cache = evento
-      não dispara (excluir /obrigado do cache dos sites)
+- [x] Pixel servido de path first-party (proxy 2.29) + JS inline migrado
+      (telemetria/LGPD/cross-domain → arquivos versionados, observers 2→1,
+      CSS do admin → assets/admin.css) (2.30)
+- [x] Dedup×cache do event_id CAPI verificado (2.30): Lead seguro por
+      construção (event_id = submission_id). Thank-you cacheado colapsava o
+      event_id no HTML (lição PYS) → DONOTCACHEPAGE no render (WP Rocket/
+      W3TC/Super Cache/LiteSpeed); cache de borda ainda exige excluir
+      /obrigado. build_event_id agora usa _dosvi antes do hash IP+UA
 
 Captação:
 - [x] WhatsApp: mensagem com `{TITLE}`/`{URL}` (contexto da página) +
@@ -76,13 +81,17 @@ Captação:
       `{id, nome, finalidade, estilo multistep|chat, destino}` + renderer
       chat (validado pelo Fluent Conversational); FAB WhatsApp com 2 perfis
       (com SDR IA → wa.me; sem → chat web roteirizado)
-- [ ] Condicional no roteiro do qualifier (modelo Gravity: rules + all/any,
-      aplicável a step/botão) — pré-requisito dos templates por vertical
+- [x] Condicional no roteiro do qualifier (2.30): showIf {match all|any,
+      rules [{field, op is|not|contains, value}]} por etapa — navegação por
+      índice visível, resposta de etapa pulada não viaja, retomada segura,
+      fail-open. Roteiro sem showIf = comportamento idêntico
 - [ ] Conversion recovery server-side (padrão Pixel Manager ACR): CRM reemite
       CAPI/GA4 de leads/vendas sem evento de browser
 - [ ] Backfill retroativo da jornada anônima na identificação (padrão HubSpot)
-- [ ] Coletor DOM genérico como rede de segurança pra form builder
-      desconhecido (padrão HubSpot non-HubSpot forms; hooks continuam primários)
+- [x] Coletor DOM genérico (2.30): beta opt-in (default OFF) na aba Conexão;
+      exige e-mail/telefone, ignora forms com integração dedicada e
+      busca/login/checkout; anti-spam + quarentena; entrega pelo dispatcher
+      canônico (source 'generic' → retry de graça)
 - [ ] Handshake de capacidades plugin↔CRM + rollback de versão pela UI
 - [ ] Roteiro default da Digitals fora do bundle JS (migração faseada — é
       fallback de produção, nunca delete)
@@ -94,11 +103,28 @@ Captação:
 
 ## Higiene contínua
 
-- [ ] Unificar as 2 engines anti-spam e as 5 derivações de IP
-- [ ] CSS do admin (600 linhas em string PHP) → arquivo
-- [ ] README reescrito (v2.0.0 + afirmações falsas sobre consent/hooks)
-- [ ] Checksum do ZIP de release + manter releases antigas (rollback)
-- [ ] Bugs B4–B11 do inventário (baixa severidade)
+- [x] Derivações de IP unificadas (2.30): helper canônico
+      AdSpirit_Telemetry::client_ip() (CF > XFF > REMOTE_ADDR); rate limits
+      do form nativo e lead score ganharam XFF (bucket não colapsa no proxy)
+- [ ] Engines anti-spam: mantidas separadas DE PROPÓSITO por ora — fontes
+      diferentes ($_POST+cookie vs payload+_adspirit_ts) e buckets dedicados.
+      Unificação real = extrair checks puros compartilhados; fazer numa
+      janela com QA de captura, nunca junto de release em revisão
+- [x] CSS do admin → assets/admin.css (2.30, byte-equivalente)
+- [x] README reescrito honesto (2.30)
+- [x] Checksum sha256 no manifest + verificação no upgrader_pre_download
+      (mismatch aborta, fail-open sem o campo); build.sh imprime o hash e o
+      ritual de cópia versionada pra rollback (2.30). Botão de rollback pela
+      UI segue no estratégico (handshake)
+- [x] Bugs B4-B6, B8, B9, B11 corrigidos (2.30). B7 (código morto
+      site/instagram no default) mantido — serve a roteiro custom; B10
+      (slug '&tab=' nos submenus) muda URLs de admin → decisão de revisão
+- [x] Segredos via constantes no wp-config.php (2.30): ADSPIRIT_CRM_SECRET,
+      _PIXEL_TOKEN, _CAPI_ACCESS_TOKEN, _GA4_API_SECRET,
+      _TURNSTILE_SECRET_KEY — constante vence, UI trava o campo, save
+      preserva, nunca persiste no banco
+- [x] Checklist do setup: opcional não configurado é 'off' silencioso, não
+      warn âmbar (2.30) — âmbar reservado pra ação real
 
 ## Reestruturação de TODAS as telas (doutrina de 12 princípios, Pedro 08-18)
 
