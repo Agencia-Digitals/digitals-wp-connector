@@ -79,6 +79,19 @@ class AdSpirit_Cross_Domain {
         <h2 class="as-section"><span class="as-kicker-inline">Cross-domain</span>Rastreio entre sites</h2>
         <p class="as-section-help">Mantém a jornada do visitante quando ele sai de um site seu pra outro (ex.: da landing page pro checkout).</p>
 
+        <?php
+        // Handshake: o rastreador central do AdSpirit já decora links pros
+        // domínios vinculados da marca — se já há cobertura, dizer, em vez
+        // de pedir a mesma lista de novo.
+        $central = class_exists('AdSpirit_Setup_Wizard') ? AdSpirit_Setup_Wizard::central_status() : null;
+        $linked = is_array($central) && !empty($central['linked_domains']) && is_array($central['linked_domains'])
+            ? array_map('strval', $central['linked_domains']) : array();
+        if (!empty($linked)) : ?>
+            <div class="notice notice-info inline" style="margin:0 0 16px;">
+                <p>O AdSpirit já rastreia entre estes domínios da marca (o rastreador central decora os links sozinho): <strong><?php echo esc_html(implode(', ', $linked)); ?></strong>. Este módulo só é necessário se o rastreador estiver desligado neste site.</p>
+            </div>
+        <?php endif; ?>
+
         <?php AdSpirit_Menu::card_open('Configuração', 'Liste só os domínios que são seus', $status_badge); ?>
         <?php AdSpirit_Menu::form_open('cross-domain'); ?>
 

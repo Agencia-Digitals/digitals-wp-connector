@@ -789,6 +789,7 @@ add_action('adspirit_connector_save_connection', AdSpirit_Safe_Hook::action(func
     $patch['pixel_enabled'] = !empty($post['pixel_enabled']) ? '1' : '0';
     $patch['pixel_firstparty'] = !empty($post['pixel_firstparty']) ? '1' : '0';
     $patch['generic_forms_enabled'] = !empty($post['generic_forms_enabled']) ? '1' : '0';
+    delete_transient('adspirit_central_status'); // conexão mudou → re-perguntar cobertura
     // Feature 35 + futuras: filter pra cada feature contribuir patches
     // sem editar este handler.
     $patch = apply_filters('adspirit_connector_connection_save_extra', $patch, $post);

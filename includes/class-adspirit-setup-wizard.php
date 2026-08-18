@@ -192,6 +192,48 @@ class AdSpirit_Setup_Wizard {
         );
     }
 
+    /**
+     * v2.30 — handshake de cobertura central (fatia 1). Pergunta ao AdSpirit
+     * o que a marca JÁ TEM configurado do lado de lá (CAPI central, pixel,
+     * domínios vinculados) pra reconciliar o checklist: "Coberto pelo
+     * AdSpirit" em vez de pedir configuração duplicada. Propósito do plugin
+     * é a conexão mágica — detectar o que foi feito à mão e complementar.
+     * Cache 15 min; indisponível/CRM antigo (404) cacheia 5 min e o
+     * checklist se comporta como antes (fail-soft). Nunca bloqueia render.
+     */
+    public static function central_status() {
+        $cached = get_transient('adspirit_central_status');
+        if (is_array($cached)) {
+            return empty($cached['unavailable']) ? $cached : null;
+        }
+        $core = AdSpirit_Settings::get_core();
+        if (empty($core['endpoint_url']) || empty($core['brand_slug']) || empty($core['secret'])) {
+            return null; // sem conexão não há o que perguntar (e nada a cachear)
+        }
+        $url = rtrim((string) $core['endpoint_url'], '/')
+            . '/api/wp/central-status?brand_slug=' . rawurlencode((string) $core['brand_slug']);
+        $resp = wp_remote_get($url, array(
+            'timeout' => 6,
+            'headers' => array(
+                'x-cf7-secret' => (string) $core['secret'],
+                'User-Agent'   => 'AdSpirit-Connector/' . (defined('ADSPIRIT_CONNECTOR_VERSION') ? ADSPIRIT_CONNECTOR_VERSION : ''),
+            ),
+        ));
+        $data = null;
+        if (!is_wp_error($resp) && (int) wp_remote_retrieve_response_code($resp) === 200) {
+            $body = json_decode((string) wp_remote_retrieve_body($resp), true);
+            if (is_array($body) && isset($body['central']) && is_array($body['central'])) {
+                $data = $body['central'];
+            }
+        }
+        if ($data === null) {
+            set_transient('adspirit_central_status', array('unavailable' => true), 300);
+            return null;
+        }
+        set_transient('adspirit_central_status', $data, 900);
+        return $data;
+    }
+
     private function check_tracking() {
         $capi = method_exists('AdSpirit_Settings', 'get_capi_meta') ? AdSpirit_Settings::get_capi_meta() : array();
         $ga4 = method_exists('AdSpirit_Settings', 'get_ga4') ? AdSpirit_Settings::get_ga4() : array();
@@ -200,20 +242,49 @@ class AdSpirit_Setup_Wizard {
 
         $items = array();
 
+        // Handshake: o que a marca já tem configurado do lado do AdSpirit.
+        $central = self::central_status();
+        $c_capi_meta = is_array($central) && !empty($central['capi_meta']['covered']);
+        $c_capi_goog = is_array($central) && !empty($central['capi_google']['covered']);
+        $c_pixel_events = is_array($central) && isset($central['pixel']['events_30d'])
+            ? (int) $central['pixel']['events_30d'] : 0;
+        $c_pixel_mask = $c_capi_meta && !empty($central['capi_meta']['pixel_id_masked'])
+            ? (string) $central['capi_meta']['pixel_id_masked'] : '';
+
         // Doutrina: opcional NÃO configurado é 'off' (silencioso) — âmbar é
-        // reservado pra algo que pede ação de verdade. Nota: a marca pode já
-        // ter CAPI CENTRAL no AdSpirit; o item daqui é o disparo do LADO DO
-        // SITE (complementar, com dedup) — por isso é opcional por site.
+        // reservado pra algo que pede ação de verdade. Com o handshake, o
+        // que já foi configurado CENTRALMENTE aparece verde ("coberto") —
+        // o setup feito à mão antes do plugin existir é detectado, não
+        // pedido de novo.
         $capi_ok = class_exists('AdSpirit_Capi_Meta') && AdSpirit_Capi_Meta::is_configured($capi);
+        if ($capi_ok) {
+            $capi_detail = 'Pixel <code>' . esc_html($capi['pixel_id']) . '</code> · enviando do site'
+                . ($c_capi_meta ? ' · também coberto centralmente pelo AdSpirit (dedup automático)' : '');
+            $capi_status = 'ok';
+        } elseif ($c_capi_meta) {
+            $capi_detail = 'Coberto pelo AdSpirit (central' . ($c_pixel_mask !== '' ? ', pixel <code>' . esc_html($c_pixel_mask) . '</code>' : '') . ') — as conversões da marca disparam do CRM. Ativar o disparo deste site é opcional (dedup automático).';
+            $capi_status = 'ok';
+        } else {
+            $capi_detail = 'Opcional — o AdSpirit pode disparar conversões centralmente pela marca. Ativar aqui adiciona o disparo do próprio site (recupera ~15-30% perdido por bloqueadores), com dedup automático entre os dois.';
+            $capi_status = 'off';
+        }
         $items[] = $this->item(
-            $capi_ok ? 'ok' : 'off',
-            'Conversões Meta (deste site)',
-            $capi_ok
-                ? 'Pixel <code>' . esc_html($capi['pixel_id']) . '</code> · enviando do site'
-                : 'Opcional — o AdSpirit já pode disparar conversões centralmente pela marca. Ativar aqui adiciona o disparo do próprio site (recupera ~15-30% perdido por bloqueadores), com dedup automático entre os dois.',
+            $capi_status,
+            'Conversões Meta',
+            $capi_detail,
             $capi_url,
             $capi_ok ? 'Editar' : 'Configurar'
         );
+
+        if ($c_capi_goog) {
+            $items[] = $this->item(
+                'ok',
+                'Conversões Google Ads',
+                'Coberto pelo AdSpirit (central) — leads e vendas da marca são reportados ao Google Ads pelo CRM. Nada a fazer neste site.',
+                '',
+                ''
+            );
+        }
 
         $ga4_ok = !empty($ga4['enabled']) && $ga4['enabled'] === '1'
             && !empty($ga4['measurement_id']) && !empty($ga4['api_secret']);
@@ -241,12 +312,22 @@ class AdSpirit_Setup_Wizard {
             $turnstile_active ? 'Editar' : 'Configurar'
         );
 
+        if ($pixel_status) {
+            $px_st = 'ok';
+            $px_detail = 'Injetado pelo plugin. Atenção pra não duplicar com um pixel colado manualmente no tema.';
+        } elseif ($c_pixel_events > 0) {
+            // A marca registra eventos no AdSpirit sem o plugin injetar nada
+            // — instalação manual (pré-plugin) ou outro site da marca.
+            $px_st = 'ok';
+            $px_detail = 'Rastreamento ativo na marca (' . number_format_i18n($c_pixel_events) . ' eventos/30d no AdSpirit) — provavelmente instalado manualmente antes do plugin. Ligar aqui só se quiser que o plugin gerencie a injeção (sem duplicar).';
+        } else {
+            $px_st = 'off';
+            $px_detail = 'Desligado no plugin. Se o rastreio já está colado manualmente no tema, tudo certo — não duplicar.';
+        }
         $items[] = $this->item(
-            $pixel_status ? 'ok' : 'off',
+            $px_st,
             'Rastreador no site (pixel)',
-            $pixel_status
-                ? 'Injetado pelo plugin. Atenção pra não duplicar com um pixel colado manualmente no tema.'
-                : 'Desligado no plugin. Se o rastreio já está colado manualmente no tema, tudo certo — não duplicar.',
+            $px_detail,
             admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=connection'),
             'Configurar'
         );
