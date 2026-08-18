@@ -845,6 +845,7 @@ class AdSpirit_Lead_Store {
                     <option value="elementor" <?php selected($filters['source'], 'elementor'); ?>>Elementor</option>
                     <option value="fluent" <?php selected($filters['source'], 'fluent'); ?>>Fluent Forms</option>
                     <option value="woocommerce" <?php selected($filters['source'], 'woocommerce'); ?>>WooCommerce</option>
+                    <option value="generic" <?php selected($filters['source'], 'generic'); ?>>Form desconhecido (coletor)</option>
                 </select>
                 <select name="sl_status">
                     <option value="">Todos status</option>
