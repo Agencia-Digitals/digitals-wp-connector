@@ -103,6 +103,7 @@ adspirit_connector_safe_require('includes/class-adspirit-setup-wizard.php');
 adspirit_connector_safe_require('includes/class-adspirit-turnstile.php');
 adspirit_connector_safe_require('includes/class-adspirit-generic-collector.php');
 adspirit_connector_safe_require('includes/class-adspirit-lead-identity.php');
+adspirit_connector_safe_require('includes/class-adspirit-central-forms.php');
 // v2.28 widget de leads no dashboard do WP (presença diária + deep-link CRM)
 adspirit_connector_safe_require('includes/class-adspirit-dashboard-widget.php');
 // v2.29 eventos automáticos nomeados (tel/email/whatsapp/download → dataLayer)

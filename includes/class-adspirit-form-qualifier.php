@@ -340,7 +340,7 @@ class AdSpirit_Form_Qualifier {
     }
 
     /** Enqueue do CSS/JS/fonte + config. Idempotente (WP dedupa por handle). */
-    public static function enqueue_assets($mode = 'popup', $button_label = 'Iniciar avaliação') {
+    public static function enqueue_assets($mode = 'popup', $button_label = 'Iniciar avaliação', $central_slug = '') {
         $version = defined('ADSPIRIT_CONNECTOR_VERSION') ? ADSPIRIT_CONNECTOR_VERSION : '2.3.0';
         // Fontes do mockup (Inter + Open Sans), dep do CSS.
         wp_enqueue_style(
@@ -363,6 +363,17 @@ class AdSpirit_Form_Qualifier {
             true
         );
         $core = class_exists('AdSpirit_Settings') ? AdSpirit_Settings::get_core() : array();
+        // Central de Forms: resolve o form pedido no shortcode (fail-soft).
+        $central_form = null;
+        $central_steps = null;
+        if ($central_slug !== '' && class_exists('AdSpirit_Central_Forms')) {
+            $central_form = AdSpirit_Central_Forms::get($central_slug);
+            if (is_array($central_form) && !empty($central_form['steps'])) {
+                $central_steps = $central_form['steps'];
+            } else {
+                $central_form = null; // sem roteiro utilizável → precedência normal
+            }
+        }
         // v2.10: Turnstile config (apenas se Turnstile ativo + aplica ao qualifier)
         $turnstile_cfg = array('enabled' => false, 'site_key' => '');
         if (class_exists('AdSpirit_Turnstile') && AdSpirit_Turnstile::applies_to_qualifier()) {
@@ -378,7 +389,10 @@ class AdSpirit_Form_Qualifier {
             'turnstile' => $turnstile_cfg,
             // Roteiro custom do tenant. Array vazio → o JS usa DEFAULT_STEPS
             // (Digitals) e nada muda pra quem nunca importou roteiro.
-            'steps' => self::get_steps(),
+            // Central de Forms (Fase 1): shortcode com form="slug" usa o
+            // roteiro da Central; indisponível → cai no local/embutido.
+            'steps' => $central_steps !== null ? $central_steps : self::get_steps(),
+            'central_form' => $central_form !== null ? $central_slug : '',
             // Habilita o gatilho extra a.lead/button.lead no front (JS só o
             // ativa quando o "site todo" está ligado).
             'sitewide' => (string) (self::get_settings()['sitewide'] ?? '0'),
@@ -783,10 +797,13 @@ class AdSpirit_Form_Qualifier {
         $atts = shortcode_atts(array(
             'mode' => 'popup',
             'button_label' => 'Iniciar avaliação',
+            // Central de Forms: identificador do form gerenciado no AdSpirit.
+            // Vazio = comportamento de sempre (local > embutido).
+            'form' => '',
         ), $atts, 'adspirit_form_qualifier');
         $mode = in_array($atts['mode'], array('inline', 'embed', 'trigger'), true) ? $atts['mode'] : 'popup';
 
-        self::enqueue_assets($mode, $atts['button_label']);
+        self::enqueue_assets($mode, $atts['button_label'], sanitize_key((string) $atts['form']));
 
         // Trigger: SÓ o popup (sem botão). Use seu PRÓPRIO botão pra abrir —
         // qualquer elemento com data-adspirit-qualifier, class adspirit-qualifier-trigger,
@@ -1025,9 +1042,27 @@ class AdSpirit_Form_Qualifier {
         $submission_id = $base_sid . ($is_partial ? '-p' : '');
 
         // F0 Connector 3.0: identidade do form no payload (aditivo — o CRM
-        // ignora chaves desconhecidas). Qualifier é sempre lead comercial.
+        // ignora chaves desconhecidas). Qualifier sem form da Central é
+        // sempre lead comercial; com form da Central, valem a finalidade e
+        // as regras condicionais cadastradas lá.
         $payload['_adspirit_form_id'] = 'adspirit_form_qualifier';
         $payload['_adspirit_form_kind'] = 'comercial';
+        $central_slug = isset($_POST['central_form']) ? sanitize_key((string) $_POST['central_form']) : '';
+        if ($central_slug !== '' && class_exists('AdSpirit_Central_Forms')) {
+            $cf = AdSpirit_Central_Forms::get($central_slug);
+            if (is_array($cf)) {
+                $payload['_adspirit_form_id'] = $central_slug;
+                $kind = $cf['finalidade'];
+                if (class_exists('AdSpirit_Form') && method_exists('AdSpirit_Form', 'resolve_finalidade')) {
+                    $kind = AdSpirit_Form::resolve_finalidade(
+                        array('routing_rules' => $cf['routing_rules']),
+                        $payload,
+                        $cf['finalidade']
+                    );
+                }
+                $payload['_adspirit_form_kind'] = $kind;
+            }
+        }
 
         // Fase 1: grava local ANTES do POST pro CRM. Integridade não bloqueia o
         // envio — se record_pending falhar (tabela ausente), retorna false e o

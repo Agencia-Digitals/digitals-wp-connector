@@ -798,6 +798,7 @@
       fetchFreshNonce().then(function (nonce) {
         var fd = new FormData();
         fd.append('action', 'adspirit_qualifier_submit');
+        if (CFG.central_form) fd.append('central_form', CFG.central_form);
         fd.append('nonce', nonce);
         fd.append('submission_id', qfSubmissionId());
         fd.append('_adspirit_partial', '1');
@@ -834,6 +835,7 @@
       .then(function (nonce) {
         var formData = new FormData();
         formData.append('action', 'adspirit_qualifier_submit');
+        if (CFG.central_form) formData.append('central_form', CFG.central_form);
         formData.append('nonce', nonce);
         formData.append('submission_id', qfSubmissionId());
         appendAntibotMeta(formData);
