@@ -253,10 +253,7 @@ class AdSpirit_Turnstile {
             </tr>
         </table>
         <?php AdSpirit_Menu::card_close(); ?>
-
-        <p style="margin-top:18px;">
-            <button type="submit" class="button button-primary">Salvar configurações</button>
-        </p>
+        <?php // form_close() já imprime o botão de salvar — não duplicar aqui. ?>
         <?php AdSpirit_Menu::form_close(); ?>
 
         <?php if (self::is_active()) : ?>

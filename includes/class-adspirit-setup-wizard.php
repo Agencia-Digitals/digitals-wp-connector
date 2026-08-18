@@ -195,7 +195,6 @@ class AdSpirit_Setup_Wizard {
             $ga4_ok ? 'Editar' : 'Configurar'
         );
 
-        $pixel_browser = !empty($core['pixel_enabled']) && $core['pixel_enabled'] === '1';
         $core_check = AdSpirit_Settings::get_core();
         $pixel_status = !empty($core_check['pixel_enabled']) && $core_check['pixel_enabled'] === '1';
         // v2.10: Turnstile como opcional (recomendado pra anti-bot avançado)

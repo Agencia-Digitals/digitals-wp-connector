@@ -382,6 +382,13 @@ class AdSpirit_Form {
             $payload['_adspirit_telemetry'] = $tel;
         }
 
+        // F0 Connector 3.0: identidade + finalidade do form viajam no payload.
+        // Finalidade vem da config do form ('comercial' | 'nutricao'); o CRM
+        // bifurca no processor — nutrição vira contato+tag, sem lead no funil.
+        $finalidade = isset($form['finalidade']) && $form['finalidade'] === 'nutricao' ? 'nutricao' : 'comercial';
+        $payload['_adspirit_form_id'] = $form_id;
+        $payload['_adspirit_form_kind'] = $finalidade;
+
         $payload = apply_filters('adspirit_form_submit_payload', $payload, $form_id);
 
         $submission_id = $form_id . '-' . time() . '-' . wp_generate_password(6, false);
@@ -391,37 +398,40 @@ class AdSpirit_Form {
             AdSpirit_Lead_Store::record_pending($submission_id, $payload, 'native', $form_id);
         }
 
-        $endpoint = rtrim($core['endpoint_url'], '/') . '/api/webhooks/contact-form-7';
-        $response = wp_remote_post($endpoint, array(
-            'timeout' => 8,
-            'headers' => array(
-                'Content-Type' => 'application/json',
-                'x-brand-slug' => $core['brand_slug'],
-                'x-cf7-secret' => $core['secret'],
-                'x-cf7-submission-id' => $submission_id,
-                'User-Agent' => 'AdSpirit-Connector/' . ADSPIRIT_CONNECTOR_VERSION,
-            ),
-            'body' => wp_json_encode($payload),
-        ));
-
-        if (is_wp_error($response)) {
-            if (class_exists('AdSpirit_Lead_Store')) {
-                AdSpirit_Lead_Store::mark($submission_id, 'crm', 'failed', 0, $response->get_error_message());
-            }
-            wp_send_json(array('ok' => false, 'error' => $response->get_error_message()));
-        }
-        $code = wp_remote_retrieve_response_code($response);
-        $body = json_decode((string) wp_remote_retrieve_body($response), true);
-        if ($code !== 200) {
-            if (class_exists('AdSpirit_Lead_Store')) {
-                AdSpirit_Lead_Store::mark($submission_id, 'crm', 'failed', (int) $code, 'HTTP ' . $code);
-            }
-            wp_send_json(array('ok' => false, 'error' => 'CRM HTTP ' . $code));
-        }
-
-        // CRM aceitou: marca enviado (+ profile/lead_id), fanout e log legado.
+        // Dispatcher canônico (Connector 3.0) — attempts/last_error verdadeiros
+        // e retry automático pelo cron quando o POST falha.
         if (class_exists('AdSpirit_Lead_Store')) {
-            AdSpirit_Lead_Store::mark($submission_id, 'crm', 'sent', (int) $code, null, is_array($body) ? $body : null);
+            $result = AdSpirit_Lead_Store::dispatch_to_crm($submission_id, $payload, 8);
+            AdSpirit_Lead_Store::mark_crm_attempt($submission_id, $result);
+            if ((int) $result['code'] === 0) {
+                wp_send_json(array('ok' => false, 'error' => (string) $result['error']));
+            }
+            if (empty($result['ok'])) {
+                wp_send_json(array('ok' => false, 'error' => 'CRM HTTP ' . (int) $result['code']));
+            }
+            $body = $result['body'];
+        } else {
+            // Fallback raro (Lead_Store não carregou): POST inline legado.
+            $endpoint = rtrim($core['endpoint_url'], '/') . '/api/webhooks/contact-form-7';
+            $response = wp_remote_post($endpoint, array(
+                'timeout' => 8,
+                'headers' => array(
+                    'Content-Type' => 'application/json',
+                    'x-brand-slug' => $core['brand_slug'],
+                    'x-cf7-secret' => $core['secret'],
+                    'x-cf7-submission-id' => $submission_id,
+                    'User-Agent' => 'AdSpirit-Connector/' . ADSPIRIT_CONNECTOR_VERSION,
+                ),
+                'body' => wp_json_encode($payload),
+            ));
+            if (is_wp_error($response)) {
+                wp_send_json(array('ok' => false, 'error' => $response->get_error_message()));
+            }
+            $code = (int) wp_remote_retrieve_response_code($response);
+            $body = json_decode((string) wp_remote_retrieve_body($response), true);
+            if ($code < 200 || $code >= 300) {
+                wp_send_json(array('ok' => false, 'error' => 'CRM HTTP ' . $code));
+            }
         }
         if (class_exists('AdSpirit_Integrations') && method_exists('AdSpirit_Integrations', 'fanout')) {
             AdSpirit_Integrations::fanout($payload);
@@ -547,6 +557,16 @@ class AdSpirit_Form {
                 <tr>
                     <th><label for="ab_success">Mensagem de sucesso</label></th>
                     <td><input type="text" id="ab_success" name="form_success" class="regular-text" style="max-width:480px;" value="<?php echo esc_attr($cur['success_message'] ?? 'Obrigado!'); ?>"></td>
+                </tr>
+                <tr>
+                    <th><label for="ab_finalidade">Finalidade</label></th>
+                    <td>
+                        <select id="ab_finalidade" name="form_finalidade">
+                            <option value="comercial" <?php selected($cur['finalidade'] ?? 'comercial', 'comercial'); ?>>Comercial — vira lead no funil de vendas</option>
+                            <option value="nutricao" <?php selected($cur['finalidade'] ?? 'comercial', 'nutricao'); ?>>Nutrição — vira contato com tag, sem lead</option>
+                        </select>
+                        <p class="description">Newsletter, materiais ricos e "trabalhe conosco" são nutrição: entram na base de contatos sem sujar o funil comercial.</p>
+                    </td>
                 </tr>
             </table>
 
@@ -773,6 +793,8 @@ class AdSpirit_Form {
             'title'           => sanitize_text_field((string) ($post['form_title'] ?? 'Formulário')),
             'theme'           => $theme,
             'success_message' => sanitize_text_field((string) ($post['form_success'] ?? 'Obrigado!')),
+            // F0 Connector 3.0: finalidade por form (comercial | nutricao).
+            'finalidade'      => (isset($post['form_finalidade']) && $post['form_finalidade'] === 'nutricao') ? 'nutricao' : 'comercial',
             'steps'           => array(array('title' => '', 'fields' => $clean)),
         );
 

@@ -155,6 +155,11 @@ class AdSpirit_Form_Adapters {
             }
         }
 
+        // F0 Connector 3.0: identidade do form no payload (form de terceiro
+        // não tem config de finalidade — default comercial).
+        $payload['_adspirit_form_id'] = $form_kind . ':' . $form_id;
+        $payload['_adspirit_form_kind'] = 'comercial';
+
         $submission_id = $form_kind . '-' . $form_id . '-' . time() . '-' . substr(md5(wp_json_encode($payload)), 0, 8);
         $endpoint = rtrim($core['endpoint_url'], '/') . '/api/webhooks/contact-form-7';
 
@@ -163,28 +168,37 @@ class AdSpirit_Form_Adapters {
             AdSpirit_Lead_Store::record_pending($submission_id, $payload, $form_kind, (string) $form_id);
         }
 
-        $response = wp_remote_post($endpoint, array(
-            'timeout' => 8, 'blocking' => false,
-            'headers' => array(
-                'Content-Type' => 'application/json',
-                'x-brand-slug' => $core['brand_slug'],
-                'x-cf7-secret' => $core['secret'],
-                'x-cf7-submission-id' => $submission_id,
-                'User-Agent' => 'AdSpirit-Connector/' . ADSPIRIT_CONNECTOR_VERSION,
-            ),
-            'body' => wp_json_encode($payload),
-        ));
-
+        // Dispatcher canônico (Connector 3.0). Antes: blocking=false + status
+        // 'sent' otimista sem saber o resultado. Agora: blocking 5s (mesmo
+        // trade-off do CF7) + mark_crm_attempt → status verdadeiro, attempts,
+        // last_error e retry automático pelo cron quando o POST falha.
         if (class_exists('AdSpirit_Lead_Store')) {
-            AdSpirit_Lead_Store::mark(
-                $submission_id, 'crm',
-                is_wp_error($response) ? 'failed' : 'sent', 0,
-                is_wp_error($response) ? $response->get_error_message() : null
-            );
-        }
-
-        if (class_exists('AdSpirit_Cf7_Handler')) {
-            AdSpirit_Cf7_Handler::log('sent', 0, null, array('form_id' => $form_kind . ':' . $form_id, 'fields' => array_keys($payload)));
+            $result = AdSpirit_Lead_Store::dispatch_to_crm($submission_id, $payload, 5);
+            AdSpirit_Lead_Store::mark_crm_attempt($submission_id, $result);
+            if (class_exists('AdSpirit_Cf7_Handler')) {
+                AdSpirit_Cf7_Handler::log(
+                    !empty($result['ok']) ? 'sent' : 'error',
+                    (int) $result['code'],
+                    !empty($result['ok']) ? null : (string) $result['error'],
+                    array('form_id' => $form_kind . ':' . $form_id, 'fields' => array_keys($payload))
+                );
+            }
+        } else {
+            // Fallback raro (Lead_Store não carregou): fire-and-forget legado.
+            wp_remote_post($endpoint, array(
+                'timeout' => 8, 'blocking' => false,
+                'headers' => array(
+                    'Content-Type' => 'application/json',
+                    'x-brand-slug' => $core['brand_slug'],
+                    'x-cf7-secret' => $core['secret'],
+                    'x-cf7-submission-id' => $submission_id,
+                    'User-Agent' => 'AdSpirit-Connector/' . ADSPIRIT_CONNECTOR_VERSION,
+                ),
+                'body' => wp_json_encode($payload),
+            ));
+            if (class_exists('AdSpirit_Cf7_Handler')) {
+                AdSpirit_Cf7_Handler::log('sent', 0, null, array('form_id' => $form_kind . ':' . $form_id, 'fields' => array_keys($payload)));
+            }
         }
 
         // Fallback: alimenta o log legado (antes os adapters não entravam nele).

@@ -391,12 +391,21 @@ class AdSpirit_Lead_Store {
     }
 
     /**
-     * P0-3 — cron de retry. Re-POSTa SÓ pro CRM (nunca fanout/CAPI/GA4 — esses
-     * rodaram no submit original; retry não pode duplicar linha no Sheets),
-     * reusando o submission_id original (dedup do CRM não duplica lead).
-     * Escopo: source='cf7' (qualifier/nativo têm fluxo próprio e o parcial do
-     * qualifier não deve ser re-empurrado por cron). Respeita backoff e o teto
-     * de MAX_ATTEMPTS; no máx 5 POSTs por execução pra não segurar o wp-cron.
+     * P0-3 / Connector 3.0 — cron de retry UNIVERSAL. Re-POSTa SÓ pro CRM
+     * (nunca fanout/CAPI/GA4 — esses rodaram no submit original; retry não
+     * pode duplicar linha no Sheets), reusando o submission_id original
+     * (dedup do CRM não duplica lead).
+     *
+     * Escopo (3.0): TODAS as fontes que passam pelo dispatcher canônico —
+     * cf7, qualifier, native, gravity/wpforms/elementor/fluent, woocommerce.
+     * Única exclusão: qualifier_partial. O parcial usa submission_id com
+     * sufixo -p (idempotency própria); re-empurrar um parcial DEPOIS do envio
+     * final chegaria fora de ordem no CRM e o processor de parciais poderia
+     * reprocessar um lead já promovido. Parcial falho fica visível na aba
+     * Submissões com reenvio manual.
+     *
+     * Respeita backoff e o teto de MAX_ATTEMPTS; no máx 5 POSTs por execução
+     * pra não segurar o wp-cron.
      */
     public function run_retry() {
         if (!self::available()) return;
@@ -405,9 +414,9 @@ class AdSpirit_Lead_Store {
             $table = self::table_name();
             $rows = $wpdb->get_results($wpdb->prepare(
                 "SELECT id, submission_id, attempts, updated_at, payload FROM {$table}
-                 WHERE source = %s AND status IN ('pending','failed') AND attempts < %d
+                 WHERE source <> %s AND status IN ('pending','failed') AND attempts < %d
                  ORDER BY id ASC LIMIT 20",
-                'cf7',
+                'qualifier_partial',
                 self::MAX_ATTEMPTS
             ), ARRAY_A);
             if (!is_array($rows) || empty($rows)) return;
@@ -626,7 +635,9 @@ class AdSpirit_Lead_Store {
             <p class="as-section-help">
                 Toda submissão é gravada aqui <strong>antes</strong> de ir pro CRM — nenhum lead se perde,
                 mesmo se uma integração falhar. <strong>Source of truth é o CRM</strong>; isto é a rede de segurança local.
-                Leads CF7 pendentes/falhos são <strong>reenviados automaticamente</strong> (a cada 15min,
+                Leads pendentes/falhos de <strong>todas as origens</strong> (CF7, qualifier, form nativo,
+                Gravity/WPForms/Elementor/Fluent e WooCommerce — exceto parciais do qualifier)
+                são <strong>reenviados automaticamente</strong> (a cada 15min,
                 backoff 15min/1h/6h/24h, máx <?php echo (int) self::MAX_ATTEMPTS; ?> tentativas, sempre com o ID original — o CRM não duplica;
                 o reenvio automático fala só com o CRM, nunca repete Sheets/CAPI/GA4).
                 <strong>Reenviar</strong> manual continua disponível pra qualquer lead falho.

@@ -162,6 +162,13 @@ class AdSpirit_Cf7_Handler {
             }
         }
 
+        // 2.6) Identidade do form no payload (F0 Connector 3.0): form_id e
+        // finalidade viajam SEMPRE — o CRM bifurca comercial|nutricao no
+        // processor; chave desconhecida é ignorada por versões antigas (aditivo).
+        // CF7 não tem config de finalidade por form (ainda) → sempre comercial.
+        $data['_adspirit_form_id'] = (string) $form_id;
+        $data['_adspirit_form_kind'] = 'comercial';
+
         // 3) ID idempotente
         $submission_id = sprintf(
             '%s-%s-%s',
@@ -239,9 +246,16 @@ class AdSpirit_Cf7_Handler {
             }
         }
 
-        // 5) Paralelo: dispara Meta CAPI Lead + GA4 generate_lead
-        AdSpirit_Capi_Meta::send_lead_for_submission($submission_id, $data, $url);
-        AdSpirit_Ga4::send_lead_for_submission($submission_id, $data, $url);
+        // 5) Paralelo: dispara Meta CAPI Lead + GA4 generate_lead.
+        // class_exists obrigatório: se o safe_require de um desses módulos
+        // falhou, o caminho mais crítico do plugin (dispatch CF7) não pode
+        // fatalar por causa de um módulo de tracking opcional.
+        if (class_exists('AdSpirit_Capi_Meta')) {
+            AdSpirit_Capi_Meta::send_lead_for_submission($submission_id, $data, $url);
+        }
+        if (class_exists('AdSpirit_Ga4')) {
+            AdSpirit_Ga4::send_lead_for_submission($submission_id, $data, $url);
+        }
 
         // 6) Passthroughs dedicados (Customer.io + Mailchimp)
         if (class_exists('AdSpirit_Customerio')) {

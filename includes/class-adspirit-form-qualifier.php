@@ -963,6 +963,11 @@ class AdSpirit_Form_Qualifier {
         $base_sid = $client_sid !== '' ? $client_sid : ('q-' . time() . '-' . wp_generate_password(8, false));
         $submission_id = $base_sid . ($is_partial ? '-p' : '');
 
+        // F0 Connector 3.0: identidade do form no payload (aditivo — o CRM
+        // ignora chaves desconhecidas). Qualifier é sempre lead comercial.
+        $payload['_adspirit_form_id'] = 'adspirit_form_qualifier';
+        $payload['_adspirit_form_kind'] = 'comercial';
+
         // Fase 1: grava local ANTES do POST pro CRM. Integridade não bloqueia o
         // envio — se record_pending falhar (tabela ausente), retorna false e o
         // fluxo segue normal (lead vai pro CRM + log legado de fallback).
@@ -971,42 +976,49 @@ class AdSpirit_Form_Qualifier {
             AdSpirit_Lead_Store::record_pending($submission_id, $payload, $lead_source, 'adspirit_form_qualifier');
         }
 
-        $endpoint = rtrim($core['endpoint_url'], '/') . '/api/webhooks/contact-form-7';
-        $response = wp_remote_post($endpoint, array(
-            'timeout' => 10,
-            'headers' => array(
-                'Content-Type' => 'application/json',
-                'x-brand-slug' => $core['brand_slug'],
-                'x-cf7-secret' => $core['secret'],
-                'x-cf7-submission-id' => $submission_id,
-                'User-Agent' => 'AdSpirit-Connector/' . ADSPIRIT_CONNECTOR_VERSION,
-            ),
-            'body' => wp_json_encode($payload),
-        ));
-
-        if (is_wp_error($response)) {
-            if (class_exists('AdSpirit_Lead_Store')) {
-                AdSpirit_Lead_Store::mark($submission_id, 'crm', 'failed', 0, $response->get_error_message());
-            }
-            wp_send_json_error(array('error' => 'crm_unreachable', 'detail' => $response->get_error_message()), 502);
-            return;
-        }
-
-        $code = wp_remote_retrieve_response_code($response);
-        $body_raw = wp_remote_retrieve_body($response);
-        $body = json_decode($body_raw, true);
-
-        if ($code < 200 || $code >= 300 || !is_array($body)) {
-            if (class_exists('AdSpirit_Lead_Store')) {
-                AdSpirit_Lead_Store::mark($submission_id, 'crm', 'failed', (int) $code, 'HTTP ' . $code);
-            }
-            wp_send_json_error(array('error' => 'crm_error', 'status' => $code), 502);
-            return;
-        }
-
-        // CRM aceitou — marca enviado + captura profile/lead_id da resposta.
+        // Dispatcher canônico (Connector 3.0): mesmo caminho do CF7/cron/manual.
+        // BLOCKING de propósito — o redirect por perfil (A/B/C/D) depende da
+        // resposta síncrona do CRM; não tornar assíncrono. mark_crm_attempt
+        // registra attempts/last_error de verdade → o cron de retry cobre o
+        // qualifier completo quando o POST falha (parcial fica fora do cron).
         if (class_exists('AdSpirit_Lead_Store')) {
-            AdSpirit_Lead_Store::mark($submission_id, 'crm', 'sent', (int) $code, null, $body);
+            $result = AdSpirit_Lead_Store::dispatch_to_crm($submission_id, $payload, 10);
+            AdSpirit_Lead_Store::mark_crm_attempt($submission_id, $result);
+            $code = (int) $result['code'];
+            $body = $result['body'];
+            if ($code === 0) {
+                wp_send_json_error(array('error' => 'crm_unreachable', 'detail' => (string) $result['error']), 502);
+                return;
+            }
+            if (empty($result['ok']) || !is_array($body)) {
+                wp_send_json_error(array('error' => 'crm_error', 'status' => $code), 502);
+                return;
+            }
+        } else {
+            // Fallback raro (Lead_Store não carregou): POST inline legado —
+            // melhor despachar às cegas do que perder o lead.
+            $endpoint = rtrim($core['endpoint_url'], '/') . '/api/webhooks/contact-form-7';
+            $response = wp_remote_post($endpoint, array(
+                'timeout' => 10,
+                'headers' => array(
+                    'Content-Type' => 'application/json',
+                    'x-brand-slug' => $core['brand_slug'],
+                    'x-cf7-secret' => $core['secret'],
+                    'x-cf7-submission-id' => $submission_id,
+                    'User-Agent' => 'AdSpirit-Connector/' . ADSPIRIT_CONNECTOR_VERSION,
+                ),
+                'body' => wp_json_encode($payload),
+            ));
+            if (is_wp_error($response)) {
+                wp_send_json_error(array('error' => 'crm_unreachable', 'detail' => $response->get_error_message()), 502);
+                return;
+            }
+            $code = (int) wp_remote_retrieve_response_code($response);
+            $body = json_decode((string) wp_remote_retrieve_body($response), true);
+            if ($code < 200 || $code >= 300 || !is_array($body)) {
+                wp_send_json_error(array('error' => 'crm_error', 'status' => $code), 502);
+                return;
+            }
         }
 
         // Webhook out (fan-out pra n8n/Elisa, Zapier, etc) — fire-and-forget.
