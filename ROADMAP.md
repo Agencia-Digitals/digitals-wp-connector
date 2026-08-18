@@ -72,11 +72,25 @@ Captação:
 
 ## Estratégico — produto (junto com o CRM)
 
-- [ ] Webhook CRM→WP com ações nomeadas (padrão WP Fusion): estágio/score/tag
-      do lead como dado do visitante → personalização/gating no site
+- [~] Webhook CRM→WP (padrão WP Fusion) — FATIA 1 FEITA (2.30, modelo
+      PULL): GET /api/wp/lead-status no CRM (perfil, is_customer, estágio
+      aberto; sem PII de volta) + plugin lembra o visitante pós-submit
+      (cookie HttpOnly com e-mail CIFRADO), classes no <html>
+      (.adspirit-lead-customer → supressão via CSS), shortcode
+      [adspirit_if_lead], window.__adspiritLead. Zero bloqueio de render
+      (cache-first + AJAX pós-load). Falta: push de eventos nomeados
+      (estágio mudou → notifica sites) e tags
 - [ ] Rule-engine de exibição compartilhado (padrão OptinMonster): URL, UTM,
       referrer, scroll, tempo, device, novo/recorrente, exit-intent —
-      servindo form, popup e WhatsApp; A/B julgado por RECEITA no CRM
+      servindo form, popup e WhatsApp; A/B julgado por RECEITA no CRM.
+      Nota 2.30: motor de regras {field, op, value} já existe em 3 lugares
+      (showIf, roteamento de finalidade, lead-status) — extrair núcleo comum
+      quando este item entrar
+- [x] Roteamento condicional no envio (2.30, lição Bit Integrations):
+      regras {field, op, value, then} no builder mudam a finalidade
+      (comercial|nutricao) POR SUBMISSÃO — contexto = respostas + UTM da
+      atribuição (last-touch vence) + device/landing. Primeiro match vence;
+      form sem regras = byte-idêntico
 - [ ] Form como entidade multi-tenant com fonte no CRM
       `{id, nome, finalidade, estilo multistep|chat, destino}` + renderer
       chat (validado pelo Fluent Conversational); FAB WhatsApp com 2 perfis
