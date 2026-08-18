@@ -87,6 +87,9 @@ class AdSpirit_Settings {
             // Off por default (opt-in) — feature visível só pra brands que
             // querem ativar gamification de qualificação.
             'show_lead_score_preview' => '0',
+            // v2.30: coletor genérico (rede de segurança pra form builder
+            // desconhecido, padrão HubSpot). Beta, opt-in — nasce desligado.
+            'generic_forms_enabled' => '0',
         );
     }
 

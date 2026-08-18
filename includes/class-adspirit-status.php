@@ -731,6 +731,12 @@ add_action('adspirit_connector_render_tab_connection', AdSpirit_Safe_Hook::actio
                         <small>Todo formulário conectado entrega os leads direto no AdSpirit.</small>
                     </label>
                 </div>
+                <div class="as-toggle as-sub">
+                    <input type="checkbox" id="as_generic" name="generic_forms_enabled" value="1" <?php checked($s['generic_forms_enabled'] ?? '0', '1'); ?>>
+                    <label class="t" for="as_generic">Capturar formulários de outros plugins (beta)
+                        <small>Rede de segurança: um formulário que o AdSpirit não conhece também entrega o lead, desde que tenha e-mail ou telefone. Os formulários conectados continuam com prioridade.</small>
+                    </label>
+                </div>
                 <div class="as-toggle">
                     <input type="checkbox" id="as_px" name="pixel_enabled" value="1" <?php checked($s['pixel_enabled'], '1'); ?>>
                     <label class="t" for="as_px">Medir visitas e jornada
@@ -782,6 +788,7 @@ add_action('adspirit_connector_save_connection', AdSpirit_Safe_Hook::action(func
     $patch['cf7_enabled']   = !empty($post['cf7_enabled']) ? '1' : '0';
     $patch['pixel_enabled'] = !empty($post['pixel_enabled']) ? '1' : '0';
     $patch['pixel_firstparty'] = !empty($post['pixel_firstparty']) ? '1' : '0';
+    $patch['generic_forms_enabled'] = !empty($post['generic_forms_enabled']) ? '1' : '0';
     // Feature 35 + futuras: filter pra cada feature contribuir patches
     // sem editar este handler.
     $patch = apply_filters('adspirit_connector_connection_save_extra', $patch, $post);
