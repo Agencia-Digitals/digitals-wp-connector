@@ -387,7 +387,11 @@ class AdSpirit_Form {
         // F0 Connector 3.0: identidade + finalidade do form viajam no payload.
         // Finalidade vem da config do form ('comercial' | 'nutricao'); o CRM
         // bifurca no processor — nutrição vira contato+tag, sem lead no funil.
+        // v2.30 (lição Bit Integrations): regras condicionais por payload/UTM
+        // podem sobrepor a finalidade por SUBMISSÃO — primeiro match vence,
+        // sem match fica a padrão. Form sem regras = comportamento idêntico.
         $finalidade = isset($form['finalidade']) && $form['finalidade'] === 'nutricao' ? 'nutricao' : 'comercial';
+        $finalidade = self::resolve_finalidade($form, $payload, $finalidade);
         $payload['_adspirit_form_id'] = $form_id;
         $payload['_adspirit_form_kind'] = $finalidade;
 
@@ -568,6 +572,15 @@ class AdSpirit_Form {
                             <option value="nutricao" <?php selected($cur['finalidade'] ?? 'comercial', 'nutricao'); ?>>Nutrição — vira contato com tag, sem lead</option>
                         </select>
                         <p class="description">Newsletter, materiais ricos e "trabalhe conosco" são nutrição: entram na base de contatos sem sujar o funil comercial.</p>
+                        <details class="as-help" style="margin-top:10px;">
+                            <summary>Regras condicionais (avançado)</summary>
+                            <p class="description" style="margin:8px 0 6px;">Mudam a finalidade por submissão, olhando as respostas e a origem (<code>utm_source</code>, <code>utm_medium</code>, <code>utm_campaign</code>...). Primeira regra que bater vence; sem match, vale a finalidade acima. Operadores: <code>is</code>, <code>not</code>, <code>contains</code>.</p>
+                            <textarea name="form_routing_rules" rows="4" class="large-text code" placeholder='[{"field": "utm_medium", "op": "is", "value": "email", "then": "nutricao"}]'><?php
+                                $rr = isset($cur['routing_rules']) && is_array($cur['routing_rules']) && !empty($cur['routing_rules'])
+                                    ? wp_json_encode($cur['routing_rules'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) : '';
+                                echo esc_textarea($rr);
+                            ?></textarea>
+                        </details>
                     </td>
                 </tr>
             </table>
@@ -799,6 +812,15 @@ class AdSpirit_Form {
             'finalidade'      => (isset($post['form_finalidade']) && $post['form_finalidade'] === 'nutricao') ? 'nutricao' : 'comercial',
             'steps'           => array(array('title' => '', 'fields' => $clean)),
         );
+        // v2.30: regras condicionais de finalidade (opcional). JSON inválido
+        // avisa e salva SEM regras — nunca perde o resto da config do form.
+        $rules = self::sanitize_routing_rules((string) ($post['form_routing_rules'] ?? ''));
+        if ($rules === null) {
+            add_settings_error(self::OPTION_KEY, 'routing_invalid',
+                'Regras condicionais ignoradas: JSON inválido. O form foi salvo sem elas.', 'warning');
+            $rules = array();
+        }
+        if (!empty($rules)) $config['routing_rules'] = $rules;
 
         $forms = self::get_forms();
         $forms[$form_id] = $config;
@@ -807,5 +829,71 @@ class AdSpirit_Form {
             'Form salvo (%d campos). Shortcode: <code>[adspirit_form id="%s"]</code>',
             count($clean), esc_html($form_id)
         ), 'updated');
+    }
+
+    // ─── Roteamento condicional no envio (v2.30) ───
+
+    /**
+     * Regras {field, op is|not|contains, value, then comercial|nutricao} —
+     * mesmo vocabulário do showIf do qualifier. Avaliadas contra o payload
+     * + chaves virtuais utm_* (last-touch da telemetria, fallback first).
+     * Primeiro match vence; sem regras/match devolve o default. Nunca lança.
+     */
+    public static function resolve_finalidade($form, array $payload, $default) {
+        $rules = isset($form['routing_rules']) && is_array($form['routing_rules'])
+            ? $form['routing_rules'] : array();
+        if (empty($rules)) return $default;
+
+        $ctx = array();
+        foreach ($payload as $k => $v) {
+            if (is_scalar($v)) $ctx[strtolower((string) $k)] = strtolower(trim((string) $v));
+        }
+        // UTM virtuais: last-touch vence, first-touch preenche o que faltar.
+        foreach (array('_adspirit_t_ft', '_adspirit_t_lt') as $tk) {
+            if (empty($payload[$tk]) || !is_string($payload[$tk])) continue;
+            $touch = json_decode($payload[$tk], true);
+            if (!is_array($touch)) continue;
+            foreach ($touch as $tkey => $tval) {
+                if (is_scalar($tval) && $tval !== '') {
+                    $ctx[strtolower((string) $tkey)] = strtolower(trim((string) $tval));
+                }
+            }
+        }
+
+        foreach ($rules as $r) {
+            if (!is_array($r) || empty($r['field'])) continue;
+            $got = isset($ctx[strtolower((string) $r['field'])]) ? $ctx[strtolower((string) $r['field'])] : '';
+            $want = strtolower(trim((string) ($r['value'] ?? '')));
+            $op = isset($r['op']) ? (string) $r['op'] : 'is';
+            $hit = ($op === 'not') ? ($got !== $want)
+                : (($op === 'contains') ? ($want !== '' && strpos($got, $want) !== false)
+                : ($got === $want));
+            if ($hit) {
+                return (isset($r['then']) && $r['then'] === 'nutricao') ? 'nutricao' : 'comercial';
+            }
+        }
+        return $default;
+    }
+
+    /** JSON do admin → regras limpas. Devolve array (vazio se inválido/ausente). */
+    public static function sanitize_routing_rules($raw_json) {
+        $raw_json = trim((string) $raw_json);
+        if ($raw_json === '') return array();
+        $decoded = json_decode($raw_json, true);
+        if (!is_array($decoded)) return null; // JSON inválido → erro no save
+        $out = array();
+        foreach ($decoded as $r) {
+            if (!is_array($r)) continue;
+            $field = sanitize_text_field((string) ($r['field'] ?? ''));
+            if ($field === '') continue;
+            $out[] = array(
+                'field' => $field,
+                'op'    => in_array(($r['op'] ?? 'is'), array('is', 'not', 'contains'), true) ? $r['op'] : 'is',
+                'value' => sanitize_text_field((string) ($r['value'] ?? '')),
+                'then'  => (($r['then'] ?? '') === 'nutricao') ? 'nutricao' : 'comercial',
+            );
+            if (count($out) >= 20) break; // teto sano
+        }
+        return $out;
     }
 }
