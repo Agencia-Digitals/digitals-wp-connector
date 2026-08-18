@@ -87,7 +87,7 @@ class AdSpirit_Quickwins {
             $cached = false;
         }
         if ($cached === false) {
-            $fresh = $this->fetch_latest_release();
+            $fresh = $this->fetch_best_release();
             $cached = is_array($fresh) ? $fresh : array();
             $cached['fetched_at'] = time(); // falha de rede vira backoff de 15 min
             set_transient(self::UPDATE_TRANSIENT, $cached, self::UPDATE_INTERVAL);
@@ -114,7 +114,7 @@ class AdSpirit_Quickwins {
         if (empty($args->slug) || $args->slug !== 'adspirit-connector') return $result;
 
         $cached = get_transient(self::UPDATE_TRANSIENT);
-        if (!$cached) $cached = $this->fetch_latest_release();
+        if (!$cached) $cached = $this->fetch_best_release();
         if (!$cached) return $result;
 
         return (object) array(
@@ -132,6 +132,47 @@ class AdSpirit_Quickwins {
             ),
             'icons' => $this->icon_urls(),
             'download_link' => $cached['zip'],
+        );
+    }
+
+    /**
+     * Connector 3.0 — fonte dupla de update. Consulta o manifest hospedado
+     * no CRM E o GitHub, e oferece A MAIOR versão das duas. Por quê max e
+     * não prioridade: manifest defasado nunca mascara release novo do
+     * GitHub, e GitHub fora do ar/rate-limited nunca trava a frota. Quando
+     * o repo virar privado, o manifest vira a única fonte viva — e o ritual
+     * de release passa a exigir sync do zip+manifest no CRM.
+     */
+    private function fetch_best_release() {
+        $github = $this->fetch_latest_release();
+        $crm    = $this->fetch_crm_manifest();
+        if (!is_array($github)) return $crm;
+        if (!is_array($crm)) return $github;
+        return version_compare((string) $crm['version'], (string) $github['version'], '>') ? $crm : $github;
+    }
+
+    /**
+     * Manifest de update servido pelo próprio CRM ({endpoint}/downloads/
+     * manifest.json). Formato: {version, package, url, changelog}. Retorna
+     * o mesmo shape do fetch_latest_release() ou null (fail-soft).
+     */
+    private function fetch_crm_manifest() {
+        $core = AdSpirit_Settings::get_core();
+        if (empty($core['endpoint_url'])) return null;
+        $url = rtrim((string) $core['endpoint_url'], '/') . '/downloads/manifest.json';
+        $resp = wp_remote_get($url, array(
+            'timeout' => 8,
+            'headers' => array('User-Agent' => 'AdSpirit-Connector/' . ADSPIRIT_CONNECTOR_VERSION),
+        ));
+        if (is_wp_error($resp)) return null;
+        if ((int) wp_remote_retrieve_response_code($resp) !== 200) return null;
+        $data = json_decode((string) wp_remote_retrieve_body($resp), true);
+        if (!is_array($data) || empty($data['version']) || empty($data['package'])) return null;
+        return array(
+            'version' => ltrim((string) $data['version'], 'v'),
+            'url'     => (string) ($data['url'] ?? $core['endpoint_url']),
+            'zip'     => (string) $data['package'],
+            'body'    => (string) ($data['changelog'] ?? ''),
         );
     }
 
