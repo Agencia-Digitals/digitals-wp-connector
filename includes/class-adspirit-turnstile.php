@@ -76,7 +76,11 @@ class AdSpirit_Turnstile {
     }
 
     public static function get_settings() {
-        return wp_parse_args(get_option(self::OPTION_KEY, array()), self::defaults());
+        $s = wp_parse_args(get_option(self::OPTION_KEY, array()), self::defaults());
+        if (class_exists('AdSpirit_Settings')) {
+            $s['secret_key'] = AdSpirit_Settings::secret_from_config('ADSPIRIT_TURNSTILE_SECRET_KEY', $s['secret_key']);
+        }
+        return $s;
     }
 
     /** True se Turnstile está completamente configurado e ativo. */
@@ -184,7 +188,11 @@ class AdSpirit_Turnstile {
         $patch = array(
             'enabled' => !empty($post['enabled']) ? '1' : '0',
             'site_key' => isset($post['site_key']) ? sanitize_text_field((string) $post['site_key']) : '',
-            'secret_key' => isset($post['secret_key']) ? sanitize_text_field((string) $post['secret_key']) : '',
+            // Constante no wp-config vence e o campo some da UI — preserva o
+            // valor salvo pra não clobberar com '' (input disabled não submete).
+            'secret_key' => defined('ADSPIRIT_TURNSTILE_SECRET_KEY')
+                ? (string) ((get_option(self::OPTION_KEY, array())['secret_key'] ?? ''))
+                : (isset($post['secret_key']) ? sanitize_text_field((string) $post['secret_key']) : ''),
             'apply_qualifier' => !empty($post['apply_qualifier']) ? '1' : '0',
             'apply_cf7' => !empty($post['apply_cf7']) ? '1' : '0',
         );
@@ -226,7 +234,12 @@ class AdSpirit_Turnstile {
 
         <div class="as-field">
             <label class="as-field-label" for="t-secret-key">Chave secreta (Secret Key)</label>
-            <input type="password" id="t-secret-key" name="secret_key" value="<?php echo esc_attr($s['secret_key']); ?>" class="regular-text" placeholder="0x4AAAAAA...">
+            <?php if (defined('ADSPIRIT_TURNSTILE_SECRET_KEY')) : ?>
+                <input type="password" id="t-secret-key" disabled value="" class="regular-text" placeholder="Definido no wp-config.php">
+                <p class="description">Gerenciado pela constante <code>ADSPIRIT_TURNSTILE_SECRET_KEY</code> — fora do banco, por segurança.</p>
+            <?php else : ?>
+                <input type="password" id="t-secret-key" name="secret_key" value="<?php echo esc_attr($s['secret_key']); ?>" class="regular-text" placeholder="0x4AAAAAA...">
+            <?php endif; ?>
             <p class="description">Do mesmo lugar do painel. Fica só no servidor — nunca aparece no site.</p>
         </div>
 

@@ -158,7 +158,11 @@ class AdSpirit_Ga4 {
 
         <div class="as-field">
             <label class="as-field-label" for="ga4_api_secret">Chave da API (API Secret)</label>
-            <input type="password" id="ga4_api_secret" name="api_secret" value="<?php echo esc_attr($c['api_secret']); ?>" class="regular-text" autocomplete="off">
+            <?php if (defined('ADSPIRIT_GA4_API_SECRET')) : ?>
+                <input type="password" id="ga4_api_secret" disabled value="" class="regular-text" placeholder="Definido no wp-config.php">
+            <?php else : ?>
+                <input type="password" id="ga4_api_secret" name="api_secret" value="<?php echo esc_attr($c['api_secret']); ?>" class="regular-text" autocomplete="off">
+            <?php endif; ?>
             <button type="button" class="button" onclick="var e=document.getElementById('ga4_api_secret');e.type=e.type==='password'?'text':'password';">Mostrar</button>
             <p class="description">Gere em GA4 Admin → Data Streams → Web stream → Measurement Protocol API secrets → Create.</p>
         </div>
@@ -190,7 +194,9 @@ class AdSpirit_Ga4 {
         $patch = array();
         $patch['enabled']        = !empty($post['enabled']) ? '1' : '0';
         $patch['measurement_id'] = sanitize_text_field((string) ($post['measurement_id'] ?? ''));
-        $patch['api_secret']     = sanitize_text_field((string) ($post['api_secret'] ?? ''));
+        if (!defined('ADSPIRIT_GA4_API_SECRET')) {
+            $patch['api_secret'] = sanitize_text_field((string) ($post['api_secret'] ?? ''));
+        }
         $patch['send_lead']      = !empty($post['send_lead']) ? '1' : '0';
         $patch['send_page_view'] = !empty($post['send_page_view']) ? '1' : '0';
         AdSpirit_Settings::update_ga4($patch);

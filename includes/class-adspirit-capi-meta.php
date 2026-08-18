@@ -194,7 +194,12 @@ class AdSpirit_Capi_Meta {
 
         <div class="as-field">
             <label class="as-field-label" for="meta_access_token">Chave de acesso (Access Token)</label>
-            <input type="password" id="meta_access_token" name="access_token" value="<?php echo esc_attr($c['access_token']); ?>" class="regular-text" autocomplete="off">
+            <?php if (defined('ADSPIRIT_CAPI_ACCESS_TOKEN')) : ?>
+                <input type="password" id="meta_access_token" disabled value="" class="regular-text" placeholder="Definido no wp-config.php">
+                <p class="description">Gerenciado pela constante <code>ADSPIRIT_CAPI_ACCESS_TOKEN</code> — fora do banco, por segurança.</p>
+            <?php else : ?>
+                <input type="password" id="meta_access_token" name="access_token" value="<?php echo esc_attr($c['access_token']); ?>" class="regular-text" autocomplete="off">
+            <?php endif; ?>
             <button type="button" class="button" onclick="var e=document.getElementById('meta_access_token');e.type=e.type==='password'?'text':'password';">Mostrar</button>
             <p class="description">Gere em Events Manager → Settings → Conversions API → Generate Access Token.</p>
         </div>
@@ -233,7 +238,9 @@ class AdSpirit_Capi_Meta {
         $patch = array();
         $patch['enabled']         = !empty($post['enabled']) ? '1' : '0';
         $patch['pixel_id']        = preg_replace('/\D/', '', (string) ($post['pixel_id'] ?? ''));
-        $patch['access_token']    = sanitize_text_field((string) ($post['access_token'] ?? ''));
+        if (!defined('ADSPIRIT_CAPI_ACCESS_TOKEN')) {
+            $patch['access_token'] = sanitize_text_field((string) ($post['access_token'] ?? ''));
+        }
         $patch['test_event_code'] = sanitize_text_field((string) ($post['test_event_code'] ?? ''));
         $patch['send_lead']       = !empty($post['send_lead']) ? '1' : '0';
         $patch['send_page_view']  = !empty($post['send_page_view']) ? '1' : '0';

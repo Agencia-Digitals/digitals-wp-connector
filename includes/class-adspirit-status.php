@@ -705,7 +705,12 @@ add_action('adspirit_connector_render_tab_connection', AdSpirit_Safe_Hook::actio
         <tr>
             <th><label for="adspirit_secret">Secret CF7</label></th>
             <td>
-                <input type="password" id="adspirit_secret" name="secret" value="<?php echo esc_attr($s['secret']); ?>" class="regular-text" autocomplete="off">
+                <?php if (defined('ADSPIRIT_CRM_SECRET')) : ?>
+                    <input type="password" id="adspirit_secret" disabled value="" class="regular-text" placeholder="Definido no wp-config.php">
+                    <p class="description">Gerenciado pela constante <code>ADSPIRIT_CRM_SECRET</code> — fora do banco, por segurança.</p>
+                <?php else : ?>
+                    <input type="password" id="adspirit_secret" name="secret" value="<?php echo esc_attr($s['secret']); ?>" class="regular-text" autocomplete="off">
+                <?php endif; ?>
                 <button type="button" class="button" onclick="var e=document.getElementById('adspirit_secret');e.type=e.type==='password'?'text':'password';">Mostrar</button>
                 <p class="description">64 caracteres hex. Cola o valor gerado no CRM. Não fica visível depois — guarde.</p>
             </td>

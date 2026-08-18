@@ -90,9 +90,26 @@ class AdSpirit_Settings {
         );
     }
 
+    /**
+     * v2.30: segredo pode vir de constante no wp-config.php — fica fora do
+     * DB (backup de banco não expõe) e sobrevive a reset de options. A
+     * constante definida VENCE o valor salvo na UI. Os update_* mergeiam a
+     * partir da OPTION crua (não do getter) justamente pra constante nunca
+     * ser persistida no banco.
+     */
+    public static function secret_from_config($constant, $fallback) {
+        if (defined($constant)) {
+            $v = constant($constant);
+            if (is_string($v) && $v !== '') return $v;
+        }
+        return $fallback;
+    }
+
     public static function get_core() {
         $stored = get_option(self::OPTION_CORE, array());
         $merged = wp_parse_args($stored, self::core_defaults());
+        $merged['secret'] = self::secret_from_config('ADSPIRIT_CRM_SECRET', $merged['secret']);
+        $merged['pixel_token'] = self::secret_from_config('ADSPIRIT_PIXEL_TOKEN', $merged['pixel_token']);
         // Defesa: se user colou a URL completa do endpoint (com path
         // /api/webhooks/contact-form-7), strip pra evitar duplicar o path
         // no dispatcher. Salva no DB normalizado pra próxima leitura.
@@ -130,7 +147,7 @@ class AdSpirit_Settings {
     }
 
     public static function update_core(array $patch) {
-        $current = self::get_core();
+        $current = (array) get_option(self::OPTION_CORE, array());
         update_option(self::OPTION_CORE, array_merge($current, $patch), false);
     }
 
@@ -254,10 +271,12 @@ class AdSpirit_Settings {
         );
     }
     public static function get_capi_meta() {
-        return wp_parse_args(get_option(self::OPTION_CAPI_META, array()), self::capi_meta_defaults());
+        $c = wp_parse_args(get_option(self::OPTION_CAPI_META, array()), self::capi_meta_defaults());
+        $c['access_token'] = self::secret_from_config('ADSPIRIT_CAPI_ACCESS_TOKEN', $c['access_token']);
+        return $c;
     }
     public static function update_capi_meta(array $patch) {
-        $current = self::get_capi_meta();
+        $current = (array) get_option(self::OPTION_CAPI_META, array());
         update_option(self::OPTION_CAPI_META, array_merge($current, $patch), false);
     }
 
@@ -274,10 +293,12 @@ class AdSpirit_Settings {
         );
     }
     public static function get_ga4() {
-        return wp_parse_args(get_option(self::OPTION_GA4, array()), self::ga4_defaults());
+        $c = wp_parse_args(get_option(self::OPTION_GA4, array()), self::ga4_defaults());
+        $c['api_secret'] = self::secret_from_config('ADSPIRIT_GA4_API_SECRET', $c['api_secret']);
+        return $c;
     }
     public static function update_ga4(array $patch) {
-        $current = self::get_ga4();
+        $current = (array) get_option(self::OPTION_GA4, array());
         update_option(self::OPTION_GA4, array_merge($current, $patch), false);
     }
 
