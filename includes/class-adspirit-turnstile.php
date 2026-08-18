@@ -196,75 +196,64 @@ class AdSpirit_Turnstile {
     public function render_tab() {
         $s = self::get_settings();
         ?>
-        <h2 class="as-section"><span class="as-kicker-inline">Anti-bot</span>Cloudflare Turnstile</h2>
-        <p class="as-section-help">
-            Captcha invisível da Cloudflare (substituto do reCAPTCHA do Google).
-            <strong>Grátis e ilimitado.</strong> Pega bots sofisticados (headless Chrome / Puppeteer)
-            que o anti-spam tradicional não pega. Usuário humano não vê nada.
-        </p>
+        <h2 class="as-section"><span class="as-kicker-inline">Anti-bot</span>Verificação Cloudflare</h2>
+        <p class="as-section-help">Barreira invisível da Cloudflare pra robôs sofisticados que o anti-spam comum não pega. Grátis, e quem visita o site não vê nada.</p>
 
-        <?php AdSpirit_Menu::card_open('Como configurar (5 min)'); ?>
-        <ol style="margin:0; padding-left:24px; font-size:13.5px;">
-            <li>Crie conta gratuita em <a href="https://dash.cloudflare.com/sign-up" target="_blank" rel="noopener">cloudflare.com</a> (NÃO precisa migrar DNS do site)</li>
-            <li>No dashboard, vá em <strong>Turnstile</strong> → <strong>Add Site</strong></li>
-            <li>Preencha:
-                <ul style="margin:8px 0 8px 16px;">
-                    <li>Site name: o que quiser (ex.: "AdSpirit Forms")</li>
-                    <li>Hostnames: seu domínio (ex.: <code><?php echo esc_html(parse_url(home_url(), PHP_URL_HOST) ?: 'exemplo.com'); ?></code>)</li>
-                    <li>Widget mode: <strong>Invisible</strong></li>
-                </ul>
-            </li>
-            <li>Cole <strong>Site Key</strong> e <strong>Secret Key</strong> nos campos abaixo</li>
-            <li>Marque "Habilitar Turnstile" e Salvar</li>
-        </ol>
-        <?php AdSpirit_Menu::card_close(); ?>
-
-        <?php AdSpirit_Menu::form_open('turnstile'); ?>
-        <?php AdSpirit_Menu::card_open('Configuração'); ?>
-        <table class="form-table" role="presentation">
-            <tr>
-                <th scope="row">Habilitar Turnstile</th>
-                <td>
-                    <label><input type="checkbox" name="enabled" value="1" <?php checked($s['enabled'], '1'); ?>> Ativar verificação Cloudflare Turnstile</label>
-                    <p class="description">Quando desativado, plugin se comporta como antes (sem Turnstile).</p>
-                </td>
-            </tr>
-            <tr>
-                <th scope="row"><label for="t-site-key">Site Key</label></th>
-                <td>
-                    <input type="text" id="t-site-key" name="site_key" value="<?php echo esc_attr($s['site_key']); ?>" class="regular-text" placeholder="0x4AAAAAA...">
-                    <p class="description">Chave pública (aparece no HTML do site). Copiada do dashboard Cloudflare → Turnstile → Settings.</p>
-                </td>
-            </tr>
-            <tr>
-                <th scope="row"><label for="t-secret-key">Secret Key</label></th>
-                <td>
-                    <input type="password" id="t-secret-key" name="secret_key" value="<?php echo esc_attr($s['secret_key']); ?>" class="regular-text" placeholder="0x4AAAAAA...">
-                    <p class="description">Chave privada (NÃO publicada). Usada pra verificar token no servidor.</p>
-                </td>
-            </tr>
-            <tr>
-                <th scope="row">Aplicar em</th>
-                <td>
-                    <label><input type="checkbox" name="apply_qualifier" value="1" <?php checked($s['apply_qualifier'], '1'); ?>> <code>[adspirit_form_qualifier]</code></label><br>
-                    <label><input type="checkbox" name="apply_cf7" value="1" <?php checked($s['apply_cf7'], '1'); ?>> Forms do Contact Form 7</label>
-                    <p class="description">CF7 fica opt-in pra não quebrar forms legacy com lógicas específicas. Qualifier vem ligado por padrão.</p>
-                </td>
-            </tr>
-        </table>
-        <?php AdSpirit_Menu::card_close(); ?>
-        <?php // form_close() já imprime o botão de salvar — não duplicar aqui. ?>
-        <?php AdSpirit_Menu::form_close(); ?>
-
+        <?php // Doutrina: o estado atual vem antes do controle. ?>
         <?php if (self::is_active()) : ?>
-            <?php AdSpirit_Menu::card_open('Status'); ?>
-            <p>✓ Turnstile <strong>ativo</strong>. Site key configurada: <code><?php echo esc_html(substr($s['site_key'], 0, 12) . '…'); ?></code></p>
-            <p>Aplicando em:
-                <?php if (self::applies_to_qualifier()) : ?> <strong>[adspirit_form_qualifier]</strong><?php endif; ?>
+            <?php AdSpirit_Menu::card_open('Situação', 'A verificação está rodando no site', '<span class="as-badge ok">Ativo</span>'); ?>
+            <p>Chave do site configurada: <code><?php echo esc_html(substr($s['site_key'], 0, 12) . '…'); ?></code></p>
+            <p>Protegendo:
+                <?php if (self::applies_to_qualifier()) : ?> <strong>form de avaliação</strong><?php endif; ?>
                 <?php if (self::applies_to_cf7()) : ?> · <strong>Contact Form 7</strong><?php endif; ?>
             </p>
             <?php AdSpirit_Menu::card_close(); ?>
         <?php endif; ?>
+
+        <?php AdSpirit_Menu::form_open('turnstile'); ?>
+        <?php AdSpirit_Menu::card_open('Configuração'); ?>
+
+        <div class="as-toggle">
+            <input type="checkbox" id="t-enabled" name="enabled" value="1" <?php checked($s['enabled'], '1'); ?>>
+            <label class="t" for="t-enabled">Verificação Cloudflare ligada<small>Desligada, o plugin se comporta como antes — nada muda no site.</small></label>
+        </div>
+
+        <div class="as-field">
+            <label class="as-field-label" for="t-site-key">Chave do site (Site Key)</label>
+            <input type="text" id="t-site-key" name="site_key" value="<?php echo esc_attr($s['site_key']); ?>" class="regular-text" placeholder="0x4AAAAAA...">
+            <p class="description">Copie do painel da Cloudflare, em Turnstile → Settings. Essa é a chave pública.</p>
+        </div>
+
+        <div class="as-field">
+            <label class="as-field-label" for="t-secret-key">Chave secreta (Secret Key)</label>
+            <input type="password" id="t-secret-key" name="secret_key" value="<?php echo esc_attr($s['secret_key']); ?>" class="regular-text" placeholder="0x4AAAAAA...">
+            <p class="description">Do mesmo lugar do painel. Fica só no servidor — nunca aparece no site.</p>
+        </div>
+
+        <div class="as-toggle">
+            <input type="checkbox" id="t-apply-qualifier" name="apply_qualifier" value="1" <?php checked($s['apply_qualifier'], '1'); ?>>
+            <label class="t" for="t-apply-qualifier">Proteger o form de avaliação<small>O formulário multi-etapas (<code>[adspirit_form_qualifier]</code>). Vem ligado por padrão.</small></label>
+        </div>
+
+        <div class="as-toggle">
+            <input type="checkbox" id="t-apply-cf7" name="apply_cf7" value="1" <?php checked($s['apply_cf7'], '1'); ?>>
+            <label class="t" for="t-apply-cf7">Proteger os forms do Contact Form 7<small>Opcional, pra não interferir em formulários antigos com regras próprias.</small></label>
+        </div>
+
+        <details class="as-help">
+            <summary>Como obter as chaves (5 min)</summary>
+            <ol>
+                <li>Crie conta gratuita em <a href="https://dash.cloudflare.com/sign-up" target="_blank" rel="noopener">cloudflare.com</a> — não precisa migrar o DNS do site.</li>
+                <li>No painel, vá em <strong>Turnstile</strong> → <strong>Add Site</strong>.</li>
+                <li>Preencha: Site name livre (ex.: "AdSpirit Forms"), Hostname <code><?php echo esc_html(parse_url(home_url(), PHP_URL_HOST) ?: 'exemplo.com'); ?></code> e Widget mode <strong>Invisible</strong>.</li>
+                <li>Cole a chave do site e a chave secreta nos campos acima.</li>
+                <li>Ligue a verificação e salve.</li>
+            </ol>
+        </details>
+
+        <?php AdSpirit_Menu::card_close(); ?>
+        <?php // form_close() já imprime o botão de salvar — não duplicar aqui. ?>
+        <?php AdSpirit_Menu::form_close(); ?>
         <?php
     }
 }

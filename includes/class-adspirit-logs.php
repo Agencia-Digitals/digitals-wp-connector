@@ -42,21 +42,15 @@ class AdSpirit_Logs {
         if (!is_array($as_log)) $as_log = array();
         $crash_log = class_exists('AdSpirit_Crash_Tracker') ? AdSpirit_Crash_Tracker::get_log() : array();
         ?>
-        <h2 class="as-section"><span class="as-kicker-inline">Logs</span>Últimas 100 entradas de cada tipo</h2>
-        <p class="as-section-help">Logs circulares — entradas antigas são descartadas automaticamente. Use os botões pra limpar quando quiser.</p>
-
-        <div style="display:flex; flex-wrap:wrap; gap:8px; margin: 0 0 18px;">
-            <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=adspirit_clear_logs&which=cf7'), 'adspirit_clear_logs_cf7')); ?>" class="button">Limpar log CF7</a>
-            <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=adspirit_clear_logs&which=antispam'), 'adspirit_clear_logs_antispam')); ?>" class="button">Limpar log Anti-spam</a>
-            <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=adspirit_clear_logs&which=crashes'), 'adspirit_clear_logs_crashes')); ?>" class="button button-danger">Limpar log Crashes</a>
-        </div>
+        <h2 class="as-section"><span class="as-kicker-inline">Logs</span>Registros do plugin</h2>
+        <p class="as-section-help">Envios, bloqueios e erros — os 100 mais recentes de cada tipo. Registros antigos saem sozinhos.</p>
 
         <?php
-        $crash_badge = empty($crash_log) ? '<span class="as-badge ok">0 crashes</span>' : '<span class="as-badge danger">' . count($crash_log) . ' crashes</span>';
-        AdSpirit_Menu::card_open('Crashes capturados', 'Erros que o plugin silenciou pra não derrubar o site · 3+ em 5 min ativa Safe Mode automático', $crash_badge);
+        $crash_badge = empty($crash_log) ? '<span class="as-badge ok">0 erros</span>' : '<span class="as-badge danger">' . count($crash_log) . ' erros</span>';
+        AdSpirit_Menu::card_open('Erros capturados', 'Erros que o plugin conteve pra não derrubar o site · 3 ou mais em 5 min ligam o Safe Mode sozinho', $crash_badge);
         ?>
         <?php if (empty($crash_log)): ?>
-            <p style="margin:0; color:var(--as-ink-faint); font-size:13px;">Plugin rodando saudável — nenhum erro capturado.</p>
+            <p class="description">Plugin rodando saudável — nenhum erro capturado.</p>
         <?php else: ?>
             <table class="as-table">
                 <thead>
@@ -79,14 +73,20 @@ class AdSpirit_Logs {
                 </tbody>
             </table>
         <?php endif; ?>
+        <?php if (!empty($crash_log)): ?>
+            <div class="as-actions">
+                <span class="spacer"></span>
+                <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=adspirit_clear_logs&which=crashes'), 'adspirit_clear_logs_crashes')); ?>" class="button-link">Limpar este registro</a>
+            </div>
+        <?php endif; ?>
         <?php AdSpirit_Menu::card_close(); ?>
 
         <?php
         $cf7_badge = '<span class="as-badge muted">' . count($cf7_log) . ' entradas</span>';
-        AdSpirit_Menu::card_open('CF7 → CRM', 'Histórico das submissões de formulário enviadas pro CRM', $cf7_badge);
+        AdSpirit_Menu::card_open('Leads enviados pro AdSpirit', 'Histórico dos envios de formulário', $cf7_badge);
         ?>
         <?php if (empty($cf7_log)): ?>
-            <p style="margin:0; color:var(--as-ink-faint); font-size:13px;">Nenhuma submissão registrada ainda. Quando o primeiro form for submetido, aparece aqui em segundos.</p>
+            <p class="description">Nenhum envio registrado ainda. Quando o primeiro formulário for enviado, aparece aqui em segundos.</p>
         <?php else: ?>
             <table class="as-table">
                 <thead>
@@ -121,14 +121,20 @@ class AdSpirit_Logs {
                 </tbody>
             </table>
         <?php endif; ?>
+        <?php if (!empty($cf7_log)): ?>
+            <div class="as-actions">
+                <span class="spacer"></span>
+                <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=adspirit_clear_logs&which=cf7'), 'adspirit_clear_logs_cf7')); ?>" class="button-link">Limpar este registro</a>
+            </div>
+        <?php endif; ?>
         <?php AdSpirit_Menu::card_close(); ?>
 
         <?php
         $as_badge = '<span class="as-badge muted">' . count($as_log) . ' entradas</span>';
-        AdSpirit_Menu::card_open('Bloqueios anti-spam', 'Submissões rejeitadas por alguma camada do anti-spam embutido', $as_badge);
+        AdSpirit_Menu::card_open('Bloqueios anti-spam', 'Envios rejeitados por alguma camada do anti-spam', $as_badge);
         ?>
         <?php if (empty($as_log)): ?>
-            <p style="margin:0; color:var(--as-ink-faint); font-size:13px;">Nenhum bloqueio registrado ainda.</p>
+            <p class="description">Nenhum bloqueio registrado ainda.</p>
         <?php else: ?>
             <table class="as-table">
                 <thead>
@@ -150,6 +156,12 @@ class AdSpirit_Logs {
                     <?php endforeach; ?>
                 </tbody>
             </table>
+        <?php endif; ?>
+        <?php if (!empty($as_log)): ?>
+            <div class="as-actions">
+                <span class="spacer"></span>
+                <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=adspirit_clear_logs&which=antispam'), 'adspirit_clear_logs_antispam')); ?>" class="button-link">Limpar este registro</a>
+            </div>
         <?php endif; ?>
         <?php AdSpirit_Menu::card_close(); ?>
         <?php

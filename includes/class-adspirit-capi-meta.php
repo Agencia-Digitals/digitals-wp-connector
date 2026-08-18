@@ -168,67 +168,62 @@ class AdSpirit_Capi_Meta {
             $status_badge = '<span class="as-badge ok">Ativo</span>';
         } elseif ($c['enabled'] === '1') {
             $missing = array();
-            if (empty($c['pixel_id'])) $missing[] = 'pixel_id';
-            if (empty($c['access_token'])) $missing[] = 'access_token';
+            if (empty($c['pixel_id'])) $missing[] = 'o Pixel ID';
+            if (empty($c['access_token'])) $missing[] = 'a chave de acesso';
             $status_badge = '<span class="as-badge warn">Incompleto — falta ' . esc_html(implode(' e ', $missing)) . '</span>';
         } else {
             $status_badge = '<span class="as-badge muted">Desligado</span>';
         }
         ?>
-        <h2 class="as-section"><span class="as-kicker-inline">Meta CAPI</span>Conversion API server-side</h2>
-        <p class="as-section-help">
-            Dispara eventos pro Meta direto do servidor — sobrevive a ad-blockers e bate mais conversões. <code>Lead</code> em cada CF7 submit, <code>PageView</code> em cada page load. Quando configurado em paralelo ao pixel client-side, o <code>event_id</code> compartilhado garante que o Meta deduplica automaticamente.
-        </p>
+        <h2 class="as-section"><span class="as-kicker-inline">Meta CAPI</span>Conversões Meta</h2>
+        <p class="as-section-help">Envia leads e visitas pro Facebook/Instagram direto do servidor — funciona mesmo com bloqueador de anúncios.</p>
 
-        <?php AdSpirit_Menu::card_open('Credenciais + eventos', 'Pixel ID e Access Token você gera no Events Manager do Meta', $status_badge); ?>
+        <?php AdSpirit_Menu::card_open('Credenciais e eventos', 'As duas chaves você gera no Events Manager do Meta', $status_badge); ?>
         <?php AdSpirit_Menu::form_open('capi-meta'); ?>
 
-        <table class="form-table">
-            <tr>
-                <th>Status</th>
-                <td>
-                    <label>
-                        <input type="checkbox" name="enabled" value="1" <?php checked($c['enabled'], '1'); ?>>
-                        Ativar Meta CAPI server-side
-                    </label>
-                </td>
-            </tr>
-            <tr>
-                <th><label for="meta_pixel_id">Pixel ID</label></th>
-                <td>
-                    <input type="text" id="meta_pixel_id" name="pixel_id" value="<?php echo esc_attr($c['pixel_id']); ?>" class="regular-text" pattern="[0-9]+">
-                    <p class="description">Encontra no Events Manager → Data Sources → seu pixel. Apenas dígitos.</p>
-                </td>
-            </tr>
-            <tr>
-                <th><label for="meta_access_token">Access Token</label></th>
-                <td>
-                    <input type="password" id="meta_access_token" name="access_token" value="<?php echo esc_attr($c['access_token']); ?>" class="regular-text" autocomplete="off">
-                    <button type="button" class="button" onclick="var e=document.getElementById('meta_access_token');e.type=e.type==='password'?'text':'password';">Mostrar</button>
-                    <p class="description">System user token com permissão <code>ads_management</code>. Events Manager → Settings → Conversions API → Generate Access Token.</p>
-                </td>
-            </tr>
-            <tr>
-                <th><label for="meta_test_event_code">Test event code</label></th>
-                <td>
-                    <input type="text" id="meta_test_event_code" name="test_event_code" value="<?php echo esc_attr($c['test_event_code']); ?>" class="regular-text">
-                    <p class="description">Opcional, pra debug. Eventos com este código aparecem em "Test Events" no Events Manager.</p>
-                </td>
-            </tr>
-            <tr>
-                <th>Eventos</th>
-                <td>
-                    <label>
-                        <input type="checkbox" name="send_lead" value="1" <?php checked($c['send_lead'], '1'); ?>>
-                        Disparar <code>Lead</code> em cada CF7 submit
-                    </label><br>
-                    <label>
-                        <input type="checkbox" name="send_page_view" value="1" <?php checked($c['send_page_view'], '1'); ?>>
-                        Disparar <code>PageView</code> em cada page load (throttle 60s/sessão)
-                    </label>
-                </td>
-            </tr>
-        </table>
+        <div class="as-toggle">
+            <input type="checkbox" id="meta_enabled" name="enabled" value="1" <?php checked($c['enabled'], '1'); ?>>
+            <label class="t" for="meta_enabled">Envio pro Meta ligado<small>Precisa do Pixel ID e da chave de acesso abaixo pra começar a enviar.</small></label>
+        </div>
+
+        <div class="as-field">
+            <label class="as-field-label" for="meta_pixel_id">Pixel ID</label>
+            <input type="text" id="meta_pixel_id" name="pixel_id" value="<?php echo esc_attr($c['pixel_id']); ?>" class="regular-text" pattern="[0-9]+">
+            <p class="description">Só números. Está no Events Manager → Data Sources → seu pixel.</p>
+        </div>
+
+        <div class="as-field">
+            <label class="as-field-label" for="meta_access_token">Chave de acesso (Access Token)</label>
+            <input type="password" id="meta_access_token" name="access_token" value="<?php echo esc_attr($c['access_token']); ?>" class="regular-text" autocomplete="off">
+            <button type="button" class="button" onclick="var e=document.getElementById('meta_access_token');e.type=e.type==='password'?'text':'password';">Mostrar</button>
+            <p class="description">Gere em Events Manager → Settings → Conversions API → Generate Access Token.</p>
+        </div>
+
+        <div class="as-field">
+            <label class="as-field-label" for="meta_test_event_code">Código de teste (opcional)</label>
+            <input type="text" id="meta_test_event_code" name="test_event_code" value="<?php echo esc_attr($c['test_event_code']); ?>" class="regular-text">
+            <p class="description">Com um código aqui, os eventos aparecem em "Test Events" no Events Manager pra você conferir.</p>
+        </div>
+
+        <div class="as-toggle">
+            <input type="checkbox" id="meta_send_lead" name="send_lead" value="1" <?php checked($c['send_lead'], '1'); ?>>
+            <label class="t" for="meta_send_lead">Enviar cada lead<small>Dispara o evento <code>Lead</code> quando um formulário é enviado.</small></label>
+        </div>
+
+        <div class="as-toggle">
+            <input type="checkbox" id="meta_send_page_view" name="send_page_view" value="1" <?php checked($c['send_page_view'], '1'); ?>>
+            <label class="t" for="meta_send_page_view">Enviar cada visita de página<small>Dispara o evento <code>PageView</code>, no máximo 1 por minuto por visitante.</small></label>
+        </div>
+
+        <details class="as-help">
+            <summary>Como funciona junto com o pixel do site</summary>
+            <ul>
+                <li>O envio sai do servidor, então conta conversões mesmo quando o visitante usa bloqueador de anúncios.</li>
+                <li>Se o pixel do site também disparar o mesmo evento, o Meta reconhece e não conta em dobro (mesmo <code>event_id</code>).</li>
+                <li>A chave de acesso precisa ser de um system user com permissão <code>ads_management</code>.</li>
+            </ul>
+        </details>
+
         <?php AdSpirit_Menu::form_close('Salvar Meta CAPI'); ?>
         <?php AdSpirit_Menu::card_close(); ?>
         <?php

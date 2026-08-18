@@ -271,68 +271,8 @@ class AdSpirit_Lgpd_Popup {
         $c = self::get_settings();
         $status = $c['enabled'] === '1' ? '<span class="as-badge ok">Ativo</span>' : '<span class="as-badge muted">Desligado</span>';
         ?>
-        <h2 class="as-section"><span class="as-kicker-inline">Consentimento</span>Banner LGPD informativo</h2>
-        <p class="as-section-help">Banner pequeno injetado no rodapé, blur + sem contorno. Tema claro/escuro e CSS próprio dão a customização; a <strong>tipografia é puxada do site</strong> (o plugin não impõe fonte). Consentimento <strong>implícito</strong>: ao continuar navegando o visitante aceita. Cookie <code><?php echo esc_html(self::COOKIE); ?></code> registra <code>accept_all</code> por 365 dias.</p>
-
-        <?php AdSpirit_Menu::card_open('Configuração', 'Liga/desliga, textos, tema, posição e CSS próprio', $status); ?>
-        <?php AdSpirit_Menu::form_open('lgpd'); ?>
-        <table class="form-table">
-            <tr>
-                <th>Banner</th>
-                <td><label><input type="checkbox" name="enabled" value="1" <?php checked($c['enabled'], '1'); ?>> <strong>Ativo</strong> — mostrar pra visitantes sem consentimento</label>
-                    <p class="description">Desmarque pra <strong>desativar</strong> o banner no site (sem desinstalar o plugin).</p></td>
-            </tr>
-            <tr>
-                <th><label for="lgpd_title">Título</label></th>
-                <td><input type="text" id="lgpd_title" name="title" value="<?php echo esc_attr($c['title']); ?>" class="regular-text"></td>
-            </tr>
-            <tr>
-                <th><label for="lgpd_message">Mensagem</label></th>
-                <td>
-                    <textarea id="lgpd_message" name="message" rows="4" class="large-text"><?php echo esc_textarea($c['message']); ?></textarea>
-                    <p class="description">Mantenha curto — 2 frases máx.</p>
-                </td>
-            </tr>
-            <tr>
-                <th><label for="lgpd_accept">Texto do botão</label></th>
-                <td><input type="text" id="lgpd_accept" name="accept_label" value="<?php echo esc_attr($c['accept_label']); ?>" class="regular-text">
-                    <p class="description">Botão único de reconhecimento (ex.: "Entendi" / "Continuar").</p></td>
-            </tr>
-            <tr>
-                <th><label for="lgpd_theme">Tema</label></th>
-                <td>
-                    <select id="lgpd_theme" name="theme">
-                        <option value="dark" <?php selected($c['theme'] ?? 'dark', 'dark'); ?>>Escuro (fundo preto)</option>
-                        <option value="light" <?php selected($c['theme'] ?? 'dark', 'light'); ?>>Claro (fundo branco)</option>
-                    </select>
-                    <p class="description">Resolve a maioria dos casos conforme o fundo do site. Pra ajustes finos, use o CSS abaixo.</p>
-                </td>
-            </tr>
-            <tr>
-                <th><label for="lgpd_position">Posição</label></th>
-                <td>
-                    <select id="lgpd_position" name="position">
-                        <option value="bottom-right" <?php selected($c['position'], 'bottom-right'); ?>>Canto inferior direito</option>
-                        <option value="bottom-center" <?php selected($c['position'], 'bottom-center'); ?>>Centro inferior</option>
-                        <option value="bottom-banner" <?php selected($c['position'], 'bottom-banner'); ?>>Barra inferior (banner full-width)</option>
-                    </select>
-                </td>
-            </tr>
-            <tr>
-                <th><label for="lgpd_privacy">URL da política</label></th>
-                <td><input type="url" id="lgpd_privacy" name="privacy_url" value="<?php echo esc_attr($c['privacy_url']); ?>" class="regular-text" placeholder="https://seusite.com/politica-privacidade"></td>
-            </tr>
-            <tr>
-                <th><label for="lgpd_custom_css">CSS personalizado</label></th>
-                <td>
-                    <textarea id="lgpd_custom_css" name="custom_css" rows="6" class="large-text code" placeholder="#adspirit-lgpd { /* ... */ }
-#adspirit-lgpd .adspirit-lgpd-btn { /* ... */ }"><?php echo esc_textarea($c['custom_css'] ?? ''); ?></textarea>
-                    <p class="description">Injetado por último (sobrescreve tudo). Seletor raiz: <code>#adspirit-lgpd</code>. Partes: <code>.adspirit-lgpd-kicker</code>, <code>.adspirit-lgpd-msg</code>, <code>.adspirit-lgpd-link</code>, <code>.adspirit-lgpd-btn</code>. Vars de tema: <code>--lgpd-bg</code>, <code>--lgpd-fg</code>, <code>--lgpd-btn-bg</code>.</p>
-                </td>
-            </tr>
-        </table>
-        <?php AdSpirit_Menu::form_close('Salvar consentimento'); ?>
-        <?php AdSpirit_Menu::card_close(); ?>
+        <h2 class="as-section"><span class="as-kicker-inline">Consentimento</span>Aviso de cookies</h2>
+        <p class="as-section-help">Aviso pequeno mostrado no rodapé do site. Quem continua navegando (ou clica no botão) aceita — e o aviso não volta por 1 ano.</p>
 
         <?php
         $is_light = ($c['theme'] ?? 'dark') === 'light';
@@ -342,7 +282,8 @@ class AdSpirit_Lgpd_Popup {
         $pv_faint = $is_light ? 'rgba(20,24,31,0.50)' : 'rgba(242,242,242,0.48)';
         $pv_btnbg = $is_light ? '#14181F' : 'rgba(255,255,255,0.15)';
         $pv_outer = $is_light ? '#E9EDF2' : 'linear-gradient(120deg,#1a1f29,#2b2233)';
-        AdSpirit_Menu::card_open('Preview ao vivo', 'Reflete o tema escolhido (salve pra atualizar). A fonte real é a do site.');
+        // Doutrina: o estado (como o aviso está hoje) vem antes do controle.
+        AdSpirit_Menu::card_open('Como está no site', 'Reflete o que foi salvo. A fonte real é a do site.', $status);
         ?>
         <div style="background:<?php echo $pv_outer; ?>; padding:34px; border-radius:8px;">
             <div style="background:<?php echo $pv_bg; ?>; color:<?php echo $pv_fg; ?>; border:none; border-radius:14px; padding:20px 22px; max-width:380px; box-shadow:0 6px 26px rgba(0,0,0,0.18); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; font-size:13px; line-height:1.6;">
@@ -356,6 +297,75 @@ class AdSpirit_Lgpd_Popup {
                 </div>
             </div>
         </div>
+        <?php AdSpirit_Menu::card_close(); ?>
+
+        <?php AdSpirit_Menu::card_open('Configuração', 'Textos, tema e posição do aviso'); ?>
+        <?php AdSpirit_Menu::form_open('lgpd'); ?>
+
+        <div class="as-toggle">
+            <input type="checkbox" id="lgpd_enabled" name="enabled" value="1" <?php checked($c['enabled'], '1'); ?>>
+            <label class="t" for="lgpd_enabled">Aviso de cookies ligado<small>Aparece só pra quem ainda não aceitou. Desmarque pra tirar do site sem desinstalar nada.</small></label>
+        </div>
+
+        <div class="as-field">
+            <label class="as-field-label" for="lgpd_title">Título</label>
+            <input type="text" id="lgpd_title" name="title" value="<?php echo esc_attr($c['title']); ?>" class="regular-text">
+        </div>
+
+        <div class="as-field">
+            <label class="as-field-label" for="lgpd_message">Mensagem</label>
+            <textarea id="lgpd_message" name="message" rows="4" class="large-text"><?php echo esc_textarea($c['message']); ?></textarea>
+            <p class="description">Mantenha curto — 2 frases no máximo.</p>
+        </div>
+
+        <div class="as-field">
+            <label class="as-field-label" for="lgpd_accept">Texto do botão</label>
+            <input type="text" id="lgpd_accept" name="accept_label" value="<?php echo esc_attr($c['accept_label']); ?>" class="regular-text">
+            <p class="description">Botão único de reconhecimento (ex.: "Entendi" / "Continuar").</p>
+        </div>
+
+        <div class="as-field">
+            <label class="as-field-label" for="lgpd_theme">Tema</label>
+            <select id="lgpd_theme" name="theme">
+                <option value="dark" <?php selected($c['theme'] ?? 'dark', 'dark'); ?>>Escuro (fundo preto)</option>
+                <option value="light" <?php selected($c['theme'] ?? 'dark', 'light'); ?>>Claro (fundo branco)</option>
+            </select>
+            <p class="description">Escolha conforme o fundo do site. Pra ajuste fino, use o CSS avançado abaixo.</p>
+        </div>
+
+        <div class="as-field">
+            <label class="as-field-label" for="lgpd_position">Posição</label>
+            <select id="lgpd_position" name="position">
+                <option value="bottom-right" <?php selected($c['position'], 'bottom-right'); ?>>Canto inferior direito</option>
+                <option value="bottom-center" <?php selected($c['position'], 'bottom-center'); ?>>Centro inferior</option>
+                <option value="bottom-banner" <?php selected($c['position'], 'bottom-banner'); ?>>Barra inferior (largura toda)</option>
+            </select>
+        </div>
+
+        <div class="as-field">
+            <label class="as-field-label" for="lgpd_privacy">Link da política de privacidade</label>
+            <input type="url" id="lgpd_privacy" name="privacy_url" value="<?php echo esc_attr($c['privacy_url']); ?>" class="regular-text" placeholder="https://seusite.com/politica-privacidade">
+            <p class="description">Opcional. Com um link aqui, o aviso mostra "Política de privacidade".</p>
+        </div>
+
+        <div class="as-field">
+            <label class="as-field-label" for="lgpd_custom_css">CSS avançado (opcional)</label>
+            <textarea id="lgpd_custom_css" name="custom_css" rows="6" class="large-text code" placeholder="#adspirit-lgpd { /* ... */ }
+#adspirit-lgpd .adspirit-lgpd-btn { /* ... */ }"><?php echo esc_textarea($c['custom_css'] ?? ''); ?></textarea>
+            <p class="description">Só se precisar de ajuste fino visual — o aviso já funciona sem nada aqui.</p>
+        </div>
+
+        <details class="as-help">
+            <summary>Como o consentimento funciona + seletores do CSS</summary>
+            <ul>
+                <li>Consentimento implícito: continuar navegando (rolar ou clicar fora do aviso) conta como aceite.</li>
+                <li>O aceite fica no cookie <code><?php echo esc_html(self::COOKIE); ?></code> como <code>accept_all</code> por 365 dias — o aviso não volta.</li>
+                <li>A tipografia é herdada do site; o plugin não impõe fonte.</li>
+                <li>O CSS avançado é injetado por último (sobrescreve tudo). Seletor raiz: <code>#adspirit-lgpd</code>; partes: <code>.adspirit-lgpd-kicker</code>, <code>.adspirit-lgpd-msg</code>, <code>.adspirit-lgpd-link</code>, <code>.adspirit-lgpd-btn</code>; vars de tema: <code>--lgpd-bg</code>, <code>--lgpd-fg</code>, <code>--lgpd-btn-bg</code>.</li>
+            </ul>
+        </details>
+
+        <?php AdSpirit_Menu::form_close('Salvar consentimento'); ?>
         <?php AdSpirit_Menu::card_close(); ?>
         <?php
     }
