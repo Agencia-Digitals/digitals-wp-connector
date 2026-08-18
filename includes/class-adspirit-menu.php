@@ -109,9 +109,10 @@ class AdSpirit_Menu {
             'overview'     => array('label' => 'Visão geral',           'desc' => 'Status da conexão, checklist e os números dos últimos dias.'),
             'setup'        => array('label' => 'Primeiros passos',      'desc' => 'Checklist guiado pra deixar tudo configurado.'),
             'submissions'  => array('label' => 'Leads enviados',        'desc' => 'Todo lead capturado no site, com status de entrega ao AdSpirit, quarentena de spam e reenvio.'),
-            'qualifier'    => array('label' => 'Form de avaliação',     'desc' => 'O formulário multi-etapas que qualifica o lead na hora.'),
-            'builder'      => array('label' => 'Criar formulário',      'desc' => 'Monte formulários simples sem código, com finalidade comercial ou nutrição.'),
-            'forms'        => array('label' => 'Mapear campos',         'desc' => 'Liga os campos dos seus formulários aos campos do AdSpirit.'),
+            'formularios'  => array('label' => 'Formulários',           'desc' => 'Todos os formulários do site num lugar só — crie, edite, visualize e configure cada um.'),
+            'qualifier'    => array('label' => 'Form de avaliação',     'desc' => 'Configurações deste formulário: perguntas, qualificação e importação de roteiro.'),
+            'builder'      => array('label' => 'Editar formulário',     'desc' => 'Campos, finalidade e regras deste formulário.'),
+            'forms'        => array('label' => 'Mapear campos',         'desc' => 'Como cada campo deste formulário chega no AdSpirit.'),
             'cf7-scope'    => array('label' => 'Contact Form 7',        'desc' => 'Escolha quais formulários do CF7 enviam leads.'),
             'antispam'     => array('label' => 'Anti-spam',             'desc' => 'Bloqueio automático de bots; o que for barrado fica em quarentena revisável.'),
             'turnstile'    => array('label' => 'Verificação Cloudflare','desc' => 'Camada anti-bot invisível (opcional).'),
@@ -142,13 +143,28 @@ class AdSpirit_Menu {
         // builder e cf7-scope, que caíam no "Mais", ganham casa; Testes A/B
         // e Aviso de cookies moram em "Medir campanhas" (são de medição/
         // consentimento, não de integração/captura).
+        // Reestruturação 08-18 (Pedro): navegação pelo USO —
+        // Início (ver como está) · Receber leads (formulários, form-first)
+        // · Tracking (medição + conversões com suas configs) · Config.
+        // avançadas (integrações, anti-spam, sistema). As telas de edição
+        // (qualifier/builder/mapear) saem da nav: são DETALHE de um form,
+        // alcançadas pelo hub Formulários — a lógica é escolher o form e
+        // configurar DENTRO dele.
         return apply_filters('adspirit_connector_tab_groups', array(
-            'inicio'      => array('label' => 'Início',          'tabs' => array('overview', 'setup')),
-            'leads'       => array('label' => 'Receber leads',   'tabs' => array('submissions', 'qualifier', 'builder', 'forms', 'cf7-scope', 'antispam', 'turnstile')),
-            'medir'       => array('label' => 'Medir campanhas', 'tabs' => array('capi-meta', 'ga4', 'behavioral', 'clarity', 'cross-domain', 'ab-tests', 'lgpd')),
-            'integracoes' => array('label' => 'Integrações',     'tabs' => array('webhook-out', 'customerio', 'mailchimp')),
-            'sistema'     => array('label' => 'Sistema',         'tabs' => array('connection', 'logs')),
+            'inicio'   => array('label' => 'Início',                  'tabs' => array('overview', 'setup', 'connection')),
+            'leads'    => array('label' => 'Receber leads',           'tabs' => array('formularios', 'submissions', 'ab-tests')),
+            'tracking' => array('label' => 'Tracking',                'tabs' => array('capi-meta', 'ga4', 'behavioral', 'clarity', 'cross-domain')),
+            'avancado' => array('label' => 'Configurações avançadas', 'tabs' => array('cf7-scope', 'antispam', 'turnstile', 'webhook-out', 'customerio', 'mailchimp', 'lgpd', 'logs')),
         ));
+    }
+
+    /**
+     * Tabs que existem mas NÃO aparecem na navegação — são telas de
+     * detalhe de um formulário (a porta é o hub Formulários). Deep link
+     * continua funcionando; só a nav e o fallback "Mais" as escondem.
+     */
+    public static function hidden_tabs() {
+        return apply_filters('adspirit_connector_hidden_tabs', array('qualifier', 'builder', 'forms'));
     }
 
     /**
@@ -179,11 +195,10 @@ class AdSpirit_Menu {
             $auth_err = (bool) get_option('adspirit_connector_crm_auth_error');
 
             return array(
-                'inicio'      => array('state' => $connected ? 'ok' : 'warn', 'hint' => $connected ? 'Conectado ao AdSpirit' : 'Falta conectar ao AdSpirit'),
-                'leads'       => array('state' => !$connected ? 'off' : ($unsent > 0 ? 'warn' : 'ok'), 'hint' => $unsent > 0 ? $unsent . ' lead(s) aguardando entrega' : 'Leads fluindo normalmente'),
-                'medir'       => array('state' => $measuring ? 'ok' : 'off', 'hint' => $measuring ? 'Medição ativa' : 'Nenhuma medição configurada'),
-                'integracoes' => array('state' => $integrating ? 'ok' : 'off', 'hint' => $integrating ? 'Integrações ativas' : 'Nenhuma integração extra'),
-                'sistema'     => array('state' => ($safe || $auth_err) ? 'warn' : 'ok', 'hint' => $safe ? 'Modo de segurança ativo' : ($auth_err ? 'Chave rejeitada pelo AdSpirit' : 'Sistema saudável')),
+                'inicio'   => array('state' => $connected ? 'ok' : 'warn', 'hint' => $connected ? 'Conectado ao AdSpirit' : 'Falta conectar ao AdSpirit'),
+                'leads'    => array('state' => !$connected ? 'off' : ($unsent > 0 ? 'warn' : 'ok'), 'hint' => $unsent > 0 ? $unsent . ' lead(s) aguardando entrega' : 'Leads fluindo normalmente'),
+                'tracking' => array('state' => $measuring ? 'ok' : 'off', 'hint' => $measuring ? 'Medição ativa' : 'Nenhuma medição configurada'),
+                'avancado' => array('state' => ($safe || $auth_err) ? 'warn' : ($integrating ? 'ok' : 'off'), 'hint' => $safe ? 'Modo de segurança ativo' : ($auth_err ? 'Chave rejeitada pelo AdSpirit' : ($integrating ? 'Integrações ativas' : 'Tudo quieto'))),
             );
         }, array(), 'menu_group_health');
     }
@@ -205,9 +220,10 @@ class AdSpirit_Menu {
             }
             if ($sub) $out[$gkey] = array('label' => $g['label'], 'tabs' => $sub);
         }
+        $hidden = self::hidden_tabs();
         $orphans = array();
         foreach ($tabs as $slug => $label) {
-            if (empty($seen[$slug])) $orphans[$slug] = $label;
+            if (empty($seen[$slug]) && !in_array($slug, $hidden, true)) $orphans[$slug] = $label;
         }
         if ($orphans) $out['mais'] = array('label' => 'Mais', 'tabs' => $orphans);
         return $out;
@@ -266,8 +282,11 @@ class AdSpirit_Menu {
             3 // logo abaixo do Painel (Dashboard=2), acima de Posts(5)
         );
 
-        // Submenus = um por tab pra deep linking
+        // Submenus = um por tab pra deep linking (telas de detalhe de form
+        // ficam fora — a porta delas é o hub Formulários)
+        $hidden = self::hidden_tabs();
         foreach (self::tabs() as $slug => $label) {
+            if (in_array($slug, $hidden, true)) continue;
             add_submenu_page(
                 self::PAGE_SLUG,
                 $label,
