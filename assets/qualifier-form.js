@@ -169,6 +169,49 @@
   // — aqui só exigimos um array não-vazio pra nunca renderizar tela em branco.
   var STEPS = (CFG.steps && CFG.steps.length) ? CFG.steps : DEFAULT_STEPS;
 
+  // --- CONDICIONAL (modelo Gravity: rules + all/any) ---
+  // step.showIf = { match: 'all'|'any', rules: [{field, op: is|not|contains, value}] }
+  // Regra avaliada contra as respostas JÁ dadas. Etapa sem showIf é sempre
+  // visível — roteiro sem condicional se comporta EXATAMENTE como antes.
+  function ruleOk(rule) {
+    var got = String((state.responses[rule.field] != null ? state.responses[rule.field] : '')).trim().toLowerCase();
+    var want = String(rule.value == null ? '' : rule.value).trim().toLowerCase();
+    if (rule.op === 'not') return got !== want;
+    if (rule.op === 'contains') return got.indexOf(want) !== -1;
+    return got === want; // 'is' (default)
+  }
+  function stepVisible(i) {
+    var st = STEPS[i];
+    if (!st) return false;
+    if (st.isSuccess || st.isIntro) return true;
+    var cond = st.showIf;
+    if (!cond || !cond.rules || !cond.rules.length) return true;
+    try {
+      var hits = cond.rules.filter(ruleOk).length;
+      return cond.match === 'any' ? hits > 0 : hits === cond.rules.length;
+    } catch (e) { return true; } // condicional quebrada nunca esconde pergunta
+  }
+  function nextVisibleIndex(from) {
+    for (var i = from + 1; i < STEPS.length; i++) { if (stepVisible(i)) return i; }
+    return STEPS.length - 1; // success é sempre o teto
+  }
+  function prevVisibleIndex(from) {
+    for (var i = from - 1; i >= 0; i--) { if (stepVisible(i)) return i; }
+    return 0;
+  }
+  // Chaves de resposta pertencentes às etapas visíveis AGORA — resposta de
+  // etapa escondida por condicional não viaja no submit (padrão Gravity).
+  function visibleResponseKeys() {
+    var keys = {};
+    for (var i = 0; i < STEPS.length; i++) {
+      if (!stepVisible(i)) continue;
+      var st = STEPS[i];
+      if (st.fieldKey) keys[st.fieldKey] = true;
+      (st.fields || []).forEach(function (f) { if (f.key) keys[f.key] = true; });
+    }
+    return keys;
+  }
+
   // --- STATE ---
   var state = {
     currentStep: 0,
@@ -321,7 +364,7 @@
       else f.removeAttribute('hidden');
       var backBtn = f.querySelector('[data-action="back"]');
       if (backBtn) {
-        if (state.currentStep <= 1) backBtn.setAttribute('disabled', 'disabled');
+        if (prevVisibleIndex(state.currentStep) <= 0) backBtn.setAttribute('disabled', 'disabled');
         else backBtn.removeAttribute('disabled');
       }
     }
@@ -362,6 +405,11 @@
   }
 
   function render(direction) {
+    // Etapa atual escondida por condicional (retomada com respostas novas,
+    // roteiro editado): pula pra próxima visível antes de pintar.
+    if (!stepVisible(state.currentStep)) {
+      state.currentStep = nextVisibleIndex(state.currentStep - 1);
+    }
     var step = STEPS[state.currentStep];
     saveState(); // grava a etapa atual a cada navegação (retomada)
 
@@ -490,12 +538,12 @@
         ? '<span class="adspirit-qf-kbd-hint"><span class="adspirit-qf-kbd">Enter</span> avança · <span class="adspirit-qf-kbd">Shift+Enter</span> pula linha</span>'
         : '<span class="adspirit-qf-kbd-hint">Pressione <span class="adspirit-qf-kbd">Enter</span> pra avançar</span>') +
         '<div class="adspirit-qf-nav-actions">' +
-          '<button class="adspirit-qf-btn adspirit-qf-btn-back" data-action="back"' + (state.currentStep <= 1 ? ' disabled' : '') + '>' +
+          '<button class="adspirit-qf-btn adspirit-qf-btn-back" data-action="back"' + (prevVisibleIndex(state.currentStep) <= 0 ? ' disabled' : '') + '>' +
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>' +
             '<span>Voltar</span>' +
           '</button>' +
           '<button class="adspirit-qf-btn" data-action="next">' +
-            '<span>' + (state.currentStep === STEPS.length - 2 ? 'Enviar para análise' : 'Continuar') + '</span>' +
+            '<span>' + (nextVisibleIndex(state.currentStep) >= STEPS.length - 1 ? 'Enviar para análise' : 'Continuar') + '</span>' +
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>' +
           '</button>' +
         '</div>' +
@@ -622,23 +670,21 @@
     var curStep = STEPS[state.currentStep];
     if (curStep && curStep.capturePartial) submitPartialToServer();
 
-    // Se está no penúltimo step (último com pergunta), submete
-    var isLastQuestion = state.currentStep === STEPS.length - 2;
-    if (isLastQuestion) {
+    // Última pergunta VISÍVEL = o próximo índice visível já é o success.
+    var nxt = nextVisibleIndex(state.currentStep);
+    if (nxt >= STEPS.length - 1) {
       submitToServer();
       return;
     }
-    if (state.currentStep < STEPS.length - 1) {
-      state.currentStep++;
-      render('next');
-    }
+    state.currentStep = nxt;
+    render('next');
   }
   function back() {
     if (submitting || animating) return;
-    if (state.currentStep > 0) {
-      state.currentStep--;
-      render('back');
-    }
+    var prv = prevVisibleIndex(state.currentStep);
+    if (prv <= 0) return; // intro tem CTA próprio — Voltar nunca regressa a ela
+    state.currentStep = prv;
+    render('back');
   }
 
   // --- SUBMIT ---
@@ -757,7 +803,9 @@
         fd.append('_adspirit_partial', '1');
         appendAntibotMeta(fd);
         appendTelemetry(fd); // P0-1: atribuição + telemetria também no parcial
+        var vk1 = visibleResponseKeys();
         Object.keys(state.responses).forEach(function (k) {
+          if (!vk1[k]) return; // etapa escondida por condicional não viaja
           fd.append('fields[' + k + ']', state.responses[k] || '');
         });
         return fetch(CFG.ajax_url, {
@@ -790,7 +838,9 @@
         formData.append('submission_id', qfSubmissionId());
         appendAntibotMeta(formData);
         appendTelemetry(formData); // P0-1: atribuição + telemetria no submit final
+        var vk2 = visibleResponseKeys();
         Object.keys(state.responses).forEach(function (k) {
+          if (!vk2[k]) return;
           formData.append('fields[' + k + ']', state.responses[k] || '');
         });
         return fetch(CFG.ajax_url, { method: 'POST', body: formData, credentials: 'same-origin', signal: controller.signal });

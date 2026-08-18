@@ -128,6 +128,37 @@ class AdSpirit_Form_Qualifier {
      *
      * @return array{ok:bool, steps?:array, error?:string}
      */
+    /**
+     * v2.30 — condicional por etapa (modelo Gravity: rules + all/any).
+     * showIf = { match: 'all'|'any', rules: [{field, op: is|not|contains, value}] }
+     * Avaliado no JS contra respostas anteriores; etapa cuja condição não
+     * bate é PULADA e a resposta dela não viaja no submit. Etapa sem showIf
+     * é sempre visível — roteiro antigo se comporta exatamente como antes.
+     * Retorna array limpo ou null (sem condicional válida).
+     */
+    private static function sanitize_show_if($step) {
+        if (!isset($step['showIf']) || !is_array($step['showIf'])) return null;
+        $cond = $step['showIf'];
+        $rules_in = isset($cond['rules']) && is_array($cond['rules']) ? $cond['rules'] : array();
+        $rules = array();
+        foreach ($rules_in as $r) {
+            if (!is_array($r)) continue;
+            $field = self::sanitize_key_name(isset($r['field']) ? $r['field'] : '');
+            if ($field === '') continue;
+            $op = isset($r['op']) && in_array($r['op'], array('is', 'not', 'contains'), true) ? $r['op'] : 'is';
+            $rules[] = array(
+                'field' => $field,
+                'op'    => $op,
+                'value' => sanitize_text_field((string) (isset($r['value']) ? $r['value'] : '')),
+            );
+        }
+        if (empty($rules)) return null;
+        return array(
+            'match' => (isset($cond['match']) && $cond['match'] === 'any') ? 'any' : 'all',
+            'rules' => $rules,
+        );
+    }
+
     public static function sanitize_steps($raw) {
         if (!is_array($raw) || empty($raw)) {
             return array('ok' => false, 'error' => 'O JSON precisa ser uma lista de etapas não-vazia.');
@@ -205,6 +236,8 @@ class AdSpirit_Form_Qualifier {
                 $clean['canonical'] = self::sanitize_key_name(isset($step['canonical']) ? $step['canonical'] : $field_key);
                 $canonicals[] = $clean['canonical'];
                 $clean['choices'] = $choices;
+                $show_if = self::sanitize_show_if($step);
+                if ($show_if !== null) $clean['showIf'] = $show_if;
                 $out[] = $clean;
                 $questions++;
                 continue;
@@ -236,6 +269,8 @@ class AdSpirit_Form_Qualifier {
                 return array('ok' => false, 'error' => sprintf('Etapa %d não tem nem <code>choices</code> nem <code>fields</code> com <code>key</code>.', $i + 1));
             }
             $clean['fields'] = $fields_out;
+            $show_if = self::sanitize_show_if($step);
+            if ($show_if !== null) $clean['showIf'] = $show_if;
             // requireOneOf: "pelo menos um destes campos" — o JS já valida
             // (validateCurrent); sem preservar aqui o import perdia a regra.
             // Só aceita chaves de campos DESTA etapa (é onde o JS foca o erro).
@@ -633,6 +668,7 @@ class AdSpirit_Form_Qualifier {
                 <li><strong><code>canonical</code></strong> é o nome com que a resposta chega no CRM: <code>your-name</code>, <code>your-email</code>, <code>Telefone</code>, <code>empresa</code>, <code>cargo</code>, <code>revenue</code>, <code>Investimento</code>, <code>urgencia</code>, <code>pain</code>. Dois campos com o mesmo <code>canonical</code> chegam juntos (é assim que Nome + Sobrenome viram um nome só).</li>
                 <li><strong><code>"capturePartial": true</code></strong> na etapa de contato: ao passar dela, o lead já é gravado no CRM mesmo se a pessoa abandonar depois.</li>
                 <li><strong><code>"optional": true</code></strong> na etapa deixa a resposta opcional.</li>
+                <li><strong><code>"showIf"</code></strong> mostra a etapa só quando respostas anteriores batem: <code>{"match": "all", "rules": [{"field": "porte", "op": "is", "value": "..."}]}</code>. Operadores: <code>is</code>, <code>not</code>, <code>contains</code>; <code>match</code> aceita <code>all</code> ou <code>any</code>. Etapa pulada não envia a resposta. Sem <code>showIf</code>, a etapa aparece sempre.</li>
             </ul>
         </details>
         <?php AdSpirit_Menu::card_close(); ?>
