@@ -409,6 +409,10 @@ class AdSpirit_Form {
         if (class_exists('AdSpirit_Lead_Store')) {
             $result = AdSpirit_Lead_Store::dispatch_to_crm($submission_id, $payload, 8);
             AdSpirit_Lead_Store::mark_crm_attempt($submission_id, $result);
+            // v2.30: lembra o visitante (cookie cifrado) pra personalização.
+            if (class_exists('AdSpirit_Lead_Identity') && !empty($payload['your-email'])) {
+                AdSpirit_Lead_Identity::remember((string) $payload['your-email']);
+            }
             if ((int) $result['code'] === 0) {
                 wp_send_json(array('ok' => false, 'error' => (string) $result['error']));
             }

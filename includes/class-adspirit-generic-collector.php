@@ -111,6 +111,9 @@ class AdSpirit_Generic_Collector {
             AdSpirit_Lead_Store::record_pending($submission_id, $payload, 'generic', (string) ($data['form_hint'] ?? ''));
             $result = AdSpirit_Lead_Store::dispatch_to_crm($submission_id, $payload, 10);
             AdSpirit_Lead_Store::mark_crm_attempt($submission_id, $result);
+            if (class_exists('AdSpirit_Lead_Identity') && !empty($payload['your-email'])) {
+                AdSpirit_Lead_Identity::remember((string) $payload['your-email']);
+            }
         }
         wp_send_json_success(null, 200);
     }

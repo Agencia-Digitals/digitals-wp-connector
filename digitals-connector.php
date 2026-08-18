@@ -102,6 +102,7 @@ adspirit_connector_safe_require('includes/class-adspirit-setup-wizard.php');
 // v2.10 cloudflare turnstile (anti-bot invisível)
 adspirit_connector_safe_require('includes/class-adspirit-turnstile.php');
 adspirit_connector_safe_require('includes/class-adspirit-generic-collector.php');
+adspirit_connector_safe_require('includes/class-adspirit-lead-identity.php');
 // v2.28 widget de leads no dashboard do WP (presença diária + deep-link CRM)
 adspirit_connector_safe_require('includes/class-adspirit-dashboard-widget.php');
 // v2.29 eventos automáticos nomeados (tel/email/whatsapp/download → dataLayer)
@@ -168,6 +169,7 @@ function adspirit_connector_init() {
     // v2.10 cloudflare turnstile
     if (class_exists('AdSpirit_Turnstile')) AdSpirit_Turnstile::instance();
     if (class_exists('AdSpirit_Generic_Collector')) AdSpirit_Generic_Collector::instance();
+    if (class_exists('AdSpirit_Lead_Identity')) AdSpirit_Lead_Identity::instance();
     // v2.28 widget de leads no dashboard
     if (class_exists('AdSpirit_Dashboard_Widget')) AdSpirit_Dashboard_Widget::instance();
     // v2.29 eventos automáticos nomeados

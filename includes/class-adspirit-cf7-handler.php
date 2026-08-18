@@ -193,6 +193,10 @@ class AdSpirit_Cf7_Handler {
         if (class_exists('AdSpirit_Lead_Store')) {
             $result = AdSpirit_Lead_Store::dispatch_to_crm($submission_id, $data, 5);
             $status = AdSpirit_Lead_Store::mark_crm_attempt($submission_id, $result);
+            // v2.30: lembra o visitante (cookie cifrado) pra personalização.
+            if (class_exists('AdSpirit_Lead_Identity') && !empty($data['your-email'])) {
+                AdSpirit_Lead_Identity::remember((string) $data['your-email']);
+            }
             if (!empty($result['ok'])) {
                 self::log('sent', (int) $result['code'], null, array(
                     'form_id' => $form_id,
