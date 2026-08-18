@@ -336,6 +336,26 @@ class AdSpirit_Anti_Spam {
         // Invalida o form. CF7 mostra mensagem genérica de erro.
         $result->invalidate('honeypot-or-spam', __('Submissão rejeitada.', 'adspirit-connector'));
         $this->log_block($reason_code, $reason_text);
+
+        // Connector 3.0 — quarentena: bloqueio nunca descarta em silêncio.
+        // Vai pra aba Submissões com status 'spam' + motivo; falso positivo
+        // se resgata com Reenviar. Fail-soft e com anti-flood no Lead Store.
+        if (class_exists('AdSpirit_Lead_Store')) {
+            $payload = array();
+            foreach ($_POST as $k => $v) {
+                $key = (string) $k;
+                if ($key === 'action' || strpos($key, '_wp') === 0 || strpos($key, '_adspirit') === 0) continue;
+                if (!is_scalar($v)) continue;
+                $payload[$key] = sanitize_text_field((string) $v);
+            }
+            $form_id = '';
+            if (class_exists('WPCF7_Submission')) {
+                $sub = WPCF7_Submission::get_instance();
+                $cf = $sub ? $sub->get_contact_form() : null;
+                if ($cf) $form_id = (string) $cf->id();
+            }
+            AdSpirit_Lead_Store::record_spam($payload, 'cf7', $form_id, $reason_code . ': ' . $reason_text);
+        }
     }
 
     private function client_ip() {
@@ -373,83 +393,12 @@ class AdSpirit_Anti_Spam {
         if (!is_array($log)) $log = array();
         $status_badge = $c['enabled'] === '1' ? '<span class="as-badge ok">Ativo</span>' : '<span class="as-badge muted">Desligado</span>';
         ?>
-        <h2 class="as-section"><span class="as-kicker-inline">Anti-spam</span>4 camadas independentes</h2>
-        <p class="as-section-help">5 camadas independentes rodando em sequência — qualquer uma que rejeite, bloqueia. <strong>Substitui o WP Armour</strong> e similares: honeypot + time-trap + rate-limit por IP + User-Agent check + blocklists cobrem todo o escopo deles, com a vantagem do rate-limit (que o WP Armour não tem).</p>
+        <h2 class="as-section"><span class="as-kicker-inline">Anti-spam</span>Bloqueio automático de bots</h2>
+        <p class="as-section-help">O que for barrado fica registrado abaixo e vai pra quarentena em Leads enviados — nada some em silêncio.</p>
 
-        <?php AdSpirit_Menu::card_open('Configuração das camadas', 'Cada toggle é independente — você pode ligar só o que quiser', $status_badge); ?>
-        <?php AdSpirit_Menu::form_open('antispam'); ?>
-        <table class="form-table">
-            <tr>
-                <th><label>Status geral</label></th>
-                <td>
-                    <label>
-                        <input type="checkbox" name="enabled" value="1" <?php checked($c['enabled'], '1'); ?>>
-                        Ativar anti-spam embutido (mestre)
-                    </label>
-                    <p class="description">Desligar aqui bypassa todas as camadas. Útil pra debug temporário.</p>
-                </td>
-            </tr>
-            <tr>
-                <th><label>Honeypot</label></th>
-                <td>
-                    <label>
-                        <input type="checkbox" name="honeypot" value="1" <?php checked($c['honeypot'], '1'); ?>>
-                        Injetar campo invisível em todos os forms CF7
-                    </label>
-                    <p class="description">Bots preenchem todos os campos por reflex; humanos não veem o campo escondido.</p>
-                </td>
-            </tr>
-            <tr>
-                <th><label>Time trap</label></th>
-                <td>
-                    <label>
-                        <input type="checkbox" name="time_trap" value="1" <?php checked($c['time_trap'], '1'); ?>>
-                        Rejeitar submits muito rápidos
-                    </label>
-                    <p class="description">Mínimo: <input type="number" name="time_trap_min_s" min="1" max="30" value="<?php echo esc_attr($c['time_trap_min_s']); ?>" style="width:60px;"> segundos entre carregar a página e submeter. Bots costumam disparar em menos de 1s.</p>
-                </td>
-            </tr>
-            <tr>
-                <th><label>Rate limit por IP</label></th>
-                <td>
-                    <label>
-                        <input type="checkbox" name="rate_limit" value="1" <?php checked($c['rate_limit'], '1'); ?>>
-                        Limitar submits do mesmo IP
-                    </label>
-                    <p class="description">Máximo: <input type="number" name="rate_limit_max" min="1" max="20" value="<?php echo esc_attr($c['rate_limit_max']); ?>" style="width:60px;"> submits/minuto.</p>
-                </td>
-            </tr>
-            <tr>
-                <th><label>User-Agent check</label></th>
-                <td>
-                    <label>
-                        <input type="checkbox" name="ua_check" value="1" <?php checked($c['ua_check'] ?? '1', '1'); ?>>
-                        Bloquear clientes HTTP automatizados
-                    </label>
-                    <p class="description">Rejeita submits com User-Agent vazio ou claramente automatizado (<code>curl</code>, <code>python-requests</code>, <code>wget</code>, etc). Esta é a cobertura que o WP Armour faz — substituível por este toggle.</p>
-                </td>
-            </tr>
-            <tr>
-                <th><label for="blocklist_emails">Blocklist de emails (regex)</label></th>
-                <td>
-                    <textarea id="blocklist_emails" name="blocklist_emails" rows="5" class="large-text"><?php echo esc_textarea($c['blocklist_emails']); ?></textarea>
-                    <p class="description">Um regex por linha. Ex.: <code>@example\.ru$</code> bloqueia qualquer @example.ru. <code>^(test|spam)</code> bloqueia emails começando com test/spam.</p>
-                </td>
-            </tr>
-            <tr>
-                <th><label for="blocklist_words">Blocklist de palavras</label></th>
-                <td>
-                    <textarea id="blocklist_words" name="blocklist_words" rows="5" class="large-text"><?php echo esc_textarea($c['blocklist_words']); ?></textarea>
-                    <p class="description">Uma palavra por linha. Match case-insensitive em QUALQUER campo do form. Útil pra bloquear spam de tópicos específicos.</p>
-                </td>
-            </tr>
-        </table>
-        <?php AdSpirit_Menu::form_close('Salvar anti-spam'); ?>
-        <?php AdSpirit_Menu::card_close(); ?>
-
-        <h2 class="as-section"><span class="as-kicker-inline">Histórico</span>Últimos bloqueios</h2>
+        <?php // Doutrina: o dado (o que foi bloqueado) vem antes do controle. ?>
         <?php if (empty($log)): ?>
-            <div class="as-notice info"><p>Nenhum bloqueio registrado ainda. O plugin grava aqui quando alguma camada acima rejeita uma submissão.</p></div>
+            <div class="as-notice info"><p>Nenhum bloqueio registrado ainda. Quando alguma camada barrar um envio, ele aparece aqui.</p></div>
         <?php else: ?>
             <table class="as-table">
                 <thead>
@@ -472,6 +421,66 @@ class AdSpirit_Anti_Spam {
                 </tbody>
             </table>
         <?php endif; ?>
+
+        <?php AdSpirit_Menu::card_open('Camadas de proteção', 'Cada camada é independente — ligue só o que quiser', $status_badge); ?>
+        <?php AdSpirit_Menu::form_open('antispam'); ?>
+
+        <div class="as-toggle">
+            <input type="checkbox" id="as-anti-enabled" name="enabled" value="1" <?php checked($c['enabled'], '1'); ?>>
+            <label class="t" for="as-anti-enabled">Proteção anti-spam ligada<small>Chave geral: desligar aqui pausa todas as camadas abaixo.</small></label>
+        </div>
+
+        <div class="as-toggle">
+            <input type="checkbox" id="as-anti-honeypot" name="honeypot" value="1" <?php checked($c['honeypot'], '1'); ?>>
+            <label class="t" for="as-anti-honeypot">Campo-armadilha invisível<small>Robôs preenchem um campo que pessoas não veem — e se denunciam.</small></label>
+        </div>
+
+        <div class="as-toggle">
+            <input type="checkbox" id="as-anti-timetrap" name="time_trap" value="1" <?php checked($c['time_trap'], '1'); ?>>
+            <label class="t" for="as-anti-timetrap">Barrar envios rápidos demais<small>Robô envia o formulário em menos de 1 segundo; pessoa não.</small></label>
+        </div>
+        <div class="as-toggle as-sub">
+            <label class="t" for="as-anti-timetrap-min">Tempo mínimo: <input type="number" id="as-anti-timetrap-min" name="time_trap_min_s" min="1" max="30" value="<?php echo esc_attr($c['time_trap_min_s']); ?>" style="width:60px;"> segundos entre abrir a página e enviar</label>
+        </div>
+
+        <div class="as-toggle">
+            <input type="checkbox" id="as-anti-rate" name="rate_limit" value="1" <?php checked($c['rate_limit'], '1'); ?>>
+            <label class="t" for="as-anti-rate">Limitar envios repetidos do mesmo visitante<small>Bloqueia rajadas: o mesmo endereço não passa do limite por minuto.</small></label>
+        </div>
+        <div class="as-toggle as-sub">
+            <label class="t" for="as-anti-rate-max">Limite: <input type="number" id="as-anti-rate-max" name="rate_limit_max" min="1" max="20" value="<?php echo esc_attr($c['rate_limit_max']); ?>" style="width:60px;"> envios por minuto</label>
+        </div>
+
+        <div class="as-toggle">
+            <input type="checkbox" id="as-anti-ua" name="ua_check" value="1" <?php checked($c['ua_check'] ?? '1', '1'); ?>>
+            <label class="t" for="as-anti-ua">Barrar programas automatizados<small>Rejeita envios de ferramentas que não são um navegador de verdade.</small></label>
+        </div>
+
+        <div class="as-field">
+            <label class="as-field-label" for="blocklist_emails">Emails bloqueados</label>
+            <textarea id="blocklist_emails" name="blocklist_emails" rows="5" class="large-text"><?php echo esc_textarea($c['blocklist_emails']); ?></textarea>
+            <p class="description">Um padrão por linha. Ex.: <code>@example\.ru$</code> barra qualquer email terminado em @example.ru.</p>
+        </div>
+
+        <div class="as-field">
+            <label class="as-field-label" for="blocklist_words">Palavras bloqueadas</label>
+            <textarea id="blocklist_words" name="blocklist_words" rows="5" class="large-text"><?php echo esc_textarea($c['blocklist_words']); ?></textarea>
+            <p class="description">Uma palavra por linha. Barra o envio se ela aparecer em qualquer campo do formulário.</p>
+        </div>
+
+        <details class="as-help">
+            <summary>Como as camadas funcionam</summary>
+            <ul>
+                <li>As camadas rodam em sequência — basta uma rejeitar pra barrar o envio.</li>
+                <li>Cobrem o mesmo escopo de plugins como WP Armour (com limite por IP, que eles não têm) — dá pra desativá-los.</li>
+                <li>Na lista de emails, cada linha é uma expressão regular: <code>^(test|spam)</code> barra emails começando com test ou spam.</li>
+                <li>A busca por palavras ignora maiúsculas/minúsculas e olha todos os campos do formulário.</li>
+                <li>Bloqueio não descarta: o envio vai pra quarentena em Leads enviados e pode ser resgatado se for engano.</li>
+            </ul>
+        </details>
+
+        <?php AdSpirit_Menu::form_close('Salvar anti-spam'); ?>
+        <?php AdSpirit_Menu::card_close(); ?>
         <?php
     }
 

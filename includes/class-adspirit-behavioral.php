@@ -149,84 +149,74 @@ class AdSpirit_Behavioral {
 
         $updated = isset($_GET['updated']) && $_GET['updated'] === '1' && isset($_GET['tab']) && $_GET['tab'] === 'behavioral';
         ?>
-        <h2 class="as-section"><span class="as-kicker-inline">Behavioral</span>Sinais comportamentais por sessão</h2>
-        <p class="as-section-help">
-            Coleta scroll, tempo ativo/idle, rage clicks, copy/paste, exit intent, typing e viewport — agrega em um único evento <code>behavior_summary</code> e envia ao CRM via <code>/api/track</code>. Tudo client-side com flush por <code>navigator.sendBeacon</code>. Gated por consent <em>tracking</em> ou <em>all</em>.
-        </p>
+        <h2 class="as-section"><span class="as-kicker-inline">Behavioral</span>Comportamento no site</h2>
+        <p class="as-section-help">Registra como o visitante usa cada página — rolagem, tempo ativo, cliques de frustração — e anexa esse resumo ao lead no AdSpirit.</p>
 
         <?php if ($updated): ?>
             <div class="as-notice info">
                 <div class="as-notice-kicker">Salvo</div>
-                <p>Configurações de behavioral atualizadas.</p>
+                <p>Configurações de comportamento atualizadas.</p>
             </div>
         <?php endif; ?>
 
-        <?php AdSpirit_Menu::card_open('Captura comportamental', 'Liga/desliga, intervalo de flush e quais sinais coletar.', $status_badge); ?>
+        <?php AdSpirit_Menu::card_open('Captura de comportamento', 'Escolha quais sinais coletar', $status_badge); ?>
         <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
             <input type="hidden" name="action" value="adspirit_save_behavioral">
             <?php wp_nonce_field('adspirit_save_behavioral', '_adspirit_nonce'); ?>
 
-            <table class="form-table">
-                <tr>
-                    <th>Status</th>
-                    <td>
-                        <label>
-                            <input type="checkbox" name="enabled" value="1" <?php checked($s['enabled'], '1'); ?>>
-                            Ativar tracker comportamental no frontend
-                        </label>
-                        <p class="description">Carrega o <code>behavioral.js</code> no <code>wp_footer</code> e só dispara se o visitante tiver consent <em>tracking</em>/<em>all</em> e o pixel já tiver mintado um <code>adspirit_vid</code>.</p>
-                    </td>
-                </tr>
-                <tr>
-                    <th><label for="bhv_flush_interval">Flush interval (ms)</label></th>
-                    <td>
-                        <input type="number" id="bhv_flush_interval" name="flush_interval_ms" value="<?php echo esc_attr((int) $s['flush_interval_ms']); ?>" min="5000" step="1000" class="small-text">
-                        <p class="description">Default <code>60000</code> (60s). Mínimo 5000ms. Também flush em <code>pagehide</code> e <code>visibilitychange=hidden</code>.</p>
-                    </td>
-                </tr>
-                <tr>
-                    <th><label for="bhv_max_payload">Max payload (bytes)</label></th>
-                    <td>
-                        <input type="number" id="bhv_max_payload" name="max_payload_bytes" value="<?php echo esc_attr((int) $s['max_payload_bytes']); ?>" min="1024" step="512" class="small-text">
-                        <p class="description">Default <code>16384</code> (16KB). Se o snapshot serializado passar disso, arrays/strings longas são truncadas antes do beacon. Server (/api/track) também rejeita acima desse limite.</p>
-                    </td>
-                </tr>
-                <tr>
-                    <th>Sinais coletados</th>
-                    <td>
-                        <label>
-                            <input type="checkbox" name="track_rage_clicks" value="1" <?php checked($s['track_rage_clicks'], '1'); ?>>
-                            Rage clicks (3+ cliques em &lt;1s no mesmo ponto)
-                        </label><br>
-                        <label>
-                            <input type="checkbox" name="track_copy" value="1" <?php checked($s['track_copy'], '1'); ?>>
-                            Copy / paste (count + tamanho máximo da seleção copiada)
-                        </label><br>
-                        <label>
-                            <input type="checkbox" name="track_typing" value="1" <?php checked($s['track_typing'], '1'); ?>>
-                            Typing keystrokes (apenas <em>count</em> em INPUT/TEXTAREA; nunca a tecla nem o valor)
-                        </label><br>
-                        <label>
-                            <input type="checkbox" name="track_idle" value="1" <?php checked($s['track_idle'], '1'); ?>>
-                            Time on page vs. time active (janela 15s de inatividade vira idle)
-                        </label>
-                    </td>
-                </tr>
-            </table>
+            <div class="as-toggle">
+                <input type="checkbox" id="bhv_enabled" name="enabled" value="1" <?php checked($s['enabled'], '1'); ?>>
+                <label class="t" for="bhv_enabled">Captura de comportamento ligada<small>Só roda pra visitantes que aceitaram cookies de rastreio no aviso de cookies.</small></label>
+            </div>
+
+            <div class="as-toggle">
+                <input type="checkbox" id="bhv_rage" name="track_rage_clicks" value="1" <?php checked($s['track_rage_clicks'], '1'); ?>>
+                <label class="t" for="bhv_rage">Cliques de frustração<small>3 ou mais cliques no mesmo ponto em menos de 1 segundo.</small></label>
+            </div>
+
+            <div class="as-toggle">
+                <input type="checkbox" id="bhv_copy" name="track_copy" value="1" <?php checked($s['track_copy'], '1'); ?>>
+                <label class="t" for="bhv_copy">Copiar e colar<small>Conta quantas vezes o visitante copiou texto — não guarda o conteúdo.</small></label>
+            </div>
+
+            <div class="as-toggle">
+                <input type="checkbox" id="bhv_typing" name="track_typing" value="1" <?php checked($s['track_typing'], '1'); ?>>
+                <label class="t" for="bhv_typing">Digitação em formulários<small>Conta teclas digitadas em campos — nunca registra qual tecla nem o que foi escrito.</small></label>
+            </div>
+
+            <div class="as-toggle">
+                <input type="checkbox" id="bhv_idle" name="track_idle" value="1" <?php checked($s['track_idle'], '1'); ?>>
+                <label class="t" for="bhv_idle">Tempo ativo na página<small>Separa o tempo de uso real do tempo com a aba parada (15s sem atividade).</small></label>
+            </div>
+
+            <div class="as-field">
+                <label class="as-field-label" for="bhv_flush_interval">Intervalo de envio</label>
+                <input type="number" id="bhv_flush_interval" name="flush_interval_ms" value="<?php echo esc_attr((int) $s['flush_interval_ms']); ?>" min="5000" step="1000" class="small-text"> ms
+                <p class="description">A cada quanto tempo o resumo é enviado. Padrão 60000 (1 minuto); mínimo 5000.</p>
+            </div>
+
+            <div class="as-field">
+                <label class="as-field-label" for="bhv_max_payload">Tamanho máximo do envio</label>
+                <input type="number" id="bhv_max_payload" name="max_payload_bytes" value="<?php echo esc_attr((int) $s['max_payload_bytes']); ?>" min="1024" step="512" class="small-text"> bytes
+                <p class="description">Padrão 16384 (16 KB). Acima disso, o resumo é encurtado antes de enviar.</p>
+            </div>
+
+            <details class="as-help">
+                <summary>Detalhes técnicos (pra suporte)</summary>
+                <ul>
+                    <li>Cookie de visitante: <code>adspirit_vid</code> (criado pelo pixel.js do CRM). Sem ele, nada dispara.</li>
+                    <li>Endpoint: <code>POST <?php echo esc_html((class_exists('AdSpirit_Settings') ? AdSpirit_Settings::get_core()['endpoint_url'] : '')); ?>/api/track?t=&lt;pixel_token&gt;</code>.</li>
+                    <li>Evento: <code>type:"custom"</code>, <code>payload.kind:"<?php echo esc_html(self::EVENT_KIND); ?>"</code>.</li>
+                    <li>Além do intervalo, também envia ao sair da página (<code>pagehide</code> / aba oculta).</li>
+                    <li>Limite no CRM: 120 resumos por visitante por hora.</li>
+                    <li>O resumo também fica em <code>sessionStorage["adspirit_bhv_v1"]</code> pra ser anexado ao envio do formulário.</li>
+                </ul>
+            </details>
+
             <p class="submit">
-                <button type="submit" class="button button-primary">Salvar behavioral</button>
+                <button type="submit" class="button button-primary">Salvar comportamento</button>
             </p>
         </form>
-        <?php AdSpirit_Menu::card_close(); ?>
-
-        <?php AdSpirit_Menu::card_open('Como funciona', 'Detalhes técnicos pra debug'); ?>
-        <ul style="margin: 0; padding-left: 18px; color: #4B5563; font-size: 13px; line-height: 1.6;">
-            <li>Cookie de visitante: <code>adspirit_vid</code> (mintado pelo pixel.js do CRM).</li>
-            <li>Endpoint: <code>POST <?php echo esc_html((class_exists('AdSpirit_Settings') ? AdSpirit_Settings::get_core()['endpoint_url'] : '')); ?>/api/track?t=&lt;pixel_token&gt;</code>.</li>
-            <li>Evento: <code>type:"custom"</code>, <code>payload.kind:"<?php echo esc_html(self::EVENT_KIND); ?>"</code>.</li>
-            <li>Rate limit no CRM: 120 <code>behavior_summary</code> por visitor por hora.</li>
-            <li>Snapshot também persiste em <code>sessionStorage["adspirit_bhv_v1"]</code> pra Telemetry merger anexar no CF7 submit.</li>
-        </ul>
         <?php AdSpirit_Menu::card_close(); ?>
         <?php
     }

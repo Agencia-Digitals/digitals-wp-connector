@@ -58,66 +58,92 @@ class AdSpirit_Setup_Wizard {
         $progress = $total_items > 0 ? round(($total_ok / $total_items) * 100) : 0;
 
         ?>
-        <div class="as-card">
-            <h2 class="as-section"><span class="as-kicker-inline">Setup</span>Checklist de configuração</h2>
-            <p class="as-section-help">
-                Status de cada parte do plugin. Verde = configurado e funcionando.
-                Amarelo = atenção (ex.: plugin concorrente ativo). Vermelho = falta config obrigatória.
-            </p>
-
-            <div style="display:flex; align-items:center; gap:24px; margin: 20px 0; padding:16px; background:#f6f7f7; border-radius:6px;">
+        <?php // Doutrina: DS-only (zero cor fora de token); OK é silencioso,
+              // só warn/error carregam cor; seção 100% ok recolhe. ?>
+        <div class="as-card" style="padding:18px 22px;">
+            <div style="display:flex; align-items:center; gap:24px;">
                 <div style="flex:1;">
-                    <div style="font-size:14px; font-weight:600; margin-bottom:8px;">
-                        <?php echo (int) $total_ok; ?> de <?php echo (int) $total_items; ?> itens OK
+                    <div style="font-size:13.5px; font-weight:600; margin-bottom:10px; color:var(--as-ink);">
+                        <?php echo (int) $total_ok; ?> de <?php echo (int) $total_items; ?> itens prontos
                         <?php if ($total_error) : ?>
-                            · <span style="color:#dc3545;"><?php echo (int) $total_error; ?> obrigatório(s) faltando</span>
+                            · <span style="color:var(--as-danger);"><?php echo (int) $total_error; ?> obrigatório(s) faltando</span>
                         <?php endif; ?>
                         <?php if ($total_warn) : ?>
-                            · <span style="color:#d39e00;"><?php echo (int) $total_warn; ?> aviso(s)</span>
+                            · <span style="color:var(--as-warning);"><?php echo (int) $total_warn; ?> atenção</span>
                         <?php endif; ?>
                     </div>
-                    <div style="background:#e5e5e5; border-radius:8px; height:8px; overflow:hidden;">
-                        <div style="background:linear-gradient(90deg,#28a745,#5cb85c); height:100%; width:<?php echo (int) $progress; ?>%; transition:width 320ms ease;"></div>
+                    <div style="background:var(--as-bg-subtle); border-radius:8px; height:6px; overflow:hidden;">
+                        <div style="background:var(--as-accent); height:100%; width:<?php echo (int) $progress; ?>%; transition:width 320ms ease;"></div>
                     </div>
                 </div>
-                <div style="font-size:36px; font-weight:700; color:<?php echo $total_error > 0 ? '#dc3545' : ($total_warn > 0 ? '#d39e00' : '#28a745'); ?>;">
+                <div style="font-size:28px; font-weight:600; font-variant-numeric:tabular-nums; color:<?php echo $total_error > 0 ? 'var(--as-danger)' : 'var(--as-ink)'; ?>;">
                     <?php echo (int) $progress; ?>%
                 </div>
             </div>
         </div>
 
-        <?php foreach ($sections as $sec) : ?>
-            <div class="as-card" style="margin-top:16px;">
-                <h2 class="as-section"><span class="as-kicker-inline"><?php echo esc_html($sec['kicker']); ?></span><?php echo esc_html($sec['title']); ?></h2>
+        <?php foreach ($sections as $sec) :
+            $sec_ok = true;
+            foreach ($sec['items'] as $it2) {
+                if (($it2['status'] ?? '') !== 'ok') { $sec_ok = false; break; }
+            }
+        ?>
+            <?php if ($sec_ok) : ?>
+                <details class="as-help" style="margin:0 0 14px;">
+                    <summary><span class="as-badge ok" style="margin-right:8px;">✓</span><?php echo esc_html($sec['title']); ?></summary>
+                    <ul class="adspirit-setup-list" style="margin-top:8px;">
+                        <?php foreach ($sec['items'] as $item) : ?>
+                            <li><span class="st-ic ok">✓</span>
+                                <div style="flex:1;"><div class="st-label"><?php echo esc_html($item['label']); ?></div></div>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                </details>
+            <?php else : ?>
+            <div class="as-card" style="padding:18px 22px;">
+                <h2 class="as-section" style="margin-top:0;"><span class="as-kicker-inline"><?php echo esc_html($sec['kicker']); ?></span><?php echo esc_html($sec['title']); ?></h2>
                 <?php if (!empty($sec['intro'])) : ?>
                     <p class="as-section-help"><?php echo wp_kses_post($sec['intro']); ?></p>
                 <?php endif; ?>
 
                 <ul class="adspirit-setup-list">
                     <?php foreach ($sec['items'] as $item) :
-                        $color = $item['status'] === 'ok' ? '#28a745' : ($item['status'] === 'warn' ? '#d39e00' : '#dc3545');
-                        $icon = $item['status'] === 'ok' ? '✓' : ($item['status'] === 'warn' ? '⚠' : '✗');
+                        $st = $item['status'] === 'ok' ? 'ok' : ($item['status'] === 'warn' ? 'warn' : 'err');
+                        $icon = $item['status'] === 'ok' ? '✓' : ($item['status'] === 'warn' ? '!' : '✕');
                     ?>
-                        <li style="display:flex; align-items:flex-start; gap:14px; padding:12px 0; border-bottom:1px solid #f0f0f0;">
-                            <span style="display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:50%; background:<?php echo esc_attr($color); ?>; color:white; font-weight:700; flex-shrink:0; font-size:14px;"><?php echo esc_html($icon); ?></span>
+                        <li>
+                            <span class="st-ic <?php echo esc_attr($st); ?>"><?php echo esc_html($icon); ?></span>
                             <div style="flex:1;">
-                                <div style="font-weight:600; font-size:14px;"><?php echo esc_html($item['label']); ?></div>
+                                <div class="st-label"><?php echo esc_html($item['label']); ?></div>
                                 <?php if (!empty($item['detail'])) : ?>
-                                    <div style="font-size:12.5px; color:#555; margin-top:3px;"><?php echo wp_kses_post($item['detail']); ?></div>
+                                    <div class="st-detail"><?php echo wp_kses_post($item['detail']); ?></div>
                                 <?php endif; ?>
                             </div>
-                            <?php if (!empty($item['cta_url'])) : ?>
+                            <?php if (!empty($item['cta_url']) && $item['status'] !== 'ok') : ?>
                                 <a href="<?php echo esc_url($item['cta_url']); ?>" class="button" target="<?php echo esc_attr(!empty($item['cta_external']) ? '_blank' : '_self'); ?>"><?php echo esc_html($item['cta_label'] ?? 'Configurar'); ?></a>
                             <?php endif; ?>
                         </li>
                     <?php endforeach; ?>
                 </ul>
             </div>
+            <?php endif; ?>
         <?php endforeach; ?>
 
         <style>
             .adspirit-setup-list { margin: 8px 0 0; padding: 0; list-style: none; }
-            .adspirit-setup-list li:last-child { border-bottom: none !important; }
+            .adspirit-setup-list li { display:flex; align-items:flex-start; gap:12px; padding:11px 0; border-bottom:1px solid var(--as-line); }
+            .adspirit-setup-list li:last-child { border-bottom: none; }
+            .adspirit-setup-list .st-label { font-weight:600; font-size:13.5px; color:var(--as-ink); }
+            .adspirit-setup-list .st-detail { font-size:12.5px; color:var(--as-ink-faint); margin-top:3px; }
+            /* OK é silencioso (tom suave); só problema carrega cor forte. */
+            .adspirit-setup-list .st-ic {
+                display:inline-flex; align-items:center; justify-content:center;
+                width:22px; height:22px; border-radius:50%; flex-shrink:0;
+                font-size:12px; font-weight:700; margin-top:1px;
+            }
+            .adspirit-setup-list .st-ic.ok  { background:var(--as-bg-success); color:var(--as-success); }
+            .adspirit-setup-list .st-ic.warn{ background:var(--as-bg-warning); color:var(--as-warning); }
+            .adspirit-setup-list .st-ic.err { background:var(--as-bg-danger);  color:var(--as-danger); }
         </style>
         <?php
     }

@@ -124,32 +124,32 @@ class AdSpirit_Cross_Domain {
         $c = AdSpirit_Settings::get_cross_domain();
         $status_badge = $c['enabled'] === '1' ? '<span class="as-badge ok">Ativo</span>' : '<span class="as-badge muted">Desligado</span>';
         ?>
-        <h2 class="as-section"><span class="as-kicker-inline">Cross-domain</span>Decoration de links entre TLDs próprios</h2>
-        <p class="as-section-help">
-            Quando o cliente tem múltiplos domínios próprios (landing.com → checkout.io), o pixel perde continuidade do visitor ao navegar entre eles. Esta camada decora links de saída com <code>?dos_vid=&lt;id&gt;</code> automaticamente. Sincroniza com <code>linked_domains</code> em <code>tracking_install</code> no CRM — ideal manter idêntico nos dois lados.
-        </p>
+        <h2 class="as-section"><span class="as-kicker-inline">Cross-domain</span>Rastreio entre sites</h2>
+        <p class="as-section-help">Mantém a jornada do visitante quando ele sai de um site seu pra outro (ex.: da landing page pro checkout).</p>
 
-        <?php AdSpirit_Menu::card_open('Configuração', 'Lista de hostnames próprios do cliente — não inclua redes sociais ou destinos de terceiros', $status_badge); ?>
+        <?php AdSpirit_Menu::card_open('Configuração', 'Liste só os domínios que são seus', $status_badge); ?>
         <?php AdSpirit_Menu::form_open('cross-domain'); ?>
 
-        <table class="form-table">
-            <tr>
-                <th>Status</th>
-                <td>
-                    <label>
-                        <input type="checkbox" name="enabled" value="1" <?php checked($c['enabled'], '1'); ?>>
-                        Ativar decoration
-                    </label>
-                </td>
-            </tr>
-            <tr>
-                <th><label for="domains">Domínios afiliados</label></th>
-                <td>
-                    <textarea id="domains" name="domains" rows="6" class="large-text code" placeholder="checkout.cliente.com&#10;app.cliente.com.br"><?php echo esc_textarea($c['domains']); ?></textarea>
-                    <p class="description">Um hostname por linha. Sem <code>http://</code> nem path. Apenas domínios <strong>próprios</strong> do cliente — não inclua redes sociais ou destinos de terceiros.</p>
-                </td>
-            </tr>
-        </table>
+        <div class="as-toggle">
+            <input type="checkbox" id="xd_enabled" name="enabled" value="1" <?php checked($c['enabled'], '1'); ?>>
+            <label class="t" for="xd_enabled">Rastreio entre sites ligado<small>Os links pros domínios da lista abaixo passam a carregar o código do visitante.</small></label>
+        </div>
+
+        <div class="as-field">
+            <label class="as-field-label" for="domains">Seus outros domínios</label>
+            <textarea id="domains" name="domains" rows="6" class="large-text code" placeholder="checkout.cliente.com&#10;app.cliente.com.br"><?php echo esc_textarea($c['domains']); ?></textarea>
+            <p class="description">Um domínio por linha, sem <code>http://</code> nem barra. Só domínios seus — nunca redes sociais ou sites de terceiros.</p>
+        </div>
+
+        <details class="as-help">
+            <summary>Como funciona</summary>
+            <ul>
+                <li>Sem isso, o visitante que troca de domínio vira "visitante novo" e a jornada se perde.</li>
+                <li>Os links de saída pros domínios da lista ganham automaticamente <code>?dos_vid=&lt;id&gt;</code>; o pixel do destino lê e continua a mesma jornada.</li>
+                <li>Mantenha a mesma lista no AdSpirit (domínios vinculados do rastreio) pros dois lados baterem.</li>
+            </ul>
+        </details>
+
         <?php AdSpirit_Menu::form_close('Salvar cross-domain'); ?>
         <?php AdSpirit_Menu::card_close(); ?>
         <?php

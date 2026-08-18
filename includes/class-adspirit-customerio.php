@@ -343,10 +343,8 @@ class AdSpirit_Customerio {
             delete_transient('adspirit_customerio_test_result');
         }
         ?>
-        <h2 class="as-section"><span class="as-kicker-inline">Customer.io</span>Tracking API passthrough server-side</h2>
-        <p class="as-section-help">
-            Espelha cada CF7 submit pro Customer.io em paralelo ao CRM — identifica o customer e dispara um evento <code><?php echo esc_html($c['event_name'] ?: 'form_submitted'); ?></code> com todos os campos do form. Auth via Site ID + Tracking API Key, fire-and-forget (não bloqueia o submit).
-        </p>
+        <h2 class="as-section"><span class="as-kicker-inline">Customer.io</span>Leads no Customer.io</h2>
+        <p class="as-section-help">Cada lead do site também vira um contato no Customer.io, na hora — pra suas automações de email começarem antes.</p>
 
         <?php if (is_array($test_result)): ?>
             <div class="as-notice <?php echo $test_result['ok'] ? 'info' : 'danger'; ?>">
@@ -355,75 +353,69 @@ class AdSpirit_Customerio {
             </div>
         <?php endif; ?>
 
-        <?php AdSpirit_Menu::card_open('Credenciais Customer.io', 'Site ID + Tracking API Key estão em <em>Customer.io → Settings → Account → API Credentials → Tracking API Keys</em>', $status_badge); ?>
+        <?php AdSpirit_Menu::card_open('Credenciais Customer.io', 'As duas chaves estão em <em>Customer.io → Settings → Account → API Credentials → Tracking API Keys</em>', $status_badge); ?>
         <?php AdSpirit_Menu::form_open('customerio'); ?>
 
-        <table class="form-table">
-            <tr>
-                <th>Status</th>
-                <td>
-                    <label>
-                        <input type="checkbox" name="enabled" value="1" <?php checked($c['enabled'], '1'); ?>>
-                        Ativar passthrough Customer.io
-                    </label>
-                </td>
-            </tr>
-            <tr>
-                <th><label for="cio_site_id">Site ID</label></th>
-                <td>
-                    <input type="text" id="cio_site_id" name="site_id" value="<?php echo esc_attr($c['site_id']); ?>" class="regular-text" autocomplete="off">
-                    <p class="description">Identifica o workspace. Encontra em <em>Settings → Account → API Credentials</em>.</p>
-                </td>
-            </tr>
-            <tr>
-                <th><label for="cio_api_key">API Key</label></th>
-                <td>
-                    <input type="password" id="cio_api_key" name="api_key" value="<?php echo esc_attr($c['api_key']); ?>" class="regular-text" autocomplete="off">
-                    <button type="button" class="button" onclick="var e=document.getElementById('cio_api_key');e.type=e.type==='password'?'text':'password';">Mostrar</button>
-                    <p class="description">Tracking API Key (não confunda com App API Key). Tem ~32 chars hex.</p>
-                </td>
-            </tr>
-            <tr>
-                <th><label for="cio_url">Tracking API URL</label></th>
-                <td>
-                    <input type="url" id="cio_url" name="tracking_api_url" value="<?php echo esc_attr($c['tracking_api_url']); ?>" class="regular-text" placeholder="<?php echo esc_attr(self::DEFAULT_BASE_URL); ?>">
-                    <p class="description">Default: <code><?php echo esc_html(self::DEFAULT_BASE_URL); ?></code>. Troca pra <code>https://track-eu.customer.io/api/v1</code> se workspace é EU-region.</p>
-                </td>
-            </tr>
-            <tr>
-                <th>Feature flags</th>
-                <td>
-                    <label>
-                        <input type="checkbox" name="identify_on_submit" value="1" <?php checked($c['identify_on_submit'], '1'); ?>>
-                        <code>identify</code> em cada CF7 submit (PUT <code>/customers/{email}</code>)
-                    </label><br>
-                    <label>
-                        <input type="checkbox" name="event_on_submit" value="1" <?php checked($c['event_on_submit'], '1'); ?>>
-                        <code>event</code> em cada CF7 submit (POST <code>/customers/{email}/events</code>)
-                    </label>
-                </td>
-            </tr>
-            <tr>
-                <th><label for="cio_event_name">Nome do evento</label></th>
-                <td>
-                    <input type="text" id="cio_event_name" name="event_name" value="<?php echo esc_attr($c['event_name']); ?>" class="regular-text" placeholder="form_submitted">
-                    <p class="description">Default <code>form_submitted</code>. Use só snake_case — Customer.io segmenta por nome exato do evento.</p>
-                </td>
-            </tr>
-        </table>
+        <div class="as-toggle">
+            <input type="checkbox" id="cio_enabled" name="enabled" value="1" <?php checked($c['enabled'], '1'); ?>>
+            <label class="t" for="cio_enabled">Envio pro Customer.io ligado<small>Precisa do Site ID e da chave abaixo pra começar a enviar.</small></label>
+        </div>
+
+        <div class="as-field">
+            <label class="as-field-label" for="cio_site_id">Site ID</label>
+            <input type="text" id="cio_site_id" name="site_id" value="<?php echo esc_attr($c['site_id']); ?>" class="regular-text" autocomplete="off">
+            <p class="description">Identifica sua conta. Está em Settings → Account → API Credentials.</p>
+        </div>
+
+        <div class="as-field">
+            <label class="as-field-label" for="cio_api_key">Chave da API (Tracking API Key)</label>
+            <input type="password" id="cio_api_key" name="api_key" value="<?php echo esc_attr($c['api_key']); ?>" class="regular-text" autocomplete="off">
+            <button type="button" class="button" onclick="var e=document.getElementById('cio_api_key');e.type=e.type==='password'?'text':'password';">Mostrar</button>
+            <p class="description">Atenção: é a Tracking API Key — a App API Key não funciona aqui.</p>
+        </div>
+
+        <div class="as-field">
+            <label class="as-field-label" for="cio_url">Endereço da API (avançado)</label>
+            <input type="url" id="cio_url" name="tracking_api_url" value="<?php echo esc_attr($c['tracking_api_url']); ?>" class="regular-text" placeholder="<?php echo esc_attr(self::DEFAULT_BASE_URL); ?>">
+            <p class="description">Deixe como está, salvo se sua conta for da região Europa — aí use <code>https://track-eu.customer.io/api/v1</code>.</p>
+        </div>
+
+        <div class="as-toggle">
+            <input type="checkbox" id="cio_identify" name="identify_on_submit" value="1" <?php checked($c['identify_on_submit'], '1'); ?>>
+            <label class="t" for="cio_identify">Criar/atualizar o contato<small>Cada envio de formulário cria ou atualiza a pessoa no Customer.io.</small></label>
+        </div>
+
+        <div class="as-toggle">
+            <input type="checkbox" id="cio_event" name="event_on_submit" value="1" <?php checked($c['event_on_submit'], '1'); ?>>
+            <label class="t" for="cio_event">Registrar o evento de envio<small>Dispara o evento abaixo com todos os campos do formulário — útil pra segmentar.</small></label>
+        </div>
+
+        <div class="as-field">
+            <label class="as-field-label" for="cio_event_name">Nome do evento</label>
+            <input type="text" id="cio_event_name" name="event_name" value="<?php echo esc_attr($c['event_name']); ?>" class="regular-text" placeholder="form_submitted">
+            <p class="description">Padrão <code>form_submitted</code>. Use letras minúsculas e underline — o Customer.io segmenta pelo nome exato.</p>
+        </div>
+
+        <details class="as-help">
+            <summary>Detalhes técnicos (pra suporte)</summary>
+            <ul>
+                <li>Identify: <code>PUT /customers/{email}</code>; evento: <code>POST /customers/{email}/events</code>.</li>
+                <li>Autenticação Basic com Site ID + Tracking API Key.</li>
+                <li>Fire-and-forget: falha no Customer.io não bloqueia o envio do formulário nem o envio pro AdSpirit.</li>
+            </ul>
+        </details>
+
         <?php AdSpirit_Menu::form_close('Salvar Customer.io'); ?>
         <?php AdSpirit_Menu::card_close(); ?>
 
-        <?php AdSpirit_Menu::card_open('Testar conexão', 'Envia um identify dummy pro email do admin do site usando suas credenciais atuais. Não cria evento.'); ?>
+        <?php AdSpirit_Menu::card_open('Testar conexão', 'Confirma que as credenciais salvas funcionam — não cria evento nenhum'); ?>
         <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
             <input type="hidden" name="action" value="adspirit_customerio_test">
             <?php wp_nonce_field('adspirit_customerio_test', '_adspirit_nonce'); ?>
             <p>
                 <button type="submit" class="button">Testar conexão</button>
             </p>
-            <p class="description">
-                Recomendado salvar as credenciais antes. Resposta esperada: <code>HTTP 200</code>. <code>401/403</code> = key inválida ou tipo errado (use Tracking API Key).
-            </p>
+            <p class="description">Salve as credenciais antes de testar. O resultado aparece no topo da tela; se der "credenciais rejeitadas", confira se usou a Tracking API Key.</p>
         </form>
         <?php AdSpirit_Menu::card_close(); ?>
         <?php

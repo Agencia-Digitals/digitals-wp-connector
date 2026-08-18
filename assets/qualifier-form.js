@@ -364,6 +364,24 @@
   function render(direction) {
     var step = STEPS[state.currentStep];
     saveState(); // grava a etapa atual a cada navegação (retomada)
+
+    // Connector 3.0 — drop-off por etapa (lição Thrive/Interact): um evento
+    // único `form_step_view` com step_number permite Funnel Exploration no
+    // GA4 e mostra ONDE o lead morre. Dedupe por índice (voltar re-conta de
+    // propósito: revisita é sinal real). Push só se dataLayer existir/criável.
+    try {
+      if (window.__adspiritQfLastStepTracked !== state.currentStep) {
+        window.__adspiritQfLastStepTracked = state.currentStep;
+        window.dataLayer = window.dataLayer || [];
+        window.dataLayer.push({
+          event: 'form_step_view',
+          form_id: 'adspirit_form_qualifier',
+          step_number: state.currentStep + 1,
+          step_total: STEPS.length,
+          step_key: step && step.id ? String(step.id) : String(state.currentStep + 1),
+        });
+      }
+    } catch (e) { /* analytics nunca quebra o form */ }
     var root = document.querySelector('.adspirit-qualifier-root');
     if (!root) return;
     ensureShell(root);
@@ -797,6 +815,18 @@
         }
         // Sucesso — guarda response + avança
         window.AdSpiritQualifierLastResponse = json.data || {};
+        // Connector 3.0 — generate_lead (nome recomendado GA4 de lead gen)
+        // no sucesso do submit FINAL, com o perfil devolvido pelo CRM. O
+        // push manual é obrigatório: submit AJAX é invisível pro Enhanced
+        // Measurement/GTM nativo.
+        try {
+          window.dataLayer = window.dataLayer || [];
+          window.dataLayer.push({
+            event: 'generate_lead',
+            method: 'adspirit_form_qualifier',
+            lead_profile: (json.data && json.data.profile) ? String(json.data.profile) : null,
+          });
+        } catch (e) { /* analytics nunca quebra o form */ }
         clearState();
         state.currentStep = STEPS.length - 1;
         render('next');
@@ -831,7 +861,23 @@
       ring.style.strokeDashoffset = circ * (1 - remaining / seconds);
       if (remaining <= 0) {
         clearInterval(countdownTimer);
-        if (redirectUrl) window.location.href = redirectUrl;
+        if (redirectUrl) {
+          // Ponte pixel↔WhatsApp: redirect via JS não é clique, então a
+          // decoração proativa do pixel não alcança este caminho. Se o
+          // destino for WhatsApp e o pixel do CRM estiver na página,
+          // dos.waLink() anexa o código de sessão (invisível) — é o que
+          // liga a conversa à jornada/campanha no inbox. Fail-soft: sem
+          // pixel ou erro, navega com a URL crua como sempre.
+          var finalUrl = redirectUrl;
+          try {
+            if (/(wa\.me|api\.whatsapp\.com|web\.whatsapp\.com)\//i.test(redirectUrl)
+                && window.dos && typeof window.dos.waLink === 'function') {
+              var decorated = window.dos.waLink(redirectUrl);
+              if (typeof decorated === 'string' && decorated) finalUrl = decorated;
+            }
+          } catch (e) { /* nunca bloqueia o redirect */ }
+          window.location.href = finalUrl;
+        }
       }
       remaining--;
     }

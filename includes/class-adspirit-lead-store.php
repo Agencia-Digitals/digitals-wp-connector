@@ -244,6 +244,48 @@ class AdSpirit_Lead_Store {
     }
 
     /**
+     * Connector 3.0 — QUARENTENA DE SPAM (padrão WPForms: spam nunca é
+     * descartado direto, vai pra revisão). Grava a submissão bloqueada com
+     * status 'spam' + motivo. Fica FORA do retry e do badge (ambos filtram
+     * pending/failed) e some no TTL de 30 dias. Falso positivo? O botão
+     * Reenviar despacha normalmente ("não era spam").
+     *
+     * Anti-flood: no máx 10 registros de spam por minuto — enxurrada de bot
+     * não incha a tabela; o excedente segue indo só pro log circular.
+     */
+    public static function record_spam(array $payload, $source, $form_id, $reason) {
+        if (!self::available()) return false;
+        $bucket = 'adspirit_spamq_' . gmdate('YmdHi');
+        $n = (int) get_transient($bucket);
+        if ($n >= 10) return false;
+        set_transient($bucket, $n + 1, 120);
+
+        return AdSpirit_Safe_Hook::try_run(function () use ($payload, $source, $form_id, $reason) {
+            global $wpdb;
+            $contact = self::extract_contact($payload);
+            $now = current_time('mysql', true);
+            $wpdb->insert(self::table_name(), array(
+                'submission_id' => substr('spam-' . $source . '-' . time() . '-' . wp_generate_password(6, false), 0, 191),
+                'source'        => substr((string) $source, 0, 40),
+                'form_id'       => substr((string) $form_id, 0, 100),
+                'status'        => 'spam',
+                'name'          => $contact['name'],
+                'email'         => $contact['email'],
+                'phone'         => $contact['phone'],
+                'company'       => $contact['company'],
+                'profile'       => '',
+                'lead_id'       => '',
+                'last_error'    => substr((string) $reason, 0, 300),
+                'payload'       => wp_json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                'integrations'  => wp_json_encode(new stdClass()),
+                'created_at'    => $now,
+                'updated_at'    => $now,
+            ));
+            return true;
+        }, false, 'lead_store_record_spam');
+    }
+
+    /**
      * Marca o resultado de uma integração para a submissão. Recalcula o
      * status geral quando a integração for 'crm'. No-op se indisponível.
      *
@@ -365,6 +407,18 @@ class AdSpirit_Lead_Store {
                 'error'     => !empty($result['error']) ? substr((string) $result['error'], 0, 300) : null,
                 'at'        => current_time('mysql', true),
             );
+            // Connector 3.0 — histórico de tentativas (padrão Fluent API
+            // Logs): cada POST (inicial, cron, manual) vira uma linha no
+            // histórico, capado nas últimas 5. É o que a aba Submissões
+            // expande pra diagnosticar sem SSH.
+            $hist = isset($integrations['crm_attempts']) && is_array($integrations['crm_attempts'])
+                ? $integrations['crm_attempts'] : array();
+            $hist[] = array(
+                'at'    => current_time('mysql', true),
+                'code'  => $code,
+                'error' => !empty($result['error']) ? substr((string) $result['error'], 0, 160) : null,
+            );
+            $integrations['crm_attempts'] = array_slice($hist, -5);
 
             $update = array(
                 'status'       => $status,
@@ -461,6 +515,14 @@ class AdSpirit_Lead_Store {
                 'sent',
                 $cutoff
             ));
+            // Quarentena de spam expira mais rápido (30d) — ninguém revisa
+            // spam de um mês atrás e o volume tende a ser maior.
+            $spam_cutoff = gmdate('Y-m-d H:i:s', time() - 30 * DAY_IN_SECONDS);
+            $wpdb->query($wpdb->prepare(
+                "DELETE FROM {$table} WHERE status = %s AND created_at < %s LIMIT 200",
+                'spam',
+                $spam_cutoff
+            ));
         }, null, 'lead_store_ttl_purge');
     }
 
@@ -514,9 +576,9 @@ class AdSpirit_Lead_Store {
     // Query (pra aba Submissões)
     // ─────────────────────────────────────────────────────────
 
-    public static function query($limit = 100, array $filters = array()) {
+    public static function query($limit = 100, array $filters = array(), $offset = 0) {
         if (!self::available()) return array();
-        return AdSpirit_Safe_Hook::try_run(function () use ($limit, $filters) {
+        return AdSpirit_Safe_Hook::try_run(function () use ($limit, $filters, $offset) {
             global $wpdb;
             $table = self::table_name();
             $where = array('1=1');
@@ -529,11 +591,32 @@ class AdSpirit_Lead_Store {
                 $where[] = '(name LIKE %s OR email LIKE %s OR phone LIKE %s OR company LIKE %s)';
                 array_push($args, $like, $like, $like, $like);
             }
-            $sql = "SELECT * FROM {$table} WHERE " . implode(' AND ', $where) . ' ORDER BY id DESC LIMIT %d';
+            $sql = "SELECT * FROM {$table} WHERE " . implode(' AND ', $where) . ' ORDER BY id DESC LIMIT %d OFFSET %d';
             $args[] = (int) $limit;
+            $args[] = max(0, (int) $offset);
             $rows = $wpdb->get_results($wpdb->prepare($sql, $args), ARRAY_A);
             return is_array($rows) ? $rows : array();
         }, array(), 'lead_store_query');
+    }
+
+    /** Total de linhas pro filtro atual (paginação da aba Submissões). */
+    public static function count_filtered(array $filters = array()) {
+        if (!self::available()) return 0;
+        return (int) AdSpirit_Safe_Hook::try_run(function () use ($filters) {
+            global $wpdb;
+            $table = self::table_name();
+            $where = array('1=1');
+            $args  = array();
+            if (!empty($filters['source'])) { $where[] = 'source = %s'; $args[] = (string) $filters['source']; }
+            if (!empty($filters['status'])) { $where[] = 'status = %s'; $args[] = (string) $filters['status']; }
+            if (!empty($filters['search'])) {
+                $like = '%' . $wpdb->esc_like((string) $filters['search']) . '%';
+                $where[] = '(name LIKE %s OR email LIKE %s OR phone LIKE %s OR company LIKE %s)';
+                array_push($args, $like, $like, $like, $like);
+            }
+            $sql = "SELECT COUNT(*) FROM {$table} WHERE " . implode(' AND ', $where);
+            return (int) (empty($args) ? $wpdb->get_var($sql) : $wpdb->get_var($wpdb->prepare($sql, $args)));
+        }, 0, 'lead_store_count_filtered');
     }
 
     public static function get($id) {
@@ -629,7 +712,7 @@ class AdSpirit_Lead_Store {
         $fail = 0;
         foreach ($ids as $id) {
             $row = self::get($id);
-            if (!$row || !in_array((string) ($row['status'] ?? ''), array('pending', 'failed'), true)) continue;
+            if (!$row || !in_array((string) ($row['status'] ?? ''), array('pending', 'failed', 'spam'), true)) continue;
             $payload = json_decode((string) $row['payload'], true);
             if (!is_array($payload)) { $fail++; continue; }
             $result = self::dispatch_to_crm((string) $row['submission_id'], $payload);
@@ -699,7 +782,13 @@ class AdSpirit_Lead_Store {
             'status' => isset($_GET['sl_status']) ? sanitize_key((string) $_GET['sl_status']) : '',
             'search' => isset($_GET['sl_search']) ? sanitize_text_field((string) $_GET['sl_search']) : '',
         );
-        $rows = self::query(100, $filters);
+        // Paginação: 50 por página, filtros preservados nos links.
+        $per_page = 50;
+        $page = isset($_GET['sl_page']) ? max(1, (int) $_GET['sl_page']) : 1;
+        $total = self::count_filtered($filters);
+        $pages = max(1, (int) ceil($total / $per_page));
+        if ($page > $pages) $page = $pages;
+        $rows = self::query($per_page, $filters, ($page - 1) * $per_page);
         $unsent = self::count_unsent();
 
         $notice = isset($_GET['resend']) ? sanitize_key((string) $_GET['resend']) : '';
@@ -735,7 +824,7 @@ class AdSpirit_Lead_Store {
             <?php endif; ?>
 
             <div style="display:flex; gap:16px; flex-wrap:wrap; margin:18px 0; font-size:13px;">
-                <div><strong><?php echo count($rows); ?></strong> exibidas</div>
+                <div><strong><?php echo count($rows); ?></strong> de <strong><?php echo (int) $total; ?></strong> (página <?php echo (int) $page; ?>/<?php echo (int) $pages; ?>)</div>
                 <div<?php echo $unsent > 0 ? ' style="color:var(--as-danger);font-weight:600;"' : ''; ?>>
                     <strong><?php echo (int) $unsent; ?></strong> pendentes/falhos
                 </div>
@@ -762,6 +851,7 @@ class AdSpirit_Lead_Store {
                     <option value="sent" <?php selected($filters['status'], 'sent'); ?>>Enviado</option>
                     <option value="pending" <?php selected($filters['status'], 'pending'); ?>>Pendente</option>
                     <option value="failed" <?php selected($filters['status'], 'failed'); ?>>Falhou</option>
+                    <option value="spam" <?php selected($filters['status'], 'spam'); ?>>Spam (quarentena)</option>
                 </select>
                 <button type="submit" class="button">Filtrar</button>
                 <?php if ($filters['source'] || $filters['status'] || $filters['search']) : ?>
@@ -800,9 +890,11 @@ class AdSpirit_Lead_Store {
                         $when = $ts ? human_time_diff($ts, time()) . ' atrás' : '—';
                         $when_title = $ts ? get_date_from_gmt((string) $r['created_at'], 'Y-m-d H:i') : '';
                         $status = (string) ($r['status'] ?? 'pending');
-                        $badge = array('sent' => 'ok', 'pending' => 'warn', 'failed' => 'danger');
+                        $badge = array('sent' => 'ok', 'pending' => 'warn', 'failed' => 'danger', 'spam' => 'muted');
                         $status_cls = $badge[$status] ?? 'muted';
-                        $can_resend = in_array($status, array('pending', 'failed'), true);
+                        // Spam reenviável de propósito: falso positivo sai da
+                        // quarentena pelo mesmo botão ("não era spam").
+                        $can_resend = in_array($status, array('pending', 'failed', 'spam'), true);
                     ?>
                         <tr>
                             <td>
@@ -811,7 +903,21 @@ class AdSpirit_Lead_Store {
                                 <?php endif; ?>
                             </td>
                             <td title="<?php echo esc_attr($when_title); ?>"><?php echo esc_html($when); ?></td>
-                            <td><span class="as-badge muted"><?php echo esc_html((string) ($r['source'] ?? '')); ?></span></td>
+                            <td>
+                                <span class="as-badge muted"><?php echo esc_html((string) ($r['source'] ?? '')); ?></span>
+                                <?php
+                                // Integrações secundárias da linha (fanout etc.)
+                                // — o CRM já é o status principal ao lado.
+                                $integ_row = json_decode((string) ($r['integrations'] ?? ''), true);
+                                if (is_array($integ_row)) {
+                                    foreach (array('fanout' => 'webhooks', 'capi' => 'Meta', 'ga4' => 'GA4') as $ik => $ilabel) {
+                                        if (!empty($integ_row[$ik])) {
+                                            echo '<br><small style="opacity:.6;">' . esc_html($ilabel) . ' ✓</small>';
+                                        }
+                                    }
+                                }
+                                ?>
+                            </td>
                             <td>
                                 <strong><?php echo esc_html((string) ($r['name'] ?? '—')); ?></strong><br>
                                 <small><?php echo esc_html((string) ($r['email'] ?? '')); ?></small>
@@ -828,6 +934,26 @@ class AdSpirit_Lead_Store {
                                 <?php if ($lerr !== '' && $status !== 'sent') : ?>
                                     <br><small style="opacity:.7;" title="<?php echo esc_attr($lerr); ?>"><?php echo esc_html(mb_substr($lerr, 0, 60)); ?><?php echo mb_strlen($lerr) > 60 ? '…' : ''; ?></small>
                                 <?php endif; ?>
+                                <?php
+                                // Histórico de tentativas (diagnóstico sem SSH).
+                                $integ = json_decode((string) ($r['integrations'] ?? ''), true);
+                                $hist = is_array($integ) && isset($integ['crm_attempts']) && is_array($integ['crm_attempts'])
+                                    ? $integ['crm_attempts'] : array();
+                                ?>
+                                <?php if (!empty($hist)) : ?>
+                                    <details style="margin-top:4px;">
+                                        <summary style="cursor:pointer; font-size:11px; opacity:.7;">histórico (<?php echo count($hist); ?>)</summary>
+                                        <ul style="margin:4px 0 0 14px; font-size:11px; opacity:.85;">
+                                            <?php foreach (array_reverse($hist) as $h) : ?>
+                                                <li>
+                                                    <?php echo !empty($h['at']) ? esc_html(get_date_from_gmt((string) $h['at'], 'd/m H:i')) : '—'; ?>
+                                                    · HTTP <?php echo (int) ($h['code'] ?? 0); ?>
+                                                    <?php if (!empty($h['error'])) : ?> · <span title="<?php echo esc_attr((string) $h['error']); ?>"><?php echo esc_html(mb_substr((string) $h['error'], 0, 50)); ?></span><?php endif; ?>
+                                                </li>
+                                            <?php endforeach; ?>
+                                        </ul>
+                                    </details>
+                                <?php endif; ?>
                             </td>
                             <td><?php echo $r['profile'] !== '' ? '<span class="as-badge accent">' . esc_html((string) $r['profile']) . '</span>' : '<span style="opacity:.4;">—</span>'; ?></td>
                             <td>
@@ -842,6 +968,25 @@ class AdSpirit_Lead_Store {
                     </tbody>
                 </table>
                 </form>
+                <?php if ($pages > 1) :
+                    $base_args = array_filter(array(
+                        'page' => AdSpirit_Menu::PAGE_SLUG,
+                        'tab' => 'submissions',
+                        'sl_source' => $filters['source'],
+                        'sl_status' => $filters['status'],
+                        'sl_search' => $filters['search'],
+                    ));
+                ?>
+                    <div style="display:flex; gap:8px; align-items:center; margin-top:12px;">
+                        <?php if ($page > 1) : ?>
+                            <a class="button" href="<?php echo esc_url(add_query_arg(array_merge($base_args, array('sl_page' => $page - 1)), admin_url('admin.php'))); ?>">‹ Anteriores</a>
+                        <?php endif; ?>
+                        <span style="font-size:12px; opacity:.7;">página <?php echo (int) $page; ?> de <?php echo (int) $pages; ?></span>
+                        <?php if ($page < $pages) : ?>
+                            <a class="button" href="<?php echo esc_url(add_query_arg(array_merge($base_args, array('sl_page' => $page + 1)), admin_url('admin.php'))); ?>">Próximas ›</a>
+                        <?php endif; ?>
+                    </div>
+                <?php endif; ?>
             <?php endif; ?>
         </div>
         <?php

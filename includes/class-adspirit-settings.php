@@ -80,6 +80,9 @@ class AdSpirit_Settings {
             'pixel_token'   => '',
             'cf7_enabled'   => '1',
             'pixel_enabled' => '0',
+            // v2.29: servir o pixel do próprio domínio (anti ad-blocker).
+            // Sub-opção do pixel; default OFF — opt-in por site.
+            'pixel_firstparty' => '0',
             // Feature 35: preview de lead score no [adspirit_form].
             // Off por default (opt-in) — feature visível só pra brands que
             // querem ativar gamification de qualificação.

@@ -88,7 +88,46 @@ class AdSpirit_Menu {
             'submissions'  => 'Submissões recentes',
             'logs'         => 'Logs',
         );
-        return apply_filters('adspirit_connector_tabs', $tabs);
+        $tabs = apply_filters('adspirit_connector_tabs', $tabs);
+        // UX 3.0 (regra do Pedro 08-18): rótulo é pelo que a pessoa FAZ,
+        // nunca pelo nome do módulo. Override central — os módulos seguem
+        // registrando como sempre; a exibição (nav, submenu do WP, títulos)
+        // usa o rótulo leigo. Slug/handler/URL não mudam.
+        $meta = self::tab_meta();
+        foreach ($tabs as $slug => $label) {
+            if (isset($meta[$slug]['label'])) $tabs[$slug] = $meta[$slug]['label'];
+        }
+        return $tabs;
+    }
+
+    /**
+     * Rótulos leigos + descrição de uma linha por tab (tooltip da nav e
+     * legenda da tab ativa). Fonte única da linguagem do painel.
+     */
+    public static function tab_meta() {
+        return apply_filters('adspirit_connector_tab_meta', array(
+            'overview'     => array('label' => 'Visão geral',           'desc' => 'Status da conexão, checklist e os números dos últimos dias.'),
+            'setup'        => array('label' => 'Primeiros passos',      'desc' => 'Checklist guiado pra deixar tudo configurado.'),
+            'submissions'  => array('label' => 'Leads enviados',        'desc' => 'Todo lead capturado no site, com status de entrega ao AdSpirit, quarentena de spam e reenvio.'),
+            'qualifier'    => array('label' => 'Form de avaliação',     'desc' => 'O formulário multi-etapas que qualifica o lead na hora.'),
+            'builder'      => array('label' => 'Criar formulário',      'desc' => 'Monte formulários simples sem código, com finalidade comercial ou nutrição.'),
+            'forms'        => array('label' => 'Mapear campos',         'desc' => 'Liga os campos dos seus formulários aos campos do AdSpirit.'),
+            'cf7-scope'    => array('label' => 'Contact Form 7',        'desc' => 'Escolha quais formulários do CF7 enviam leads.'),
+            'antispam'     => array('label' => 'Anti-spam',             'desc' => 'Bloqueio automático de bots; o que for barrado fica em quarentena revisável.'),
+            'turnstile'    => array('label' => 'Verificação Cloudflare','desc' => 'Camada anti-bot invisível (opcional).'),
+            'capi-meta'    => array('label' => 'Conversões Meta',       'desc' => 'Envia leads e eventos direto pros anúncios do Facebook/Instagram.'),
+            'ga4'          => array('label' => 'Conversões Google',     'desc' => 'Envia leads e eventos pro Google Analytics 4.'),
+            'behavioral'   => array('label' => 'Comportamento no site', 'desc' => 'Rolagem, cliques e engajamento anexados a cada lead.'),
+            'clarity'      => array('label' => 'Gravações (Clarity)',   'desc' => 'Mapas de calor e gravações de sessão da Microsoft.'),
+            'cross-domain' => array('label' => 'Rastreio entre sites',  'desc' => 'Mantém a jornada quando o visitante troca de domínio.'),
+            'ab-tests'     => array('label' => 'Testes A/B',            'desc' => 'Compare versões de formulário e veja qual converte mais.'),
+            'lgpd'         => array('label' => 'Aviso de cookies',      'desc' => 'Banner de consentimento exibido no site.'),
+            'webhook-out'  => array('label' => 'Webhooks de saída',     'desc' => 'Manda cada lead também pra outros sistemas (n8n, Zapier…).'),
+            'customerio'   => array('label' => 'Customer.io',           'desc' => 'Envia leads pra sua conta Customer.io.'),
+            'mailchimp'    => array('label' => 'Mailchimp',             'desc' => 'Inscreve leads numa lista do Mailchimp.'),
+            'connection'   => array('label' => 'Conexão com o AdSpirit','desc' => 'Endereço, marca e chave de acesso — o coração do plugin.'),
+            'logs'         => array('label' => 'Diagnóstico',           'desc' => 'Registros de envio, bloqueios e erros — pra suporte sem SSH.'),
+        ));
     }
 
     /**
@@ -98,13 +137,55 @@ class AdSpirit_Menu {
      * grupo caem num grupo "Mais" automático (nada some).
      */
     public static function tab_groups() {
+        // UX 3.0 — grupos por TAREFA do usuário, não por módulo:
+        // "Leads enviados" abre o grupo de leads (é o que se olha todo dia);
+        // builder e cf7-scope, que caíam no "Mais", ganham casa; Testes A/B
+        // e Aviso de cookies moram em "Medir campanhas" (são de medição/
+        // consentimento, não de integração/captura).
         return apply_filters('adspirit_connector_tab_groups', array(
-            'geral'       => array('label' => 'Geral',       'tabs' => array('overview', 'setup', 'connection')),
-            'captura'     => array('label' => 'Captura',     'tabs' => array('qualifier', 'forms', 'antispam', 'turnstile', 'lgpd')),
-            'tracking'    => array('label' => 'Tracking',    'tabs' => array('capi-meta', 'ga4', 'cross-domain', 'behavioral', 'clarity')),
-            'integracoes' => array('label' => 'Integrações', 'tabs' => array('customerio', 'mailchimp', 'webhook-out', 'ab-tests')),
-            'sistema'     => array('label' => 'Sistema',     'tabs' => array('submissions', 'logs')),
+            'inicio'      => array('label' => 'Início',          'tabs' => array('overview', 'setup')),
+            'leads'       => array('label' => 'Receber leads',   'tabs' => array('submissions', 'qualifier', 'builder', 'forms', 'cf7-scope', 'antispam', 'turnstile')),
+            'medir'       => array('label' => 'Medir campanhas', 'tabs' => array('capi-meta', 'ga4', 'behavioral', 'clarity', 'cross-domain', 'ab-tests', 'lgpd')),
+            'integracoes' => array('label' => 'Integrações',     'tabs' => array('webhook-out', 'customerio', 'mailchimp')),
+            'sistema'     => array('label' => 'Sistema',         'tabs' => array('connection', 'logs')),
         ));
+    }
+
+    /**
+     * Saúde por grupo — o ponto de status na navegação responde "tá tudo
+     * ok?" antes de qualquer clique. Sinais BARATOS (options + 1 COUNT) e
+     * fail-soft: 'ok' (verde) · 'warn' (âmbar) · 'off' (sem ponto).
+     */
+    public static function group_health() {
+        return AdSpirit_Safe_Hook::try_run(function () {
+            $core = class_exists('AdSpirit_Settings') ? AdSpirit_Settings::get_core() : array();
+            $connected = !empty($core['brand_slug']) && !empty($core['secret']);
+
+            $unsent = (class_exists('AdSpirit_Lead_Store') && $connected)
+                ? AdSpirit_Lead_Store::count_unsent() : 0;
+
+            $capi = get_option('adspirit_connector_capi_meta', array());
+            $ga4  = get_option('adspirit_connector_ga4', array());
+            $measuring = (!empty($core['pixel_enabled']) && $core['pixel_enabled'] === '1')
+                || !empty($capi['pixel_id']) || !empty($ga4['measurement_id']);
+
+            $wh = get_option('adspirit_connector_webhook_out', array());
+            $cio = get_option('adspirit_connector_customerio', array());
+            $mc = get_option('adspirit_connector_mailchimp', array());
+            $integrating = !empty($wh['urls']) || !empty($wh['url'])
+                || !empty($cio['enabled']) || !empty($mc['enabled']);
+
+            $safe = class_exists('AdSpirit_Safe_Bootstrap') && AdSpirit_Safe_Bootstrap::is_safe_mode();
+            $auth_err = (bool) get_option('adspirit_connector_crm_auth_error');
+
+            return array(
+                'inicio'      => array('state' => $connected ? 'ok' : 'warn', 'hint' => $connected ? 'Conectado ao AdSpirit' : 'Falta conectar ao AdSpirit'),
+                'leads'       => array('state' => !$connected ? 'off' : ($unsent > 0 ? 'warn' : 'ok'), 'hint' => $unsent > 0 ? $unsent . ' lead(s) aguardando entrega' : 'Leads fluindo normalmente'),
+                'medir'       => array('state' => $measuring ? 'ok' : 'off', 'hint' => $measuring ? 'Medição ativa' : 'Nenhuma medição configurada'),
+                'integracoes' => array('state' => $integrating ? 'ok' : 'off', 'hint' => $integrating ? 'Integrações ativas' : 'Nenhuma integração extra'),
+                'sistema'     => array('state' => ($safe || $auth_err) ? 'warn' : 'ok', 'hint' => $safe ? 'Modo de segurança ativo' : ($auth_err ? 'Chave rejeitada pelo AdSpirit' : 'Sistema saudável')),
+            );
+        }, array(), 'menu_group_health');
     }
 
     /**
@@ -214,9 +295,13 @@ class AdSpirit_Menu {
   --as-accent-soft: #E6F7F7;
   --as-accent-hover: #009999;
   --as-ink: #0F1419;
-  --as-ink-soft: #3A4550;
+  /* Doutrina 08-18 (baixo contraste com piso): secundário desce em passo
+     suave mas SEMPRE legível (≥4.5:1 no branco); linhas quase
+     imperceptíveis — divisor não compete com dado. */
+  --as-ink-soft: #4A5560;
   --as-ink-faint: #8A95A0;
-  --as-line: #E5EAEE;
+  --as-line: #ECF0F3;
+  --as-line-strong: #E0E6EB;
   --as-bg: #FFFFFF;
   --as-bg-card: #F8FAFC;
   --as-bg-subtle: #F3F6F9;
@@ -378,6 +463,67 @@ class AdSpirit_Menu {
   font-weight: 600;
 }
 
+/* ---------- UX 3.0: saúde na nav + legenda da tab ativa ---------- */
+.adspirit-app .as-groups a { display: inline-flex; align-items: center; gap: 7px; }
+.adspirit-app .as-dot {
+  width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto;
+}
+.adspirit-app .as-dot.ok   { background: #00a32a; box-shadow: 0 0 0 3px rgba(0,163,42,.12); }
+.adspirit-app .as-dot.warn { background: #dba617; box-shadow: 0 0 0 3px rgba(219,166,23,.14); }
+.adspirit-app .as-tab-desc {
+  margin: -12px 0 24px; font-size: 13px; color: var(--as-ink-soft);
+  max-width: 720px;
+}
+
+/* ---------- Doutrina 08-18: primitivas compartilhadas ----------
+   Toda tela usa ESTES padrões — consistência é lei; variação nova
+   exige atualizar aqui, nunca improvisar na tela. */
+
+/* Ajuda recolhida: explicação nunca ocupa a tela por padrão. */
+.adspirit-app details.as-help {
+  margin: 16px 0 0; font-size: 12.5px; color: var(--as-ink-soft);
+}
+.adspirit-app details.as-help > summary {
+  cursor: pointer; color: var(--as-ink-faint); user-select: none;
+  list-style-position: inside;
+}
+.adspirit-app details.as-help > summary:hover { color: var(--as-ink-soft); }
+.adspirit-app details.as-help[open] > summary { margin-bottom: 8px; }
+.adspirit-app details.as-help ul { margin: 0; padding-left: 18px; line-height: 1.7; }
+
+/* Linha de campo: rótulo + controle + legenda — sinergia junta, resto separa. */
+.adspirit-app .as-field { margin: 0 0 18px; }
+.adspirit-app .as-field > label.as-field-label {
+  display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px;
+}
+.adspirit-app .as-field .description { margin: 6px 0 0; color: var(--as-ink-faint); }
+
+/* Toggle de feature: checkbox + nome + legenda na MESMA unidade visual. */
+.adspirit-app .as-toggle { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 14px; }
+.adspirit-app .as-toggle input[type="checkbox"] { margin-top: 3px; }
+.adspirit-app .as-toggle .t { font-size: 13px; }
+.adspirit-app .as-toggle .t small { display: block; color: var(--as-ink-faint); margin-top: 2px; }
+.adspirit-app .as-toggle.as-sub { margin-left: 26px; } /* sub-opção pertence ao pai */
+
+/* Rodapé de ações: UMA primária; raras viram link discreto à direita. */
+.adspirit-app .as-actions {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin-top: 20px;
+}
+.adspirit-app .as-actions .spacer { flex: 1; }
+.adspirit-app .button-link { color: var(--as-ink-faint); text-decoration: none; }
+.adspirit-app .button-link:hover { color: var(--as-ink-soft); }
+
+/* Piso de acessibilidade: foco SEMPRE visível no app inteiro. */
+.adspirit-app a:focus-visible,
+.adspirit-app button:focus-visible,
+.adspirit-app input:focus-visible,
+.adspirit-app select:focus-visible,
+.adspirit-app textarea:focus-visible,
+.adspirit-app summary:focus-visible {
+  outline: 2px solid var(--as-accent); outline-offset: 2px; border-radius: 4px;
+}
+
 /* ---------- Section title (outside cards) ---------- */
 .adspirit-app h2.as-section {
   font-size: 18px;
@@ -413,7 +559,7 @@ class AdSpirit_Menu {
   border: 1px solid var(--as-line);
   border-radius: 10px;
   background: var(--as-bg);
-  margin: 0 0 16px;
+  margin: 0 0 24px; /* doutrina: margens generosas — grupos se separam pelo vazio */
   overflow: hidden;
 }
 .adspirit-app .as-card-header {
@@ -853,12 +999,19 @@ class AdSpirit_Menu {
 
             <?php settings_errors(); ?>
 
-            <?php // Nível 1 — grupos de temas ?>
+            <?php // Nível 1 — grupos por tarefa, com ponto de saúde (a nav
+                  // responde "tá tudo ok?" antes de qualquer clique). ?>
+            <?php $health = self::group_health(); ?>
             <nav class="as-groups">
                 <?php foreach ($grouped as $gkey => $g):
-                    $first_slug = array_key_first($g['tabs']); ?>
+                    $first_slug = array_key_first($g['tabs']);
+                    $h = isset($health[$gkey]) ? $health[$gkey] : null; ?>
                     <a href="<?php echo esc_url(admin_url('admin.php?page=' . self::PAGE_SLUG . '&tab=' . $first_slug)); ?>"
-                       class="<?php echo $current_group === $gkey ? 'active' : ''; ?>">
+                       class="<?php echo $current_group === $gkey ? 'active' : ''; ?>"
+                       <?php if ($h && !empty($h['hint'])): ?>title="<?php echo esc_attr($h['hint']); ?>"<?php endif; ?>>
+                        <?php if ($h && $h['state'] !== 'off'): ?>
+                            <span class="as-dot <?php echo esc_attr($h['state']); ?>" aria-hidden="true"></span>
+                        <?php endif; ?>
                         <?php echo esc_html($g['label']); ?>
                     </a>
                 <?php endforeach; ?>
@@ -866,15 +1019,21 @@ class AdSpirit_Menu {
 
             <?php // Nível 2 — sub-tabs do grupo atual (só se o grupo tem mais de 1) ?>
             <?php $sub = isset($grouped[$current_group]['tabs']) ? $grouped[$current_group]['tabs'] : array(); ?>
+            <?php $meta = self::tab_meta(); ?>
             <?php if (count($sub) > 1): ?>
             <nav class="as-tabs as-subtabs">
                 <?php foreach ($sub as $slug => $label): ?>
                     <a href="<?php echo esc_url(admin_url('admin.php?page=' . self::PAGE_SLUG . '&tab=' . $slug)); ?>"
-                       class="<?php echo $current_tab === $slug ? 'active' : ''; ?>">
+                       class="<?php echo $current_tab === $slug ? 'active' : ''; ?>"
+                       <?php if (!empty($meta[$slug]['desc'])): ?>title="<?php echo esc_attr($meta[$slug]['desc']); ?>"<?php endif; ?>>
                         <?php echo esc_html($label); ?>
                     </a>
                 <?php endforeach; ?>
             </nav>
+            <?php endif; ?>
+            <?php // Legenda da tab ativa — a pessoa sempre sabe onde está e pra quê serve. ?>
+            <?php if (!empty($meta[$current_tab]['desc'])): ?>
+                <p class="as-tab-desc"><?php echo esc_html($meta[$current_tab]['desc']); ?></p>
             <?php endif; ?>
 
             <?php

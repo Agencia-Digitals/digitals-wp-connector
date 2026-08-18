@@ -105,15 +105,13 @@ class AdSpirit_Ab_Test {
         $stats = self::get_all();
         ?>
         <h2 class="as-section">
-            <span class="as-kicker-inline">Experiments</span>
-            A/B Tests dos forms
+            <span class="as-kicker-inline">Experimentos</span>
+            Testes A/B
         </h2>
         <p class="as-section-help">
-            Compare variantes do mesmo form e veja qual converte mais. Use
-            <code>[adspirit_form id="seu-form" variant="A"]</code> numa página e
-            <code>[adspirit_form id="seu-form" variant="B"]</code> em outra (ou via
-            split-test do seu CMS). O plugin grava cookie sticky por 90 dias —
-            mesma pessoa vê sempre a variante que cair primeiro.
+            Use <code>[adspirit_form id="seu-form" variant="auto"]</code> — o plugin
+            divide o tráfego pelos pesos abaixo, declara a vencedora e cada pessoa
+            vê sempre a mesma versão.
         </p>
 
         <?php if (empty($stats)): ?>
@@ -131,88 +129,110 @@ class AdSpirit_Ab_Test {
             <?php endforeach; ?>
         <?php endif; ?>
 
-        <?php AdSpirit_Menu::card_open('Como funciona', 'Cookie sticky 90d + filter no submit'); ?>
-        <ul style="margin:0; padding-left:18px; color:var(--as-ink-soft); font-size:12.5px; line-height:1.7;">
-            <li>Atributo <code>variant</code> aceita <code>A</code>, <code>B</code>, <code>C</code> ou <code>D</code> (case-insensitive).</li>
-            <li>Cookie <code>adspirit_ab_variant_&lt;form_id&gt;</code> grava a primeira variante vista — mesma pessoa nunca vê duas.</li>
-            <li>Submit inclui <code>_adspirit_ab_variant</code> no payload pro CRM — pra você cruzar com qualidade do lead lá.</li>
-            <li>Winner só aparece quando ambas variantes ultrapassam <strong><?php echo self::MIN_SAMPLE; ?> views</strong> — evita ruído.</li>
-        </ul>
-        <?php AdSpirit_Menu::card_close(); ?>
+        <details style="margin-top:4px; color:var(--as-ink-soft); font-size:12.5px;">
+            <summary style="cursor:pointer;">Como funciona</summary>
+            <ul style="margin:8px 0 0; padding-left:18px; line-height:1.7;">
+                <li><code>variant="auto"</code> divide pelos pesos; <code>variant="A"</code> fixa a versão (modo manual, útil com split do CMS).</li>
+                <li>Cookie de 90 dias garante que a mesma pessoa nunca vê duas versões.</li>
+                <li>A variante vai no lead pro AdSpirit — dá pra cruzar com a qualidade (e receita) lá.</li>
+                <li>Arquivar preserva os números; zerar apaga. Vencedora recebe 100% do tráfego automático.</li>
+            </ul>
+        </details>
         <?php
     }
 
     private function render_form_card($form_id, $data) {
         $views = isset($data['views']) ? (array) $data['views'] : array();
         $conversions = isset($data['conversions']) ? (array) $data['conversions'] : array();
-        $variants = array_unique(array_merge(array_keys($views), array_keys($conversions)));
+        $cfg = self::get_config($form_id);
+        $variants = array_unique(array_merge(
+            array_keys($views), array_keys($conversions), array_keys($cfg['weights'])
+        ));
         sort($variants);
 
         $totals = array();
-        $best_rate = 0;
-        $best_variant = null;
-        $eligible_for_winner = true;
         foreach ($variants as $v) {
             $vw = isset($views[$v]) ? (int) $views[$v] : 0;
             $cv = isset($conversions[$v]) ? (int) $conversions[$v] : 0;
-            $rate = $vw > 0 ? ($cv / $vw) : 0;
-            $totals[$v] = array('views' => $vw, 'conversions' => $cv, 'rate' => $rate);
-            if ($vw < self::MIN_SAMPLE) $eligible_for_winner = false;
-            if ($rate > $best_rate) {
-                $best_rate = $rate;
-                $best_variant = $v;
-            }
+            $totals[$v] = array('views' => $vw, 'conversions' => $cv, 'rate' => $vw > 0 ? $cv / $vw : 0);
         }
 
-        $right_html = '';
-        if (count($variants) >= 2 && $eligible_for_winner && $best_variant) {
-            $right_html = '<span class="as-badge ok">Winner: ' . esc_html($best_variant) . '</span>';
-        } elseif (count($variants) >= 2) {
-            $right_html = '<span class="as-badge muted">Coletando dados</span>';
-        }
+        $winner = $cfg['winner'];
+        $state_badge = $winner !== ''
+            ? '<span class="as-badge ok">Vencedora: ' . esc_html($winner) . '</span>'
+            : (count($variants) >= 2 ? '<span class="as-badge muted">Testando</span>' : '');
 
-        AdSpirit_Menu::card_open(
-            'Form: ' . $form_id,
-            'Shortcode <code>[adspirit_form id="' . esc_attr($form_id) . '" variant="A|B|C"]</code>',
-            $right_html
-        );
+        $fid = 'ab-cfg-' . $form_id;
+        AdSpirit_Menu::card_open('Form: ' . $form_id, '', $state_badge);
         ?>
+        <?php // Form único do card — inputs/botões nos tiles apontam pra ele
+              // via atributo form="". Uma ação primária; o resto é link. ?>
+        <form id="<?php echo esc_attr($fid); ?>" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+            <input type="hidden" name="action" value="adspirit_save">
+            <input type="hidden" name="adspirit_tab" value="ab-tests">
+            <input type="hidden" name="form_id" value="<?php echo esc_attr($form_id); ?>">
+            <?php wp_nonce_field('adspirit_ab-tests_save', '_adspirit_nonce'); ?>
+        </form>
+
+        <?php if ($winner !== ''): ?>
+            <p style="margin:0 0 12px; font-size:12.5px; color:var(--as-ink-soft);">
+                Vencedora <?php echo $cfg['winner_by'] === 'auto' ? 'automática' : 'manual'; ?> — recebe 100% do tráfego do <code>variant="auto"</code>.
+                <button form="<?php echo esc_attr($fid); ?>" name="ab_action" value="clear_winner" class="button-link">Reabrir teste</button>
+            </p>
+        <?php endif; ?>
+
         <div class="as-metric-grid">
             <?php foreach ($variants as $v):
                 $t = $totals[$v];
-                $rate_pct = $t['rate'] * 100;
-                $is_winner = ($v === $best_variant) && $eligible_for_winner && count($variants) >= 2;
+                $is_archived = !empty($cfg['archived'][$v]);
+                $is_winner = ($v === $winner);
+                $weight = isset($cfg['weights'][$v]) ? (int) $cfg['weights'][$v] : 50;
                 ?>
-                <div class="as-metric" style="<?php echo $is_winner ? 'border-color:var(--as-accent); background:var(--as-accent-soft);' : ''; ?>">
+                <div class="as-metric" style="<?php echo $is_winner ? 'border-color:var(--as-accent); background:var(--as-accent-soft);' : ($is_archived ? 'opacity:.55;' : ''); ?>">
                     <div class="label">
                         Variante <?php echo esc_html($v); ?>
-                        <?php if ($is_winner): ?>
-                            <span class="as-badge ok" style="margin-left:6px;">Winner</span>
+                        <?php if ($is_winner): ?><span class="as-badge ok" style="margin-left:6px;">Vencedora</span><?php endif; ?>
+                        <?php if ($is_archived): ?><span class="as-badge muted" style="margin-left:6px;">arquivada</span><?php endif; ?>
+                    </div>
+                    <div class="value"><?php echo number_format_i18n($t['rate'] * 100, 2); ?>%</div>
+                    <div class="sub">
+                        <?php echo number_format_i18n($t['conversions']); ?> conv / <?php echo number_format_i18n($t['views']); ?> views
+                        <?php if (!$is_archived && $t['views'] < self::MIN_SAMPLE): ?>
+                            · <span style="color:var(--as-warning);">faltam <?php echo (self::MIN_SAMPLE - $t['views']); ?> views</span>
                         <?php endif; ?>
                     </div>
-                    <div class="value"><?php echo number_format_i18n($rate_pct, 2); ?>%</div>
-                    <div class="sub">
-                        <?php echo number_format_i18n($t['conversions']); ?> conv /
-                        <?php echo number_format_i18n($t['views']); ?> views
-                        <?php if ($t['views'] < self::MIN_SAMPLE): ?>
-                            · <span style="color:var(--as-warning);">faltam <?php echo (self::MIN_SAMPLE - $t['views']); ?> pra estatística</span>
+                    <div class="sub" style="margin-top:8px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <?php if (!$is_archived): ?>
+                            <label style="display:inline-flex; align-items:center; gap:4px;">
+                                <input form="<?php echo esc_attr($fid); ?>" type="number" name="w[<?php echo esc_attr($v); ?>]" value="<?php echo (int) $weight; ?>" min="0" max="100" style="width:56px;">%
+                            </label>
+                            <label title="Travada: o Equilibrar não mexe neste percentual" style="display:inline-flex; align-items:center; gap:3px;">
+                                <input form="<?php echo esc_attr($fid); ?>" type="checkbox" name="lock[<?php echo esc_attr($v); ?>]" value="1" <?php checked(!empty($cfg['locked'][$v])); ?>> travar
+                            </label>
+                            <?php if ($winner === ''): ?>
+                                <button form="<?php echo esc_attr($fid); ?>" name="ab_action" value="winner-<?php echo esc_attr(strtolower($v)); ?>" class="button-link">vencedora</button>
+                            <?php endif; ?>
+                            <button form="<?php echo esc_attr($fid); ?>" name="ab_action" value="archive-<?php echo esc_attr(strtolower($v)); ?>" class="button-link" style="color:var(--as-ink-faint);">arquivar</button>
+                        <?php else: ?>
+                            <button form="<?php echo esc_attr($fid); ?>" name="ab_action" value="restore-<?php echo esc_attr(strtolower($v)); ?>" class="button-link">restaurar</button>
                         <?php endif; ?>
                     </div>
                 </div>
             <?php endforeach; ?>
         </div>
 
-        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin-top:8px;">
-            <input type="hidden" name="action" value="adspirit_save">
-            <input type="hidden" name="adspirit_tab" value="ab-tests">
-            <input type="hidden" name="ab_action" value="reset">
-            <input type="hidden" name="form_id" value="<?php echo esc_attr($form_id); ?>">
-            <?php wp_nonce_field('adspirit_ab-tests_save', '_adspirit_nonce'); ?>
-            <button type="submit" class="button button-danger"
-                    onclick="return confirm('Zerar stats do form <?php echo esc_js($form_id); ?>? Não dá pra desfazer.');">
-                Reset stats
-            </button>
-        </form>
+        <div style="margin-top:12px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+            <button form="<?php echo esc_attr($fid); ?>" name="ab_action" value="config" class="button button-primary">Salvar divisão</button>
+            <button form="<?php echo esc_attr($fid); ?>" name="ab_action" value="balance" class="button" title="Divide igualmente entre as variantes destravadas">Equilibrar</button>
+            <label style="display:inline-flex; align-items:center; gap:5px; font-size:12.5px; color:var(--as-ink-soft);">
+                <input form="<?php echo esc_attr($fid); ?>" type="checkbox" name="auto_winner" value="1" <?php checked($cfg['auto_winner'], '1'); ?>>
+                declarar vencedora sozinho
+                <span title="Critério simples: todas com <?php echo self::MIN_SAMPLE; ?>+ views e a líder convertendo 1,5× a segunda. Salve a divisão pra aplicar.">ⓘ</span>
+            </label>
+            <span style="flex:1;"></span>
+            <button form="<?php echo esc_attr($fid); ?>" name="ab_action" value="reset" class="button-link" style="color:var(--as-danger);"
+                    onclick="return confirm('Zerar os números de <?php echo esc_js($form_id); ?>? Não dá pra desfazer.');">zerar números</button>
+        </div>
         <?php
         AdSpirit_Menu::card_close();
     }
@@ -234,7 +254,19 @@ class AdSpirit_Ab_Test {
      */
     public function handle_shortcode_atts($out, $pairs, $atts, $name = '') {
         if (!is_array($out)) return $out;
-        $raw = isset($atts['variant']) ? (string) $atts['variant'] : '';
+        $raw = isset($atts['variant']) ? trim((string) $atts['variant']) : '';
+
+        // 3.0 (lição WPFunnels): variant="auto" — o PLUGIN divide o tráfego
+        // por pesos configuráveis na aba Testes A/B (com vencedora e
+        // arquivamento). Randomização server-side, sticky pelo mesmo cookie
+        // de sempre. Um shortcode só, nenhuma página duplicada.
+        if (strtolower($raw) === 'auto' && isset($out['id'])) {
+            $picked = self::pick_variant(sanitize_key((string) $out['id']));
+            $out['variant'] = $picked;
+            if ($picked !== '') self::$pending_views[$out['id']] = $picked;
+            return $out;
+        }
+
         $variant = self::sanitize_variant($raw);
         $out['variant'] = $variant; // '' se inválido / não setado
 
@@ -243,6 +275,71 @@ class AdSpirit_Ab_Test {
             self::$pending_views[$out['id']] = $variant;
         }
         return $out;
+    }
+
+    /**
+     * Escolhe a variante pra variant="auto": cookie sticky > vencedora >
+     * sorteio ponderado entre variantes não-arquivadas. Cache por request
+     * (dois shortcodes do mesmo form na página = mesma escolha).
+     */
+    private static $picked_cache = array();
+
+    public static function pick_variant($form_id) {
+        if ($form_id === '') return '';
+        if (isset(self::$picked_cache[$form_id])) return self::$picked_cache[$form_id];
+
+        $sticky = self::read_cookie($form_id);
+        if ($sticky !== '') return self::$picked_cache[$form_id] = $sticky;
+
+        $cfg = self::get_config($form_id);
+        if (!empty($cfg['winner']) && empty($cfg['archived'][$cfg['winner']])) {
+            return self::$picked_cache[$form_id] = $cfg['winner'];
+        }
+
+        // Candidatas: pesos configurados; sem config = A/B em 50/50.
+        $weights = !empty($cfg['weights']) && is_array($cfg['weights'])
+            ? $cfg['weights'] : array('A' => 50, 'B' => 50);
+        $pool = array();
+        foreach ($weights as $v => $w) {
+            $v = self::sanitize_variant($v);
+            if ($v === '' || !empty($cfg['archived'][$v])) continue;
+            $w = max(0, (int) $w);
+            if ($w > 0) $pool[$v] = $w;
+        }
+        if (empty($pool)) return self::$picked_cache[$form_id] = 'A';
+
+        $total = array_sum($pool);
+        $roll = wp_rand(1, $total);
+        foreach ($pool as $v => $w) {
+            $roll -= $w;
+            if ($roll <= 0) return self::$picked_cache[$form_id] = $v;
+        }
+        return self::$picked_cache[$form_id] = array_key_first($pool);
+    }
+
+    /** Config do experimento por form (pesos, travas, arquivadas, vencedora). */
+    public static function get_config($form_id) {
+        $all = self::get_all();
+        $cfg = isset($all[$form_id]['config']) && is_array($all[$form_id]['config'])
+            ? $all[$form_id]['config'] : array();
+        return array(
+            'weights'     => isset($cfg['weights']) && is_array($cfg['weights']) ? $cfg['weights'] : array(),
+            'locked'      => isset($cfg['locked']) && is_array($cfg['locked']) ? $cfg['locked'] : array(),
+            'archived'    => isset($cfg['archived']) && is_array($cfg['archived']) ? $cfg['archived'] : array(),
+            'auto_winner' => isset($cfg['auto_winner']) ? (string) $cfg['auto_winner'] : '0',
+            'winner'      => isset($cfg['winner']) ? self::sanitize_variant((string) $cfg['winner']) : '',
+            'winner_by'   => isset($cfg['winner_by']) ? (string) $cfg['winner_by'] : '',
+            'winner_at'   => isset($cfg['winner_at']) ? (string) $cfg['winner_at'] : '',
+        );
+    }
+
+    private static function save_config($form_id, array $cfg) {
+        $all = self::get_all();
+        if (!isset($all[$form_id]) || !is_array($all[$form_id])) {
+            $all[$form_id] = array('variants' => array(), 'views' => array(), 'conversions' => array());
+        }
+        $all[$form_id]['config'] = $cfg;
+        update_option(self::OPTION_KEY, $all, false);
     }
 
     /**
@@ -299,19 +396,91 @@ class AdSpirit_Ab_Test {
 
     public function handle_save($post) {
         $action = isset($post['ab_action']) ? sanitize_key((string) $post['ab_action']) : '';
-        if ($action !== 'reset') return;
         $form_id = isset($post['form_id']) ? sanitize_key((string) $post['form_id']) : '';
-        if (!$form_id) {
-            add_settings_error(self::OPTION_KEY, 'no_form_id', 'form_id inválido pra reset.', 'error');
-            return;
+        if ($form_id === '' || $action === '') return;
+        $variant = isset($post['variant']) ? self::sanitize_variant((string) $post['variant']) : '';
+        // Botões por variante num form só: value "archive-a" / "winner-b"...
+        if (preg_match('/^(archive|restore|winner)-([a-d])$/', $action, $m)) {
+            $action = $m[1];
+            $variant = strtoupper($m[2]);
         }
-        $all = self::get_all();
-        if (isset($all[$form_id])) {
-            unset($all[$form_id]);
-            update_option(self::OPTION_KEY, $all, false);
-            add_settings_error(self::OPTION_KEY, 'reset_ok', 'Stats zeradas pra <code>' . esc_html($form_id) . '</code>.', 'updated');
-        } else {
-            add_settings_error(self::OPTION_KEY, 'not_found', 'Form não tinha stats.', 'info');
+        $cfg = self::get_config($form_id);
+
+        switch ($action) {
+            case 'reset':
+                $all = self::get_all();
+                if (isset($all[$form_id])) {
+                    unset($all[$form_id]);
+                    update_option(self::OPTION_KEY, $all, false);
+                    add_settings_error(self::OPTION_KEY, 'reset_ok', 'Números zerados pra <code>' . esc_html($form_id) . '</code>.', 'updated');
+                }
+                return;
+
+            case 'config':
+                // Pesos + travas + vencedora automática, num submit só.
+                $weights = isset($post['w']) && is_array($post['w']) ? $post['w'] : array();
+                $locked  = isset($post['lock']) && is_array($post['lock']) ? $post['lock'] : array();
+                $cfg['weights'] = array();
+                $cfg['locked'] = array();
+                foreach ($weights as $v => $w) {
+                    $v = self::sanitize_variant((string) $v);
+                    if ($v === '') continue;
+                    $cfg['weights'][$v] = max(0, min(100, (int) $w));
+                    if (!empty($locked[$v])) $cfg['locked'][$v] = true;
+                }
+                $cfg['auto_winner'] = !empty($post['auto_winner']) ? '1' : '0';
+                self::save_config($form_id, $cfg);
+                add_settings_error(self::OPTION_KEY, 'cfg_ok', 'Divisão de tráfego salva.', 'updated');
+                return;
+
+            case 'balance':
+                // Reequilibra as DESTRAVADAS igualmente; travadas mantêm o %.
+                $active = array();
+                $locked_sum = 0;
+                foreach ($cfg['weights'] as $v => $w) {
+                    if (!empty($cfg['archived'][$v])) continue;
+                    if (!empty($cfg['locked'][$v])) { $locked_sum += (int) $w; continue; }
+                    $active[] = $v;
+                }
+                if ($active) {
+                    $share = (int) floor(max(0, 100 - $locked_sum) / count($active));
+                    foreach ($active as $v) $cfg['weights'][$v] = $share;
+                    self::save_config($form_id, $cfg);
+                    add_settings_error(self::OPTION_KEY, 'bal_ok', 'Tráfego reequilibrado entre as variantes destravadas.', 'updated');
+                }
+                return;
+
+            case 'archive':
+                if ($variant === '') return;
+                // Arquivar nunca apaga: números ficam, variante sai do sorteio.
+                $cfg['archived'][$variant] = true;
+                if ($cfg['winner'] === $variant) { $cfg['winner'] = ''; $cfg['winner_by'] = ''; }
+                self::save_config($form_id, $cfg);
+                add_settings_error(self::OPTION_KEY, 'arch_ok', 'Variante ' . esc_html($variant) . ' arquivada (números preservados).', 'updated');
+                return;
+
+            case 'restore':
+                if ($variant === '') return;
+                unset($cfg['archived'][$variant]);
+                self::save_config($form_id, $cfg);
+                add_settings_error(self::OPTION_KEY, 'rest_ok', 'Variante ' . esc_html($variant) . ' de volta ao teste.', 'updated');
+                return;
+
+            case 'winner':
+                if ($variant === '') return;
+                $cfg['winner'] = $variant;
+                $cfg['winner_by'] = 'manual';
+                $cfg['winner_at'] = current_time('mysql');
+                self::save_config($form_id, $cfg);
+                add_settings_error(self::OPTION_KEY, 'win_ok', 'Variante ' . esc_html($variant) . ' declarada vencedora — recebe 100% do tráfego automático.', 'updated');
+                return;
+
+            case 'clear_winner':
+                $cfg['winner'] = '';
+                $cfg['winner_by'] = '';
+                self::save_config($form_id, $cfg);
+                add_settings_error(self::OPTION_KEY, 'clw_ok', 'Teste reaberto — tráfego volta a dividir pelos pesos.', 'updated');
+                return;
         }
     }
 
@@ -345,6 +514,45 @@ class AdSpirit_Ab_Test {
         $prev = isset($all[$form_id][$bucket][$variant]) ? (int) $all[$form_id][$bucket][$variant] : 0;
         $all[$form_id][$bucket][$variant] = $prev + 1;
         update_option(self::OPTION_KEY, $all, false);
+
+        // Vencedora automática (opt-in): checa só quando entra conversão.
+        if ($bucket === 'conversions') self::maybe_auto_winner($form_id);
+    }
+
+    /**
+     * Vencedora automática — critério SIMPLES e declarado na UI: todas as
+     * variantes ativas com ≥MIN_SAMPLE views e a líder convertendo pelo
+     * menos 1,5× a taxa da segunda. Sem pretensão de p-valor; é um corte
+     * prático pra parar de dividir tráfego quando a diferença é óbvia.
+     * A vencedora passa a receber 100% do variant="auto"; nada é apagado.
+     */
+    private static function maybe_auto_winner($form_id) {
+        $cfg = self::get_config($form_id);
+        if ($cfg['auto_winner'] !== '1' || $cfg['winner'] !== '') return;
+
+        $all = self::get_all();
+        $views = isset($all[$form_id]['views']) ? (array) $all[$form_id]['views'] : array();
+        $conv  = isset($all[$form_id]['conversions']) ? (array) $all[$form_id]['conversions'] : array();
+        $rates = array();
+        foreach ($views as $v => $n) {
+            if (!empty($cfg['archived'][$v])) continue;
+            $n = (int) $n;
+            if ($n < self::MIN_SAMPLE) return; // amostra insuficiente em alguma ativa
+            $rates[$v] = $n > 0 ? ((int) ($conv[$v] ?? 0)) / $n : 0;
+        }
+        if (count($rates) < 2) return;
+        arsort($rates);
+        $keys = array_keys($rates);
+        $lead = $rates[$keys[0]];
+        $second = $rates[$keys[1]];
+        if ($lead <= 0) return;
+        if ($second > 0 && ($lead / $second) < 1.5) return;
+        if ($second <= 0 && ((int) ($conv[$keys[0]] ?? 0)) < 5) return;
+
+        $cfg['winner'] = $keys[0];
+        $cfg['winner_by'] = 'auto';
+        $cfg['winner_at'] = current_time('mysql');
+        self::save_config($form_id, $cfg);
     }
 
     /* ===========================================================

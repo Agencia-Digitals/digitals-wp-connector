@@ -79,6 +79,28 @@ class AdSpirit_Status {
             </div>
         <?php endif; ?>
 
+        <?php
+        // Doutrina: hierarquia muda com o estado. Tudo configurado → o
+        // checklist recolhe numa linha (o dia a dia é a métrica, não o
+        // onboarding). Algo faltando → o checklist É a tarefa e domina.
+        $all_done = true;
+        foreach ($checklist as $it) {
+            if (($it['status'] ?? '') !== 'done') { $all_done = false; break; }
+        }
+        ?>
+        <?php if ($all_done): ?>
+            <details class="as-help" style="margin: 0 0 24px;">
+                <summary><span class="as-badge ok" style="margin-right:8px;">✓</span>Site conectado e enviando — ver checklist</summary>
+                <ul class="as-checklist" style="margin-top:12px;">
+                    <?php foreach ($checklist as $item): ?>
+                        <li>
+                            <span class="icon done"><?php echo self::status_icon('done'); ?></span>
+                            <div class="body"><div class="title"><?php echo esc_html($item['title']); ?></div></div>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            </details>
+        <?php else: ?>
         <h2 class="as-section"><span class="as-kicker-inline">Onboarding</span>Conectar o site ao CRM</h2>
         <p class="as-section-help">Checklist do que falta pra ferramenta estar 100% conectada e enviando leads.</p>
 
@@ -102,16 +124,17 @@ class AdSpirit_Status {
                 </li>
             <?php endforeach; ?>
         </ul>
+        <?php endif; ?>
 
-        <h2 class="as-section"><span class="as-kicker-inline">Performance</span>Métricas dos últimos 30 dias</h2>
+        <h2 class="as-section"><span class="as-kicker-inline">Últimos 30 dias</span>Leads deste site</h2>
         <div class="as-metric-grid">
             <div class="as-metric">
-                <div class="label">CF7 → CRM enviados</div>
+                <div class="label">Leads enviados</div>
                 <div class="value"><?php echo esc_html($metrics['cf7_sent_30d']); ?></div>
                 <div class="sub"><?php echo esc_html($metrics['cf7_sent_24h']); ?> nas últimas 24h</div>
             </div>
             <div class="as-metric">
-                <div class="label">Falhas no envio</div>
+                <div class="label">Falhas de envio</div>
                 <div class="value <?php echo $metrics['cf7_failed_30d'] > 0 ? 'danger' : ''; ?>"><?php echo esc_html($metrics['cf7_failed_30d']); ?></div>
                 <div class="sub"><?php echo esc_html($metrics['cf7_failed_24h']); ?> nas últimas 24h</div>
             </div>
@@ -121,24 +144,27 @@ class AdSpirit_Status {
                 <div class="sub"><?php echo $metrics['cf7_sent_30d'] + $metrics['cf7_failed_30d']; ?> tentativas</div>
             </div>
             <div class="as-metric">
-                <div class="label">Bloqueios anti-spam</div>
+                <div class="label">Bloqueados como spam</div>
                 <div class="value"><?php echo esc_html($metrics['antispam_blocked_30d']); ?></div>
                 <div class="sub"><?php echo esc_html($metrics['antispam_blocked_24h']); ?> nas últimas 24h</div>
             </div>
             <div class="as-metric">
-                <div class="label">Última submissão</div>
+                <div class="label">Último lead</div>
                 <div class="value text"><?php echo esc_html($metrics['last_cf7_at_human'] ?: 'nunca'); ?></div>
                 <div class="sub"><?php echo esc_html($metrics['last_cf7_at_iso'] ?: ''); ?></div>
             </div>
+            <?php // Doutrina: tile de erro SÓ quando há erro — "nenhum" é ruído. ?>
+            <?php if (!empty($metrics['last_error'])): ?>
             <div class="as-metric">
                 <div class="label">Último erro</div>
-                <div class="value text <?php echo $metrics['last_error'] ? 'danger' : ''; ?>" style="font-size:13px;">
-                    <?php echo esc_html($metrics['last_error'] ?: 'nenhum'); ?>
+                <div class="value text danger" style="font-size:13px;">
+                    <?php echo esc_html($metrics['last_error']); ?>
                 </div>
             </div>
+            <?php endif; ?>
         </div>
 
-        <h2 class="as-section"><span class="as-kicker-inline">Forms</span>Detectados no site</h2>
+        <h2 class="as-section"><span class="as-kicker-inline">Formulários</span>O que o site tem hoje</h2>
         <?php if (empty($forms)): ?>
             <div class="as-notice warn">
                 <p>Nenhum form CF7 encontrado. Crie um em <code>Contact → Forms</code>.</p>
@@ -186,8 +212,29 @@ class AdSpirit_Status {
             </table>
         <?php endif; ?>
 
-        <h2 class="as-section"><span class="as-kicker-inline">Ambiente</span>O que está rodando no servidor</h2>
-        <table class="as-table" style="max-width:720px;">
+        <?php
+        // Doutrina: ambiente/proteções são consulta RARA — recolhidos por
+        // padrão. O que precisa de atenção sobe como aviso enxuto.
+        $safe_mode = class_exists('AdSpirit_Safe_Bootstrap') && AdSpirit_Safe_Bootstrap::is_safe_mode();
+        $crashes = class_exists('AdSpirit_Crash_Tracker') ? AdSpirit_Crash_Tracker::get_log() : array();
+        $recent_crashes = 0;
+        $cwindow = time() - 86400;
+        foreach ($crashes as $c) {
+            if (($c['at'] ?? 0) >= $cwindow) $recent_crashes++;
+        }
+        ?>
+        <?php if (!$env['cf7_installed'] || $env['wp_armour'] || $safe_mode || $recent_crashes > 0): ?>
+            <div class="as-notice warn"><p>
+                <?php if (!$env['cf7_installed']): ?>Contact Form 7 não está instalado. <?php endif; ?>
+                <?php if ($env['wp_armour']): ?>WP Armour é redundante — o anti-spam embutido cobre tudo; pode desinstalar. <?php endif; ?>
+                <?php if ($safe_mode): ?>Plugin em modo de segurança (features desligadas, site intocado). <?php endif; ?>
+                <?php if ($recent_crashes > 0): ?><?php echo (int) $recent_crashes; ?> erro(s) capturado(s) nas últimas 24h — <a href="<?php echo esc_url(admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=logs')); ?>">ver diagnóstico</a>.<?php endif; ?>
+            </p></div>
+        <?php endif; ?>
+
+        <details class="as-help">
+        <summary>Ambiente e proteções</summary>
+        <table class="as-table" style="max-width:720px; margin-top:10px;">
             <tr>
                 <th style="width:240px;">Contact Form 7</th>
                 <td>
@@ -224,18 +271,7 @@ class AdSpirit_Status {
             </tr>
         </table>
 
-        <h2 class="as-section"><span class="as-kicker-inline">Resiliência</span>Proteções ativas</h2>
-        <p class="as-section-help">Camadas que garantem que este plugin nunca derruba o site, mesmo se algo der errado.</p>
-        <?php
-        $safe_mode = class_exists('AdSpirit_Safe_Bootstrap') && AdSpirit_Safe_Bootstrap::is_safe_mode();
-        $crashes = class_exists('AdSpirit_Crash_Tracker') ? AdSpirit_Crash_Tracker::get_log() : array();
-        $recent_crashes = 0;
-        $window = time() - 86400; // 24h
-        foreach ($crashes as $c) {
-            if (($c['at'] ?? 0) >= $window) $recent_crashes++;
-        }
-        ?>
-        <table class="as-table" style="max-width:720px;">
+        <table class="as-table" style="max-width:720px; margin-top:14px;">
             <tr>
                 <th style="width:240px;">Modo de operação</th>
                 <td>
@@ -275,17 +311,17 @@ class AdSpirit_Status {
                 <td>WP <code>6.0+</code> · PHP <code>7.4+</code> — validado no boot e na ativação</td>
             </tr>
         </table>
+        </details>
 
-        <h2 class="as-section"><span class="as-kicker-inline">Teste</span>Conexão com o CRM</h2>
-        <p class="as-section-help">Faz <code>GET</code> no endpoint validando brand slug + secret. Não cria lead.</p>
-        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <?php // Doutrina: testar é ação, não seção — rodapé compacto. ?>
+        <div class="as-actions">
             <button type="button" class="button button-primary" id="adspirit-test-btn"><?php echo self::icon('zap'); ?> Testar conexão agora</button>
             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline;">
                 <input type="hidden" name="action" value="adspirit_send_test_event">
                 <?php wp_nonce_field('adspirit_send_test_event'); ?>
                 <button type="submit" class="button">Disparar lead de teste</button>
             </form>
-            <?php // "Verificar atualizações" agora vive no topo da página (header). ?>
+            <span style="font-size:12px; color:var(--as-ink-faint);">valida a conexão sem criar lead de verdade</span>
         </div>
         <pre class="as-test-result" id="adspirit-test-result" style="display:none; margin-top:12px;"></pre>
 
@@ -682,16 +718,26 @@ add_action('adspirit_connector_render_tab_connection', AdSpirit_Safe_Hook::actio
             </td>
         </tr>
         <tr>
-            <th>Features</th>
+            <th>O que este site envia</th>
             <td>
-                <label>
-                    <input type="checkbox" name="cf7_enabled" value="1" <?php checked($s['cf7_enabled'], '1'); ?>>
-                    Enviar submissões do Contact Form 7 pro CRM
-                </label><br>
-                <label style="margin-top:8px; display:inline-flex;">
-                    <input type="checkbox" name="pixel_enabled" value="1" <?php checked($s['pixel_enabled'], '1'); ?>>
-                    Injetar pixel de tracking no <code>&lt;head&gt;</code>
-                </label>
+                <div class="as-toggle">
+                    <input type="checkbox" id="as_cf7" name="cf7_enabled" value="1" <?php checked($s['cf7_enabled'], '1'); ?>>
+                    <label class="t" for="as_cf7">Enviar leads dos formulários
+                        <small>Todo formulário conectado entrega os leads direto no AdSpirit.</small>
+                    </label>
+                </div>
+                <div class="as-toggle">
+                    <input type="checkbox" id="as_px" name="pixel_enabled" value="1" <?php checked($s['pixel_enabled'], '1'); ?>>
+                    <label class="t" for="as_px">Medir visitas e jornada
+                        <small>O rastreador registra de onde cada visitante veio — é o que liga lead a campanha.</small>
+                    </label>
+                </div>
+                <div class="as-toggle as-sub">
+                    <input type="checkbox" id="as_px1p" name="pixel_firstparty" value="1" <?php checked($s['pixel_firstparty'] ?? '0', '1'); ?>>
+                    <label class="t" for="as_px1p">Servir o rastreador pelo endereço deste site
+                        <small>Reduz perda por bloqueadores de anúncio. O código continua vindo do AdSpirit — só o endereço muda.</small>
+                    </label>
+                </div>
             </td>
         </tr>
         <?php
@@ -730,6 +776,7 @@ add_action('adspirit_connector_save_connection', AdSpirit_Safe_Hook::action(func
     }
     $patch['cf7_enabled']   = !empty($post['cf7_enabled']) ? '1' : '0';
     $patch['pixel_enabled'] = !empty($post['pixel_enabled']) ? '1' : '0';
+    $patch['pixel_firstparty'] = !empty($post['pixel_firstparty']) ? '1' : '0';
     // Feature 35 + futuras: filter pra cada feature contribuir patches
     // sem editar este handler.
     $patch = apply_filters('adspirit_connector_connection_save_extra', $patch, $post);

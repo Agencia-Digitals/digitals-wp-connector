@@ -557,15 +557,12 @@ class AdSpirit_Form_Qualifier {
         <?php AdSpirit_Menu::card_open('Disponibilizar no site todo', 'Sem precisar do shortcode em cada página', ($qs['sitewide'] ?? '0') === '1' ? '<span class="as-badge ok">Ligado</span>' : '<span class="as-badge muted">Desligado</span>'); ?>
         <?php AdSpirit_Menu::form_open('qualifier'); ?>
         <input type="hidden" name="qualifier_section" value="sitewide">
-        <table class="form-table">
-            <tr>
-                <th>Site todo</th>
-                <td>
-                    <label><input type="checkbox" name="sitewide" value="1" <?php checked($qs['sitewide'] ?? '0', '1'); ?>> <strong>Carregar o form em todas as páginas</strong> (escondido até clicarem)</label>
-                    <p class="description">Ligado, você <strong>não precisa de shortcode em página nenhuma</strong> — é só criar um botão e apontar o link dele pra <code>#adspirit-avaliacao</code>, ou dar a ele a classe <code>agd_lead</code> (padrão da ferramenta; <code>lead</code> também funciona em botões e links). Custo: o CSS/JS do form carrega em todo o site.</p>
-                </td>
-            </tr>
-        </table>
+        <div class="as-toggle" style="margin-top:6px;">
+            <input type="checkbox" id="as_qsite" name="sitewide" value="1" <?php checked($qs['sitewide'] ?? '0', '1'); ?>>
+            <label class="t" for="as_qsite">Carregar o form em todas as páginas (escondido até clicarem)
+                <small>Sem shortcode em página nenhuma: um botão com link <code>#adspirit-avaliacao</code> ou classe <code>agd_lead</code> abre o form. Custo: o CSS/JS carrega no site todo.</small>
+            </label>
+        </div>
         <?php AdSpirit_Menu::form_close('Salvar'); ?>
         <?php AdSpirit_Menu::card_close(); ?>
 
@@ -581,27 +578,34 @@ class AdSpirit_Form_Qualifier {
             $badge
         );
         ?>
+        <?php // Doutrina: JSON é avançado — recolhido; o caminho feliz é a
+              // galeria de modelos logo abaixo. ?>
         <?php if ($is_custom): ?>
-            <p style="margin:0 0 12px; color:var(--as-ink-soft);">Este site roda um roteiro próprio. O JSON abaixo é o que está no ar — edite e reimporte pra mudar.</p>
-            <textarea readonly rows="8" style="width:100%; font-family:monospace; font-size:11.5px;" onclick="this.select();"><?php
-                echo esc_textarea(wp_json_encode($custom_steps, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-            ?></textarea>
+            <p style="margin:0 0 6px; color:var(--as-ink-soft);">Este site roda um roteiro próprio.</p>
+            <details class="as-help">
+                <summary>Ver o roteiro no ar (JSON)</summary>
+                <textarea readonly rows="8" style="width:100%; font-family:monospace; font-size:11.5px; margin-top:8px;" onclick="this.select();"><?php
+                    echo esc_textarea(wp_json_encode($custom_steps, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                ?></textarea>
+            </details>
         <?php else: ?>
-            <p style="margin:0 0 12px; color:var(--as-ink-soft);">Este site usa as perguntas padrão. Importar um roteiro <strong>não apaga</strong> nada — dá pra voltar ao padrão a qualquer momento.</p>
+            <p style="margin:0 0 6px; color:var(--as-ink-soft);">Este site usa as perguntas padrão. Importar um roteiro <strong>não apaga</strong> nada — dá pra voltar ao padrão a qualquer momento.</p>
         <?php endif; ?>
 
-        <?php AdSpirit_Menu::form_open('qualifier'); ?>
-        <input type="hidden" name="qualifier_section" value="steps">
-        <p style="margin:14px 0 6px; font-weight:600; color:var(--as-ink);">Importar roteiro</p>
-        <textarea name="steps_json" rows="8" style="width:100%; font-family:monospace; font-size:11.5px;" placeholder='[{"isIntro": true, "eyebrow": "...", "title": "...", "sub": "..."}, ...]'></textarea>
-        <p class="submit">
-            <button type="submit" class="button button-primary">Importar roteiro</button>
-            <?php if ($is_custom): ?>
-                <button type="submit" class="button" name="reset_steps" value="1"
-                        onclick="return confirm('Voltar pras perguntas padrão? O roteiro próprio deste site será removido.');">Voltar ao padrão</button>
-            <?php endif; ?>
-        </p>
-        </form>
+        <details class="as-help">
+            <summary>Importar roteiro em JSON (avançado)</summary>
+            <?php AdSpirit_Menu::form_open('qualifier'); ?>
+            <input type="hidden" name="qualifier_section" value="steps">
+            <textarea name="steps_json" rows="8" style="width:100%; font-family:monospace; font-size:11.5px; margin-top:8px;" placeholder='[{"isIntro": true, "eyebrow": "...", "title": "...", "sub": "..."}, ...]'></textarea>
+            <p class="submit" style="margin-top:10px;">
+                <button type="submit" class="button button-primary">Importar roteiro</button>
+                <?php if ($is_custom): ?>
+                    <button type="submit" class="button-link" name="reset_steps" value="1"
+                            onclick="return confirm('Voltar pras perguntas padrão? O roteiro próprio deste site será removido.');">voltar ao padrão</button>
+                <?php endif; ?>
+            </p>
+            </form>
+        </details>
 
         <details style="margin-top:6px;">
             <summary>Como o JSON é montado</summary>
@@ -818,6 +822,16 @@ class AdSpirit_Form_Qualifier {
                     AdSpirit_Anti_Spam::instance()->log_block(
                         'qualifier_' . ($check['reason_code'] ?? 'unknown'),
                         $check['reason_text'] ?? 'rejected by anti-spam'
+                    );
+                }
+                // Connector 3.0 — quarentena revisável (nunca descarta em
+                // silêncio): falso positivo se resgata na aba Submissões.
+                if (class_exists('AdSpirit_Lead_Store')) {
+                    AdSpirit_Lead_Store::record_spam(
+                        $payload_for_check,
+                        'qualifier',
+                        'adspirit_form_qualifier',
+                        ($check['reason_code'] ?? 'unknown') . ': ' . ($check['reason_text'] ?? 'rejected')
                     );
                 }
                 wp_send_json_error(array('error' => 'spam_blocked', 'reason' => $check['reason_code']), 403);

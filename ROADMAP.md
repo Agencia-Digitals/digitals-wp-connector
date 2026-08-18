@@ -32,18 +32,21 @@ antes de release do plugin.**
 ## Próximo — não-destrutivos aprovados (Pedro, 2026-08-17)
 
 UI/admin (prioridade declarada do Pedro: "nossa interface está muito ruim"):
-- [ ] Aba Submissões: status por integração na linha + paginação (bulk e
-      filtros já feitos)
+- [x] Nav do painel reorganizada por TAREFA (regra 08-18): 5 grupos com
+      ponto de saúde, rótulos leigos centralizados (tab_meta), legenda da
+      aba ativa; builder/cf7-scope saíram do "Mais"; Leads enviados abre
+      o grupo de leads
+- [x] Aba Submissões completa (bulk, filtros, histórico, paginação,
+      integrações secundárias na linha)
 - [ ] Aba de logs com request+response por tentativa (diagnóstico sem SSH)
-- [ ] Quarentena de spam revisável (status `spam` no Lead Store em vez de
-      descarte silencioso — padrão WPForms)
+- [x] Quarentena de spam revisável (status `spam` + motivo na aba
+      Submissões; resgate pelo Reenviar; TTL 30d; anti-flood 10/min)
 
 Tracking/analytics:
-- [ ] Eventos automáticos nomeados (padrão PixelYourSite): `TelClick`,
-      `EmailClick`, `Download`, scroll/tempo — com parâmetros ricos
-- [ ] Eventos GA4 com nomes recomendados de lead gen (`generate_lead` já ok;
-      adicionar `form_step_view {step_number}` no qualifier = drop-off por
-      etapa, o analytics que falta no A/B)
+- [x] Eventos automáticos nomeados (tel_click, email_click, whatsapp_click
+      +generate_lead, file_download → dataLayer, arquivo versionado)
+- [x] `form_step_view {step_number}` no qualifier (drop-off por etapa) +
+      `generate_lead` com perfil no sucesso do submit
 - [ ] Pixel servido de path first-party (anti ad-blocker, padrão Stape) +
       migrar JS inline (telemetria/LGPD/cross-domain) pra arquivos versionados
 - [ ] Verificar dedup×cache do event_id CAPI (lição PYS) — Lead ok
@@ -51,12 +54,16 @@ Tracking/analytics:
       não dispara (excluir /obrigado do cache dos sites)
 
 Captação:
-- [ ] WhatsApp com contexto dinâmico (padrão Joinchat): mensagem com
-      `{TITLE}/{URL}` + UTM, `generate_lead` no clique, multi-agente/horário
+- [x] WhatsApp: mensagem com `{TITLE}`/`{URL}` (contexto da página) +
+      `generate_lead` no clique em qualquer wa.me (via auto-events)
+- [ ] WhatsApp: multi-agente com horário (roteamento pelo dono automático
+      do CRM) — fase 2 do widget
 - [ ] Quiz framing do qualifier: título de diagnóstico + resultado por perfil
       (mecânica Thrive/Interact — gate de contato no pico de investimento)
-- [ ] A/B maduro (padrão WPFunnels): pesos com trava, vencedor automático,
-      arquivar variantes (nunca apagar)
+- [x] A/B maduro: variant="auto" (divisão pelo plugin com pesos+trava),
+      vencedora manual e automática (critério simples declarado),
+      arquivamento preservando números; card minimalista (form único,
+      ações nos tiles, ajuda recolhida)
 
 ## Estratégico — produto (junto com o CRM)
 
@@ -92,3 +99,27 @@ Captação:
 - [ ] README reescrito (v2.0.0 + afirmações falsas sobre consent/hooks)
 - [ ] Checksum do ZIP de release + manter releases antigas (rollback)
 - [ ] Bugs B4–B11 do inventário (baixa severidade)
+
+## Reestruturação de TODAS as telas (doutrina de 12 princípios, Pedro 08-18)
+
+Padrões compartilhados prontos no DS: `.as-help` (ajuda recolhida), `.as-field`,
+`.as-toggle`/`.as-sub`, `.as-actions` (uma primária), focus-visible global,
+tokens de baixo contraste com piso. Toda passada usa SÓ esses padrões.
+
+- [x] DS compartilhado ajustado (contraste, margens, primitivas, foco)
+- [x] Navegação (grupos por tarefa + saúde + rótulos leigos)
+- [x] Conexão (referência da doutrina: toggles com legenda, sub-opção aninhada)
+- [x] Testes A/B (estrutura ok; conformidade fina no QA visual)
+- [x] Leads enviados (bulk+filtros+histórico; conformidade fina no QA)
+- [x] Visão geral (checklist recolhe quando pronto; erro só quando há;
+      ambiente/proteções em details; teste vira rodapé de ações)
+- [x] Primeiros passos (DS-only, OK silencioso, seção pronta recolhe)
+- [x] Form de avaliação (toggle no padrão, JSON avançado recolhido — galeria
+      de modelos vira o caminho feliz)
+- [x] Criar formulário (builder) — herda DS/primitivas; passada fina no QA
+- [x] Mapear campos · Contact Form 7
+- [x] Anti-spam · Verificação Cloudflare
+- [x] Conversões Meta · Google · Comportamento · Clarity · Rastreio entre sites
+- [x] Aviso de cookies (LGPD)
+- [x] Webhooks de saída · Customer.io · Mailchimp
+- [x] Diagnóstico (logs)

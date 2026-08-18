@@ -3,7 +3,7 @@
  * Plugin Name:       AdSpirit Connector
  * Plugin URI:        https://crm.agenciadigitals.com.br
  * Description:       Conecta o site WordPress ao CRM AdSpirit (Digitals). CF7 real-time, anti-spam, field mapping, CAPI Meta, GA4 server-side, cross-domain decoration. Configurado via wp-admin.
- * Version:           2.28.0
+ * Version:           2.29.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Tested up to:      6.7
@@ -19,7 +19,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('ADSPIRIT_CONNECTOR_VERSION', '2.28.0');
+define('ADSPIRIT_CONNECTOR_VERSION', '2.29.0');
 define('ADSPIRIT_CONNECTOR_FILE', __FILE__);
 define('ADSPIRIT_CONNECTOR_DIR', plugin_dir_path(__FILE__));
 define('ADSPIRIT_CONNECTOR_URL', plugin_dir_url(__FILE__));
@@ -103,6 +103,10 @@ adspirit_connector_safe_require('includes/class-adspirit-setup-wizard.php');
 adspirit_connector_safe_require('includes/class-adspirit-turnstile.php');
 // v2.28 widget de leads no dashboard do WP (presença diária + deep-link CRM)
 adspirit_connector_safe_require('includes/class-adspirit-dashboard-widget.php');
+// v2.29 eventos automáticos nomeados (tel/email/whatsapp/download → dataLayer)
+adspirit_connector_safe_require('includes/class-adspirit-auto-events.php');
+// v2.29 pixel first-party (proxy com cache, anti ad-blocker; opt-in)
+adspirit_connector_safe_require('includes/class-adspirit-pixel-proxy.php');
 
 /**
  * Bootstrap on plugins_loaded.
@@ -164,6 +168,10 @@ function adspirit_connector_init() {
     if (class_exists('AdSpirit_Turnstile')) AdSpirit_Turnstile::instance();
     // v2.28 widget de leads no dashboard
     if (class_exists('AdSpirit_Dashboard_Widget')) AdSpirit_Dashboard_Widget::instance();
+    // v2.29 eventos automáticos nomeados
+    if (class_exists('AdSpirit_Auto_Events')) AdSpirit_Auto_Events::instance();
+    // v2.29 pixel first-party
+    if (class_exists('AdSpirit_Pixel_Proxy')) AdSpirit_Pixel_Proxy::instance();
 }
 
 /**
