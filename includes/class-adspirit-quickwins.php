@@ -41,6 +41,11 @@ class AdSpirit_Quickwins {
             AdSpirit_Safe_Hook::action(array($this, 'flush_update_cache_after_upgrade'), 'qw_upgrade_flush'), 10, 2);
         add_filter('plugins_api',
             AdSpirit_Safe_Hook::filter(array($this, 'plugin_info'), 'qw_plugin_info'), 10, 3);
+        // 1c. Checksum do pacote: quando o manifest do CRM declara sha256,
+        // o zip baixado é verificado ANTES de instalar. Mismatch aborta o
+        // update (WP_Error) — a versão instalada fica intacta.
+        add_filter('upgrader_pre_download',
+            AdSpirit_Safe_Hook::filter(array($this, 'verify_package_checksum'), 'qw_checksum'), 10, 3);
 
         // 2. Test event button — registrado como admin-post
         add_action('admin_post_adspirit_send_test_event',
@@ -192,6 +197,10 @@ class AdSpirit_Quickwins {
             'url'     => (string) ($data['url'] ?? $core['endpoint_url']),
             'zip'     => (string) $data['package'],
             'body'    => (string) ($data['changelog'] ?? ''),
+            // v2.30: checksum do zip (opcional no manifest). Com ele, o
+            // download é verificado antes de instalar — vital com auto-update
+            // na frota. Sem o campo, comportamento idêntico ao de sempre.
+            'sha256'  => strtolower(trim((string) ($data['sha256'] ?? ''))),
         );
     }
 
@@ -224,6 +233,34 @@ class AdSpirit_Quickwins {
             'zip' => $zip ?: ((string) ($data['zipball_url'] ?? '')),
             'body' => (string) ($data['body'] ?? ''),
         );
+    }
+
+    /**
+     * upgrader_pre_download: se o pacote é o NOSSO zip e temos sha256 do
+     * manifest, baixa e confere o hash. Retorno false = WP baixa normal
+     * (qualquer outro plugin, ou manifest sem checksum — fail-open).
+     */
+    public function verify_package_checksum($reply, $package, $upgrader = null, $hook_extra = null) {
+        if ($reply !== false) return $reply; // outro filtro já resolveu
+        if (!is_string($package) || $package === '') return $reply;
+        $cached = get_transient(self::UPDATE_TRANSIENT);
+        if (!is_array($cached) || empty($cached['sha256']) || empty($cached['zip'])) return $reply;
+        if ($package !== $cached['zip']) return $reply;
+
+        if (!function_exists('download_url')) {
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+        }
+        $file = download_url($package, 300);
+        if (is_wp_error($file)) return $file;
+        $hash = strtolower((string) hash_file('sha256', $file));
+        if ($hash !== $cached['sha256']) {
+            @unlink($file);
+            return new WP_Error('adspirit_checksum_mismatch', sprintf(
+                'AdSpirit Connector: checksum do pacote não confere (esperado %s…, veio %s…). Update abortado — a versão instalada segue intacta.',
+                substr($cached['sha256'], 0, 12), substr($hash, 0, 12)
+            ));
+        }
+        return $file;
     }
 
     // ========== 1b. FORCE UPDATE CHECK ==========

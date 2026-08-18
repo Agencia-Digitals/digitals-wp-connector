@@ -58,9 +58,18 @@ cd "${DIST}"
 zip -rq "${ZIP_NAME}" "${SLUG}"
 cd ..
 
+SHA256=$(shasum -a 256 "${DIST}/${ZIP_NAME}" | cut -d' ' -f1)
+
 echo ""
 echo "✓ Built: ${DIST}/${ZIP_NAME}"
-echo "  Size:  $(du -h "${DIST}/${ZIP_NAME}" | cut -f1)"
+echo "  Size:   $(du -h "${DIST}/${ZIP_NAME}" | cut -f1)"
+echo "  sha256: ${SHA256}"
 echo ""
 echo "Pra instalar:"
 echo "  wp-admin → Plugins → Adicionar novo → Enviar plugin → ${DIST}/${ZIP_NAME}"
+echo ""
+echo "Ritual de release (sync no CRM):"
+echo "  1. copiar o zip pra AGD-CRM/public/downloads/adspirit-connector.zip"
+echo "     + cópia versionada adspirit-connector-${VERSION}.zip (rollback barato)"
+echo "  2. atualizar manifest.json com version=${VERSION} e sha256 acima"
+echo "     (updater 2.30+ verifica o hash antes de instalar; campo ausente = sem verificação)"
