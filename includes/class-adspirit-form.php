@@ -13,9 +13,8 @@
  * chave do payload). Guardrails no save: nome custom slugificado/validado e
  * nome duplicado bloqueado.
  *
- * Submit POSTa pro próprio plugin (admin-ajax.php). A fiação na rede de
- * segurança (AdSpirit_Lead_Store) entra na entrega 2 — até lá, NÃO publicar
- * forms do builder em produção.
+ * Submit POSTa pro próprio plugin (admin-ajax.php) e entra na rede de
+ * segurança (AdSpirit_Lead_Store) com retry — mesma garantia do CF7.
  *
  * @package AdSpiritConnector
  */

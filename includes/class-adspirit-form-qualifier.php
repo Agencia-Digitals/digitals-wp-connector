@@ -236,6 +236,23 @@ class AdSpirit_Form_Qualifier {
                 return array('ok' => false, 'error' => sprintf('Etapa %d não tem nem <code>choices</code> nem <code>fields</code> com <code>key</code>.', $i + 1));
             }
             $clean['fields'] = $fields_out;
+            // requireOneOf: "pelo menos um destes campos" — o JS já valida
+            // (validateCurrent); sem preservar aqui o import perdia a regra.
+            // Só aceita chaves de campos DESTA etapa (é onde o JS foca o erro).
+            if (isset($step['requireOneOf']) && is_array($step['requireOneOf'])) {
+                $step_keys = array_column($fields_out, 'key');
+                $req = array();
+                foreach ($step['requireOneOf'] as $rk) {
+                    $rk = self::sanitize_key_name((string) $rk);
+                    if ($rk !== '' && in_array($rk, $step_keys, true)) $req[] = $rk;
+                }
+                if (!empty($req)) {
+                    $clean['requireOneOf'] = $req;
+                    if (isset($step['requireOneOfMsg']) && $step['requireOneOfMsg'] !== '') {
+                        $clean['requireOneOfMsg'] = sanitize_text_field((string) $step['requireOneOfMsg']);
+                    }
+                }
+            }
             $out[] = $clean;
             $questions++;
         }
@@ -1034,7 +1051,7 @@ class AdSpirit_Form_Qualifier {
         // downstream; só o envio final completo faz).
         if (!$is_partial && class_exists('AdSpirit_Integrations') && method_exists('AdSpirit_Integrations', 'fanout')) {
             try {
-                AdSpirit_Integrations::instance()->fanout($payload);
+                AdSpirit_Integrations::fanout($payload);
                 if (class_exists('AdSpirit_Lead_Store')) {
                     AdSpirit_Lead_Store::mark($submission_id, 'fanout', 'dispatched');
                 }

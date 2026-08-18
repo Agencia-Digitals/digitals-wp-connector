@@ -311,7 +311,7 @@ class AdSpirit_Quickwins {
 
     public function run_health_check() {
         // Só alerta se cron diário SEM lead nas últimas 24h, em dia útil.
-        $now_day = (int) date('N'); // 1=segunda, 7=domingo
+        $now_day = (int) wp_date('N'); // 1=segunda, 7=domingo — fuso do SITE (B11)
         if ($now_day >= 6) return; // pula fim de semana
 
         $log = get_option(AdSpirit_Cf7_Handler::LOG_KEY, array());
