@@ -164,6 +164,41 @@ class AdSpirit_Status {
             <?php endif; ?>
         </div>
 
+        <?php
+        // Reestruturação 08-18: os últimos leads capturados moram na porta
+        // de entrada — abrir o painel e VER os leads, sem caçar aba.
+        $recent_leads = (class_exists('AdSpirit_Lead_Store') && AdSpirit_Lead_Store::available())
+            ? AdSpirit_Lead_Store::query(8, array())
+            : array();
+        ?>
+        <?php if (!empty($recent_leads)) : ?>
+        <h2 class="as-section"><span class="as-kicker-inline">Capturados agora</span>Últimos leads</h2>
+        <table class="as-table">
+            <thead>
+                <tr><th>Quando</th><th>Contato</th><th>Origem</th><th>Status</th><th>Perfil</th></tr>
+            </thead>
+            <tbody>
+                <?php foreach ($recent_leads as $rl) :
+                    $rl_status = (string) ($rl['status'] ?? '');
+                    $rl_cls = $rl_status === 'sent' ? 'ok' : ($rl_status === 'spam' ? 'muted' : ($rl_status === 'failed' ? 'danger' : 'warn'));
+                    $rl_label = $rl_status === 'sent' ? 'Entregue' : ($rl_status === 'spam' ? 'Spam' : ($rl_status === 'failed' ? 'Falhou' : 'Pendente'));
+                ?>
+                <tr>
+                    <td style="white-space:nowrap;"><?php echo !empty($rl['created_at']) ? esc_html(get_date_from_gmt((string) $rl['created_at'], 'd/m H:i')) : '—'; ?></td>
+                    <td>
+                        <?php echo esc_html((string) ($rl['name'] ?: ($rl['email'] ?: $rl['phone'] ?: '—'))); ?>
+                        <?php if (!empty($rl['name']) && !empty($rl['email'])) : ?><br><small style="opacity:.7;"><?php echo esc_html((string) $rl['email']); ?></small><?php endif; ?>
+                    </td>
+                    <td><small><?php echo esc_html((string) ($rl['source'] ?? '')); ?></small></td>
+                    <td><span class="as-badge <?php echo esc_attr($rl_cls); ?>"><?php echo esc_html($rl_label); ?></span></td>
+                    <td><?php echo !empty($rl['profile']) ? '<span class="as-badge accent">' . esc_html((string) $rl['profile']) . '</span>' : '<span style="opacity:.4;">—</span>'; ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+        <p style="margin:6px 0 0;"><a href="<?php echo esc_url(admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=submissions')); ?>" class="button-link">Ver todos os leads enviados →</a></p>
+        <?php endif; ?>
+
         <h2 class="as-section"><span class="as-kicker-inline">Formulários</span>O que o site tem hoje</h2>
         <?php if (empty($forms)): ?>
             <div class="as-notice warn">
