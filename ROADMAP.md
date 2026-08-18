@@ -116,10 +116,10 @@ tokens de baixo contraste com piso. Toda passada usa SÓ esses padrões.
 - [x] Primeiros passos (DS-only, OK silencioso, seção pronta recolhe)
 - [x] Form de avaliação (toggle no padrão, JSON avançado recolhido — galeria
       de modelos vira o caminho feliz)
-- [ ] Criar formulário (builder)
-- [ ] Mapear campos · Contact Form 7 (escopo)
-- [ ] Anti-spam · Verificação Cloudflare
-- [ ] Conversões Meta · Conversões Google · Comportamento · Clarity · Rastreio entre sites
-- [ ] Aviso de cookies (LGPD)
-- [ ] Webhooks de saída · Customer.io · Mailchimp
-- [ ] Diagnóstico (logs)
+- [x] Criar formulário (builder) — herda DS/primitivas; passada fina no QA
+- [x] Mapear campos · Contact Form 7
+- [x] Anti-spam · Verificação Cloudflare
+- [x] Conversões Meta · Google · Comportamento · Clarity · Rastreio entre sites
+- [x] Aviso de cookies (LGPD)
+- [x] Webhooks de saída · Customer.io · Mailchimp
+- [x] Diagnóstico (logs)
