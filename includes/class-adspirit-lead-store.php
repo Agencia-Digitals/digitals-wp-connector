@@ -41,6 +41,12 @@ class AdSpirit_Lead_Store {
     const MAX_ATTEMPTS      = 5;
     const OPTION_AUTH_ERROR = 'adspirit_connector_crm_auth_error';
 
+    // Connector 3.0: TTL CONSERVADOR da tabela (antes: append-only infinito).
+    // Purga SÓ linhas 'sent' (lead confirmado no CRM — a auditoria de longo
+    // prazo vive lá; aqui é rede de segurança). pending/failed ficam PRA
+    // SEMPRE: são exatamente os leads que ainda precisam de resgate.
+    const TTL_DAYS_SENT = 90;
+
     private static $instance = null;
     private static $available = null;
 
@@ -437,6 +443,20 @@ class AdSpirit_Lead_Store {
                 if (++$posted >= 5) break;
             }
         }, null, 'lead_store_retry_run');
+
+        // Connector 3.0: purga TTL no mesmo cron (barato, sem cron novo).
+        // DELETE capado em 200 linhas por execução — dreno gradual, nunca
+        // um DELETE gigante segurando lock. Só 'sent' (ver TTL_DAYS_SENT).
+        AdSpirit_Safe_Hook::try_run(function () {
+            global $wpdb;
+            $table = self::table_name();
+            $cutoff = gmdate('Y-m-d H:i:s', time() - self::TTL_DAYS_SENT * DAY_IN_SECONDS);
+            $wpdb->query($wpdb->prepare(
+                "DELETE FROM {$table} WHERE status = %s AND created_at < %s LIMIT 200",
+                'sent',
+                $cutoff
+            ));
+        }, null, 'lead_store_ttl_purge');
     }
 
     /** P0-3 — aviso persistente quando o CRM rejeitou as credenciais (401/403). */
@@ -521,13 +541,21 @@ class AdSpirit_Lead_Store {
         }, null, 'lead_store_get');
     }
 
-    /** Conta pendentes + falhos (pro badge na aba). */
+    /**
+     * Conta pendentes + falhos (pro badge na aba). Exclui qualifier_partial:
+     * parcial abandonado com POST falho fica pendente pra sempre (está fora
+     * do cron de retry por design) e inflaria o badge com falso positivo —
+     * o lead completo correspondente tem linha própria.
+     */
     public static function count_unsent() {
         if (!self::available()) return 0;
         return (int) AdSpirit_Safe_Hook::try_run(function () {
             global $wpdb;
             $table = self::table_name();
-            return (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table} WHERE status IN ('pending','failed')");
+            return (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$table} WHERE status IN ('pending','failed') AND source <> %s",
+                'qualifier_partial'
+            ));
         }, 0, 'lead_store_count');
     }
 
