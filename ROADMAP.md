@@ -114,7 +114,8 @@ tokens de baixo contraste com piso. Toda passada usa SÓ esses padrões.
 - [x] Visão geral (checklist recolhe quando pronto; erro só quando há;
       ambiente/proteções em details; teste vira rodapé de ações)
 - [x] Primeiros passos (DS-only, OK silencioso, seção pronta recolhe)
-- [ ] Form de avaliação (qualifier — aba grande, tem os cards de modelos)
+- [x] Form de avaliação (toggle no padrão, JSON avançado recolhido — galeria
+      de modelos vira o caminho feliz)
 - [ ] Criar formulário (builder)
 - [ ] Mapear campos · Contact Form 7 (escopo)
 - [ ] Anti-spam · Verificação Cloudflare
