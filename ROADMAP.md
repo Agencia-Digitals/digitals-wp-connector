@@ -92,7 +92,13 @@ Captação:
       exige e-mail/telefone, ignora forms com integração dedicada e
       busca/login/checkout; anti-spam + quarentena; entrega pelo dispatcher
       canônico (source 'generic' → retry de graça)
-- [ ] Handshake de capacidades plugin↔CRM + rollback de versão pela UI
+- [~] Handshake de capacidades plugin↔CRM — FATIA 1 FEITA (2.30): GET
+      /api/wp/central-status (CRM, na main) + checklist reconcilia ("Coberto
+      pelo AdSpirit" pra CAPI Meta/Google central, pixel manual detectado por
+      prova de vida, linked_domains na aba cross-domain). PRINCÍPIO (Pedro
+      08-18): conexão mágica — o plugin detecta o que foi feito à mão e
+      complementa, nunca pede config duplicada. Faltam: anúncio de
+      endpoints/features suportados + rollback de versão pela UI
 - [ ] Roteiro default da Digitals fora do bundle JS (migração faseada — é
       fallback de produção, nunca delete)
 
