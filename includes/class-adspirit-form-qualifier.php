@@ -820,6 +820,16 @@ class AdSpirit_Form_Qualifier {
                         $check['reason_text'] ?? 'rejected by anti-spam'
                     );
                 }
+                // Connector 3.0 — quarentena revisável (nunca descarta em
+                // silêncio): falso positivo se resgata na aba Submissões.
+                if (class_exists('AdSpirit_Lead_Store')) {
+                    AdSpirit_Lead_Store::record_spam(
+                        $payload_for_check,
+                        'qualifier',
+                        'adspirit_form_qualifier',
+                        ($check['reason_code'] ?? 'unknown') . ': ' . ($check['reason_text'] ?? 'rejected')
+                    );
+                }
                 wp_send_json_error(array('error' => 'spam_blocked', 'reason' => $check['reason_code']), 403);
                 return;
             }

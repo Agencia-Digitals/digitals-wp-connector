@@ -336,6 +336,26 @@ class AdSpirit_Anti_Spam {
         // Invalida o form. CF7 mostra mensagem genérica de erro.
         $result->invalidate('honeypot-or-spam', __('Submissão rejeitada.', 'adspirit-connector'));
         $this->log_block($reason_code, $reason_text);
+
+        // Connector 3.0 — quarentena: bloqueio nunca descarta em silêncio.
+        // Vai pra aba Submissões com status 'spam' + motivo; falso positivo
+        // se resgata com Reenviar. Fail-soft e com anti-flood no Lead Store.
+        if (class_exists('AdSpirit_Lead_Store')) {
+            $payload = array();
+            foreach ($_POST as $k => $v) {
+                $key = (string) $k;
+                if ($key === 'action' || strpos($key, '_wp') === 0 || strpos($key, '_adspirit') === 0) continue;
+                if (!is_scalar($v)) continue;
+                $payload[$key] = sanitize_text_field((string) $v);
+            }
+            $form_id = '';
+            if (class_exists('WPCF7_Submission')) {
+                $sub = WPCF7_Submission::get_instance();
+                $cf = $sub ? $sub->get_contact_form() : null;
+                if ($cf) $form_id = (string) $cf->id();
+            }
+            AdSpirit_Lead_Store::record_spam($payload, 'cf7', $form_id, $reason_code . ': ' . $reason_text);
+        }
     }
 
     private function client_ip() {

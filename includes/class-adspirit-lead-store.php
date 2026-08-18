@@ -244,6 +244,48 @@ class AdSpirit_Lead_Store {
     }
 
     /**
+     * Connector 3.0 — QUARENTENA DE SPAM (padrão WPForms: spam nunca é
+     * descartado direto, vai pra revisão). Grava a submissão bloqueada com
+     * status 'spam' + motivo. Fica FORA do retry e do badge (ambos filtram
+     * pending/failed) e some no TTL de 30 dias. Falso positivo? O botão
+     * Reenviar despacha normalmente ("não era spam").
+     *
+     * Anti-flood: no máx 10 registros de spam por minuto — enxurrada de bot
+     * não incha a tabela; o excedente segue indo só pro log circular.
+     */
+    public static function record_spam(array $payload, $source, $form_id, $reason) {
+        if (!self::available()) return false;
+        $bucket = 'adspirit_spamq_' . gmdate('YmdHi');
+        $n = (int) get_transient($bucket);
+        if ($n >= 10) return false;
+        set_transient($bucket, $n + 1, 120);
+
+        return AdSpirit_Safe_Hook::try_run(function () use ($payload, $source, $form_id, $reason) {
+            global $wpdb;
+            $contact = self::extract_contact($payload);
+            $now = current_time('mysql', true);
+            $wpdb->insert(self::table_name(), array(
+                'submission_id' => substr('spam-' . $source . '-' . time() . '-' . wp_generate_password(6, false), 0, 191),
+                'source'        => substr((string) $source, 0, 40),
+                'form_id'       => substr((string) $form_id, 0, 100),
+                'status'        => 'spam',
+                'name'          => $contact['name'],
+                'email'         => $contact['email'],
+                'phone'         => $contact['phone'],
+                'company'       => $contact['company'],
+                'profile'       => '',
+                'lead_id'       => '',
+                'last_error'    => substr((string) $reason, 0, 300),
+                'payload'       => wp_json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                'integrations'  => wp_json_encode(new stdClass()),
+                'created_at'    => $now,
+                'updated_at'    => $now,
+            ));
+            return true;
+        }, false, 'lead_store_record_spam');
+    }
+
+    /**
      * Marca o resultado de uma integração para a submissão. Recalcula o
      * status geral quando a integração for 'crm'. No-op se indisponível.
      *
@@ -461,6 +503,14 @@ class AdSpirit_Lead_Store {
                 'sent',
                 $cutoff
             ));
+            // Quarentena de spam expira mais rápido (30d) — ninguém revisa
+            // spam de um mês atrás e o volume tende a ser maior.
+            $spam_cutoff = gmdate('Y-m-d H:i:s', time() - 30 * DAY_IN_SECONDS);
+            $wpdb->query($wpdb->prepare(
+                "DELETE FROM {$table} WHERE status = %s AND created_at < %s LIMIT 200",
+                'spam',
+                $spam_cutoff
+            ));
         }, null, 'lead_store_ttl_purge');
     }
 
@@ -629,7 +679,7 @@ class AdSpirit_Lead_Store {
         $fail = 0;
         foreach ($ids as $id) {
             $row = self::get($id);
-            if (!$row || !in_array((string) ($row['status'] ?? ''), array('pending', 'failed'), true)) continue;
+            if (!$row || !in_array((string) ($row['status'] ?? ''), array('pending', 'failed', 'spam'), true)) continue;
             $payload = json_decode((string) $row['payload'], true);
             if (!is_array($payload)) { $fail++; continue; }
             $result = self::dispatch_to_crm((string) $row['submission_id'], $payload);
@@ -762,6 +812,7 @@ class AdSpirit_Lead_Store {
                     <option value="sent" <?php selected($filters['status'], 'sent'); ?>>Enviado</option>
                     <option value="pending" <?php selected($filters['status'], 'pending'); ?>>Pendente</option>
                     <option value="failed" <?php selected($filters['status'], 'failed'); ?>>Falhou</option>
+                    <option value="spam" <?php selected($filters['status'], 'spam'); ?>>Spam (quarentena)</option>
                 </select>
                 <button type="submit" class="button">Filtrar</button>
                 <?php if ($filters['source'] || $filters['status'] || $filters['search']) : ?>
@@ -800,9 +851,11 @@ class AdSpirit_Lead_Store {
                         $when = $ts ? human_time_diff($ts, time()) . ' atrás' : '—';
                         $when_title = $ts ? get_date_from_gmt((string) $r['created_at'], 'Y-m-d H:i') : '';
                         $status = (string) ($r['status'] ?? 'pending');
-                        $badge = array('sent' => 'ok', 'pending' => 'warn', 'failed' => 'danger');
+                        $badge = array('sent' => 'ok', 'pending' => 'warn', 'failed' => 'danger', 'spam' => 'muted');
                         $status_cls = $badge[$status] ?? 'muted';
-                        $can_resend = in_array($status, array('pending', 'failed'), true);
+                        // Spam reenviável de propósito: falso positivo sai da
+                        // quarentena pelo mesmo botão ("não era spam").
+                        $can_resend = in_array($status, array('pending', 'failed', 'spam'), true);
                     ?>
                         <tr>
                             <td>
