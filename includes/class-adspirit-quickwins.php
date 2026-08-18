@@ -26,6 +26,13 @@ class AdSpirit_Quickwins {
 
     private function __construct() {
         // 1. Auto-update
+        // Connector 3.0 (Pedro 2026-08-18): o plugin se auto-opta no
+        // auto-update NATIVO do WP — a frota atrasava crônico (sites 8
+        // versões atrás) porque ninguém clica em "Atualizar". Passa pelo
+        // pipeline padrão do WP (respeita host que desliga auto-updates);
+        // escape hatch via filtro adspirit_connector_auto_update.
+        add_filter('auto_update_plugin',
+            AdSpirit_Safe_Hook::filter(array($this, 'opt_in_auto_update'), 'qw_auto_update'), 10, 2);
         add_filter('pre_set_site_transient_update_plugins',
             AdSpirit_Safe_Hook::filter(array($this, 'check_for_update'), 'qw_update_check'));
         // 1b. Atualizou ESTE plugin → derruba o cache da release na hora,
@@ -50,6 +57,18 @@ class AdSpirit_Quickwins {
     }
 
     // ========== 1. AUTO-UPDATE via GitHub Releases ==========
+
+    /**
+     * Auto-opta ESTE plugin no auto-update do WP (aprovado Pedro 2026-08-18).
+     * Só toca o próprio basename — nunca muda a decisão pros outros plugins.
+     */
+    public function opt_in_auto_update($update, $item) {
+        if (is_object($item) && isset($item->plugin)
+            && $item->plugin === plugin_basename(ADSPIRIT_CONNECTOR_FILE)) {
+            return (bool) apply_filters('adspirit_connector_auto_update', true);
+        }
+        return $update;
+    }
 
     /** Logo do plugin pra tela de Plugins / Atualizações / modal de detalhes. */
     private function icon_urls() {

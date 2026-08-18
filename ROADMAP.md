@@ -20,14 +20,20 @@ antes de release do plugin.**
 - [x] TTL conservador (purga só `sent` > 90d, cap 200/run) + badge sem parciais
 - [x] Rotas `/api/wp/qualifier-templates|roteiro` — já estavam na main e em
       prod (verificado); card "Modelos prontos" funcional
+- [x] Widget de leads no dashboard do WP (padrão MonsterInsights)
+- [x] Aba Submissões: reenvio em massa + filtro com todas as origens
+- [x] Update dual-source (manifest do CRM + GitHub, vence a maior versão) —
+      caminho pro repo privado após 2-3 versões estáveis
+- [x] Auto-update nativo do WP auto-optado (aprovado Pedro 08-18) — frota
+      se mantém sozinha a partir da 2.28; escape: filtro
+      `adspirit_connector_auto_update`
+- [x] Versão 2.28.0 preparada (header + constante)
 
 ## Próximo — não-destrutivos aprovados (Pedro, 2026-08-17)
 
 UI/admin (prioridade declarada do Pedro: "nossa interface está muito ruim"):
-- [ ] **Widget de leads no dashboard do WP** (padrão MonsterInsights): leads do
-      mês, por origem, pendentes/falhos, últimos 5, deep-link pro AdSpirit
-- [ ] **Aba Submissões nível "Fluent API Logs"**: filtro com todas as origens,
-      status por integração na linha, reenvio em massa, paginação
+- [ ] Aba Submissões: status por integração na linha + paginação (bulk e
+      filtros já feitos)
 - [ ] Aba de logs com request+response por tentativa (diagnóstico sem SSH)
 - [ ] Quarentena de spam revisável (status `spam` no Lead Store em vez de
       descarte silencioso — padrão WPForms)
