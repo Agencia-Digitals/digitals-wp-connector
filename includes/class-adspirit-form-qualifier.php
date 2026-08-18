@@ -393,6 +393,9 @@ class AdSpirit_Form_Qualifier {
             // roteiro da Central; indisponível → cai no local/embutido.
             'steps' => $central_steps !== null ? $central_steps : self::get_steps(),
             'central_form' => $central_form !== null ? $central_slug : '',
+            // Pré-visualização (hub Formulários): avança sem preencher e
+            // nunca envia — revisão sem gerar dados.
+            'preview' => defined('ADSPIRIT_QF_PREVIEW'),
             // Habilita o gatilho extra a.lead/button.lead no front (JS só o
             // ativa quando o "site todo" está ligado).
             'sitewide' => (string) (self::get_settings()['sitewide'] ?? '0'),

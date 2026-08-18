@@ -606,6 +606,9 @@
 
   // --- VALIDATION ---
   function validateCurrent(root) {
+    // Preview (hub Formulários): revisão sem gerar dados — obrigatórios
+    // podem ser pulados.
+    if (CFG.preview) return { ok: true };
     var step = STEPS[state.currentStep];
     if (step.isIntro || step.isSuccess || step.optional) return { ok: true };
 
@@ -792,6 +795,7 @@
 
   var partialSent = false;
   function submitPartialToServer() {
+    if (CFG.preview) return; // preview nunca envia (nem parcial)
     if (partialSent) return;
     partialSent = true;
     try {
@@ -820,6 +824,12 @@
   }
 
   function submitToServer() {
+    if (CFG.preview) {
+      // Preview: pula direto pra tela final, sem request nenhum.
+      state.currentStep = STEPS.length - 1;
+      render('next');
+      return;
+    }
     if (submitting) return;
     submitting = true;
     var nextBtn = document.querySelector('[data-action="next"]');
