@@ -63,8 +63,21 @@ class AdSpirit_Field_Mapping {
     }
 
     public function render_tab() {
+        // Reestruturação 08-18: tela CONTEXTUAL — chega-se aqui de um form
+        // específico (hub Formulários) e vê-se o mapeamento DELE. Forms
+        // nativos do AdSpirit (avaliação/builder) já usam os nomes que o
+        // AdSpirit entende — pra eles a tela MOSTRA o de-para, não pede
+        // configuração. O mapeamento editável serve pra formulários de
+        // terceiros (CF7 hoje; outros builders amanhã).
+        $context = isset($_GET['context']) ? sanitize_key((string) $_GET['context']) : '';
+        if ($context !== '') {
+            $this->render_native_context($context);
+            return;
+        }
+
         if (!class_exists('WPCF7_ContactForm')) {
-            echo '<div class="as-notice warn"><p>Contact Form 7 não está instalado. Sem isso não há forms pra mapear.</p></div>';
+            echo '<h2 class="as-section"><span class="as-kicker-inline">Mapear campos</span>De onde vem → como chega no AdSpirit</h2>';
+            echo '<div class="as-notice"><p>Os formulários do AdSpirit (avaliação e criados aqui) já entregam cada campo com o nome que o AdSpirit entende — nada a configurar. Esta tela serve pra conectar formulários de <strong>outros plugins</strong> (Contact Form 7 hoje). Sem nenhum instalado, não há o que mapear.</p></div>';
             return;
         }
 
@@ -111,8 +124,8 @@ class AdSpirit_Field_Mapping {
             </div>
         <?php endif; ?>
 
-        <h2 class="as-section"><span class="as-kicker-inline">Field mapping</span>Forms detectados</h2>
-        <p class="as-section-help">Cada cliente tem nomes de campo diferentes (<code>nome</code> vs <code>your-name</code>). Mapeie aqui pra que o CRM reconheça cada campo independente do nome usado no form.</p>
+        <h2 class="as-section"><span class="as-kicker-inline">Mapear campos</span>De onde vem → como chega no AdSpirit</h2>
+        <p class="as-section-help">Formulários de outros plugins usam nomes próprios de campo (<code>nome</code>, <code>email-123</code>…). Aqui você diz como cada um chega no AdSpirit — escolha o formulário e ligue campo a campo. Os formulários do próprio AdSpirit não precisam disso.</p>
 
         <div style="display:flex; flex-wrap:wrap; gap:6px; margin: 0 0 18px;">
         <?php foreach ($forms as $f):
@@ -132,6 +145,80 @@ class AdSpirit_Field_Mapping {
         </div>
 
         <?php $this->render_mapping_form($selected_form); ?>
+        <?php
+    }
+
+    /**
+     * Contexto de form NATIVO: mostra o de-para (campo → como chega no
+     * AdSpirit) em modo leitura — a edição acontece no editor do próprio
+     * form (a chave `canonical` de cada campo).
+     */
+    private function render_native_context($context) {
+        $title = '';
+        $rows = array();
+        if ($context === 'qualifier' && class_exists('AdSpirit_Form_Qualifier')) {
+            $title = 'Form de avaliação';
+            $steps = AdSpirit_Form_Qualifier::get_steps();
+            $is_default = empty($steps);
+            if ($is_default) {
+                // Roteiro padrão embutido: de-para conhecido do playbook.
+                $rows = array(
+                    array('first_name + last_name', 'your-name', 'Nome do lead'),
+                    array('phone', 'Telefone', 'WhatsApp'),
+                    array('email', 'your-email', 'E-mail'),
+                    array('company', 'empresa', 'Empresa'),
+                    array('role', 'cargo', 'Cargo'),
+                    array('size / market / revenue / investment / timing', 'porte, mercado, faturamento…', 'Respostas da qualificação'),
+                );
+            } else {
+                foreach ($steps as $step) {
+                    if (!is_array($step) || !empty($step['isIntro']) || !empty($step['isSuccess'])) continue;
+                    if (!empty($step['fieldKey'])) {
+                        $rows[] = array((string) $step['fieldKey'], (string) ($step['canonical'] ?? $step['fieldKey']), (string) ($step['title'] ?? ''));
+                    }
+                    foreach ((isset($step['fields']) && is_array($step['fields'])) ? $step['fields'] : array() as $f) {
+                        if (!is_array($f) || empty($f['key'])) continue;
+                        $rows[] = array((string) $f['key'], (string) ($f['canonical'] ?? $f['key']), (string) ($step['title'] ?? ''));
+                    }
+                }
+            }
+            $edit_url = admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=qualifier');
+        } elseif (class_exists('AdSpirit_Form')) {
+            $forms = AdSpirit_Form::get_forms();
+            if (!isset($forms[$context]) || !is_array($forms[$context])) {
+                echo '<div class="as-notice warn"><p>Formulário não encontrado.</p></div>';
+                return;
+            }
+            $cfg = $forms[$context];
+            $title = (string) ($cfg['title'] ?? $context);
+            foreach ((isset($cfg['steps'][0]['fields']) && is_array($cfg['steps'][0]['fields'])) ? $cfg['steps'][0]['fields'] : array() as $f) {
+                if (!is_array($f) || empty($f['name'])) continue;
+                $rows[] = array((string) ($f['label'] ?? $f['name']), (string) $f['name'], '');
+            }
+            $edit_url = admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=builder&edit=' . rawurlencode($context));
+        } else {
+            echo '<div class="as-notice warn"><p>Formulário não encontrado.</p></div>';
+            return;
+        }
+        ?>
+        <h2 class="as-section"><span class="as-kicker-inline">Mapear campos</span><?php echo esc_html($title); ?></h2>
+        <p class="as-section-help">Este formulário é do AdSpirit — cada campo já chega com o nome certo, sem configuração. A tabela mostra o de-para; pra mudar um nome, edite o campo no próprio formulário.</p>
+        <table class="as-table">
+            <thead><tr><th>Campo no formulário</th><th>Como chega no AdSpirit</th><th>Contexto</th></tr></thead>
+            <tbody>
+                <?php foreach ($rows as $r) : ?>
+                    <tr>
+                        <td><code><?php echo esc_html($r[0]); ?></code></td>
+                        <td><code><?php echo esc_html($r[1]); ?></code></td>
+                        <td><small style="opacity:.7;"><?php echo esc_html($r[2]); ?></small></td>
+                    </tr>
+                <?php endforeach; ?>
+                <?php if (empty($rows)) : ?>
+                    <tr><td colspan="3" style="opacity:.6;">Sem campos ainda.</td></tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
+        <p style="margin-top:10px;"><a class="button" href="<?php echo esc_url($edit_url); ?>">Editar o formulário</a></p>
         <?php
     }
 
@@ -172,9 +259,9 @@ class AdSpirit_Field_Mapping {
             <table class="as-table">
                 <thead>
                     <tr>
-                        <th style="width:280px;">Campo no CRM</th>
+                        <th style="width:280px;">Como chega no AdSpirit</th>
                         <th style="width:140px;">Sugestão</th>
-                        <th>Campo neste form CF7</th>
+                        <th>Campo no seu formulário</th>
                     </tr>
                 </thead>
                 <tbody>
