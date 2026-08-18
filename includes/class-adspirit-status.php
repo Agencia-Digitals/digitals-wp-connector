@@ -682,16 +682,26 @@ add_action('adspirit_connector_render_tab_connection', AdSpirit_Safe_Hook::actio
             </td>
         </tr>
         <tr>
-            <th>Features</th>
+            <th>O que este site envia</th>
             <td>
-                <label>
-                    <input type="checkbox" name="cf7_enabled" value="1" <?php checked($s['cf7_enabled'], '1'); ?>>
-                    Enviar submissões do Contact Form 7 pro CRM
-                </label><br>
-                <label style="margin-top:8px; display:inline-flex;">
-                    <input type="checkbox" name="pixel_enabled" value="1" <?php checked($s['pixel_enabled'], '1'); ?>>
-                    Injetar pixel de tracking no <code>&lt;head&gt;</code>
-                </label>
+                <div class="as-toggle">
+                    <input type="checkbox" id="as_cf7" name="cf7_enabled" value="1" <?php checked($s['cf7_enabled'], '1'); ?>>
+                    <label class="t" for="as_cf7">Enviar leads dos formulários
+                        <small>Todo formulário conectado entrega os leads direto no AdSpirit.</small>
+                    </label>
+                </div>
+                <div class="as-toggle">
+                    <input type="checkbox" id="as_px" name="pixel_enabled" value="1" <?php checked($s['pixel_enabled'], '1'); ?>>
+                    <label class="t" for="as_px">Medir visitas e jornada
+                        <small>O rastreador registra de onde cada visitante veio — é o que liga lead a campanha.</small>
+                    </label>
+                </div>
+                <div class="as-toggle as-sub">
+                    <input type="checkbox" id="as_px1p" name="pixel_firstparty" value="1" <?php checked($s['pixel_firstparty'] ?? '0', '1'); ?>>
+                    <label class="t" for="as_px1p">Servir o rastreador pelo endereço deste site
+                        <small>Reduz perda por bloqueadores de anúncio. O código continua vindo do AdSpirit — só o endereço muda.</small>
+                    </label>
+                </div>
             </td>
         </tr>
         <?php
@@ -730,6 +740,7 @@ add_action('adspirit_connector_save_connection', AdSpirit_Safe_Hook::action(func
     }
     $patch['cf7_enabled']   = !empty($post['cf7_enabled']) ? '1' : '0';
     $patch['pixel_enabled'] = !empty($post['pixel_enabled']) ? '1' : '0';
+    $patch['pixel_firstparty'] = !empty($post['pixel_firstparty']) ? '1' : '0';
     // Feature 35 + futuras: filter pra cada feature contribuir patches
     // sem editar este handler.
     $patch = apply_filters('adspirit_connector_connection_save_extra', $patch, $post);

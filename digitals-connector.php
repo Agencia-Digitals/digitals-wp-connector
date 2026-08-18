@@ -105,6 +105,8 @@ adspirit_connector_safe_require('includes/class-adspirit-turnstile.php');
 adspirit_connector_safe_require('includes/class-adspirit-dashboard-widget.php');
 // v2.29 eventos automáticos nomeados (tel/email/whatsapp/download → dataLayer)
 adspirit_connector_safe_require('includes/class-adspirit-auto-events.php');
+// v2.29 pixel first-party (proxy com cache, anti ad-blocker; opt-in)
+adspirit_connector_safe_require('includes/class-adspirit-pixel-proxy.php');
 
 /**
  * Bootstrap on plugins_loaded.
@@ -168,6 +170,8 @@ function adspirit_connector_init() {
     if (class_exists('AdSpirit_Dashboard_Widget')) AdSpirit_Dashboard_Widget::instance();
     // v2.29 eventos automáticos nomeados
     if (class_exists('AdSpirit_Auto_Events')) AdSpirit_Auto_Events::instance();
+    // v2.29 pixel first-party
+    if (class_exists('AdSpirit_Pixel_Proxy')) AdSpirit_Pixel_Proxy::instance();
 }
 
 /**

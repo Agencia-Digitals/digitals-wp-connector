@@ -295,9 +295,13 @@ class AdSpirit_Menu {
   --as-accent-soft: #E6F7F7;
   --as-accent-hover: #009999;
   --as-ink: #0F1419;
-  --as-ink-soft: #3A4550;
+  /* Doutrina 08-18 (baixo contraste com piso): secundário desce em passo
+     suave mas SEMPRE legível (≥4.5:1 no branco); linhas quase
+     imperceptíveis — divisor não compete com dado. */
+  --as-ink-soft: #4A5560;
   --as-ink-faint: #8A95A0;
-  --as-line: #E5EAEE;
+  --as-line: #ECF0F3;
+  --as-line-strong: #E0E6EB;
   --as-bg: #FFFFFF;
   --as-bg-card: #F8FAFC;
   --as-bg-subtle: #F3F6F9;
@@ -467,8 +471,57 @@ class AdSpirit_Menu {
 .adspirit-app .as-dot.ok   { background: #00a32a; box-shadow: 0 0 0 3px rgba(0,163,42,.12); }
 .adspirit-app .as-dot.warn { background: #dba617; box-shadow: 0 0 0 3px rgba(219,166,23,.14); }
 .adspirit-app .as-tab-desc {
-  margin: -12px 0 20px; font-size: 13px; color: var(--as-ink-soft);
+  margin: -12px 0 24px; font-size: 13px; color: var(--as-ink-soft);
   max-width: 720px;
+}
+
+/* ---------- Doutrina 08-18: primitivas compartilhadas ----------
+   Toda tela usa ESTES padrões — consistência é lei; variação nova
+   exige atualizar aqui, nunca improvisar na tela. */
+
+/* Ajuda recolhida: explicação nunca ocupa a tela por padrão. */
+.adspirit-app details.as-help {
+  margin: 16px 0 0; font-size: 12.5px; color: var(--as-ink-soft);
+}
+.adspirit-app details.as-help > summary {
+  cursor: pointer; color: var(--as-ink-faint); user-select: none;
+  list-style-position: inside;
+}
+.adspirit-app details.as-help > summary:hover { color: var(--as-ink-soft); }
+.adspirit-app details.as-help[open] > summary { margin-bottom: 8px; }
+.adspirit-app details.as-help ul { margin: 0; padding-left: 18px; line-height: 1.7; }
+
+/* Linha de campo: rótulo + controle + legenda — sinergia junta, resto separa. */
+.adspirit-app .as-field { margin: 0 0 18px; }
+.adspirit-app .as-field > label.as-field-label {
+  display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px;
+}
+.adspirit-app .as-field .description { margin: 6px 0 0; color: var(--as-ink-faint); }
+
+/* Toggle de feature: checkbox + nome + legenda na MESMA unidade visual. */
+.adspirit-app .as-toggle { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 14px; }
+.adspirit-app .as-toggle input[type="checkbox"] { margin-top: 3px; }
+.adspirit-app .as-toggle .t { font-size: 13px; }
+.adspirit-app .as-toggle .t small { display: block; color: var(--as-ink-faint); margin-top: 2px; }
+.adspirit-app .as-toggle.as-sub { margin-left: 26px; } /* sub-opção pertence ao pai */
+
+/* Rodapé de ações: UMA primária; raras viram link discreto à direita. */
+.adspirit-app .as-actions {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin-top: 20px;
+}
+.adspirit-app .as-actions .spacer { flex: 1; }
+.adspirit-app .button-link { color: var(--as-ink-faint); text-decoration: none; }
+.adspirit-app .button-link:hover { color: var(--as-ink-soft); }
+
+/* Piso de acessibilidade: foco SEMPRE visível no app inteiro. */
+.adspirit-app a:focus-visible,
+.adspirit-app button:focus-visible,
+.adspirit-app input:focus-visible,
+.adspirit-app select:focus-visible,
+.adspirit-app textarea:focus-visible,
+.adspirit-app summary:focus-visible {
+  outline: 2px solid var(--as-accent); outline-offset: 2px; border-radius: 4px;
 }
 
 /* ---------- Section title (outside cards) ---------- */
@@ -506,7 +559,7 @@ class AdSpirit_Menu {
   border: 1px solid var(--as-line);
   border-radius: 10px;
   background: var(--as-bg);
-  margin: 0 0 16px;
+  margin: 0 0 24px; /* doutrina: margens generosas — grupos se separam pelo vazio */
   overflow: hidden;
 }
 .adspirit-app .as-card-header {

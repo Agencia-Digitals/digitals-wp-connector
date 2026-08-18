@@ -99,3 +99,25 @@ Captação:
 - [ ] README reescrito (v2.0.0 + afirmações falsas sobre consent/hooks)
 - [ ] Checksum do ZIP de release + manter releases antigas (rollback)
 - [ ] Bugs B4–B11 do inventário (baixa severidade)
+
+## Reestruturação de TODAS as telas (doutrina de 12 princípios, Pedro 08-18)
+
+Padrões compartilhados prontos no DS: `.as-help` (ajuda recolhida), `.as-field`,
+`.as-toggle`/`.as-sub`, `.as-actions` (uma primária), focus-visible global,
+tokens de baixo contraste com piso. Toda passada usa SÓ esses padrões.
+
+- [x] DS compartilhado ajustado (contraste, margens, primitivas, foco)
+- [x] Navegação (grupos por tarefa + saúde + rótulos leigos)
+- [x] Conexão (referência da doutrina: toggles com legenda, sub-opção aninhada)
+- [x] Testes A/B (estrutura ok; conformidade fina no QA visual)
+- [x] Leads enviados (bulk+filtros+histórico; conformidade fina no QA)
+- [ ] Visão geral (overview — checklist/métricas; tela mais vista)
+- [ ] Primeiros passos (setup wizard)
+- [ ] Form de avaliação (qualifier — aba grande, tem os cards de modelos)
+- [ ] Criar formulário (builder)
+- [ ] Mapear campos · Contact Form 7 (escopo)
+- [ ] Anti-spam · Verificação Cloudflare
+- [ ] Conversões Meta · Conversões Google · Comportamento · Clarity · Rastreio entre sites
+- [ ] Aviso de cookies (LGPD)
+- [ ] Webhooks de saída · Customer.io · Mailchimp
+- [ ] Diagnóstico (logs)
