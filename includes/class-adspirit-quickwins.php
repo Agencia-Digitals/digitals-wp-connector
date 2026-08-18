@@ -26,6 +26,13 @@ class AdSpirit_Quickwins {
 
     private function __construct() {
         // 1. Auto-update
+        // Connector 3.0 (Pedro 2026-08-18): o plugin se auto-opta no
+        // auto-update NATIVO do WP — a frota atrasava crônico (sites 8
+        // versões atrás) porque ninguém clica em "Atualizar". Passa pelo
+        // pipeline padrão do WP (respeita host que desliga auto-updates);
+        // escape hatch via filtro adspirit_connector_auto_update.
+        add_filter('auto_update_plugin',
+            AdSpirit_Safe_Hook::filter(array($this, 'opt_in_auto_update'), 'qw_auto_update'), 10, 2);
         add_filter('pre_set_site_transient_update_plugins',
             AdSpirit_Safe_Hook::filter(array($this, 'check_for_update'), 'qw_update_check'));
         // 1b. Atualizou ESTE plugin → derruba o cache da release na hora,
@@ -50,6 +57,18 @@ class AdSpirit_Quickwins {
     }
 
     // ========== 1. AUTO-UPDATE via GitHub Releases ==========
+
+    /**
+     * Auto-opta ESTE plugin no auto-update do WP (aprovado Pedro 2026-08-18).
+     * Só toca o próprio basename — nunca muda a decisão pros outros plugins.
+     */
+    public function opt_in_auto_update($update, $item) {
+        if (is_object($item) && isset($item->plugin)
+            && $item->plugin === plugin_basename(ADSPIRIT_CONNECTOR_FILE)) {
+            return (bool) apply_filters('adspirit_connector_auto_update', true);
+        }
+        return $update;
+    }
 
     /** Logo do plugin pra tela de Plugins / Atualizações / modal de detalhes. */
     private function icon_urls() {
@@ -87,7 +106,7 @@ class AdSpirit_Quickwins {
             $cached = false;
         }
         if ($cached === false) {
-            $fresh = $this->fetch_latest_release();
+            $fresh = $this->fetch_best_release();
             $cached = is_array($fresh) ? $fresh : array();
             $cached['fetched_at'] = time(); // falha de rede vira backoff de 15 min
             set_transient(self::UPDATE_TRANSIENT, $cached, self::UPDATE_INTERVAL);
@@ -114,7 +133,7 @@ class AdSpirit_Quickwins {
         if (empty($args->slug) || $args->slug !== 'adspirit-connector') return $result;
 
         $cached = get_transient(self::UPDATE_TRANSIENT);
-        if (!$cached) $cached = $this->fetch_latest_release();
+        if (!$cached) $cached = $this->fetch_best_release();
         if (!$cached) return $result;
 
         return (object) array(
@@ -132,6 +151,47 @@ class AdSpirit_Quickwins {
             ),
             'icons' => $this->icon_urls(),
             'download_link' => $cached['zip'],
+        );
+    }
+
+    /**
+     * Connector 3.0 — fonte dupla de update. Consulta o manifest hospedado
+     * no CRM E o GitHub, e oferece A MAIOR versão das duas. Por quê max e
+     * não prioridade: manifest defasado nunca mascara release novo do
+     * GitHub, e GitHub fora do ar/rate-limited nunca trava a frota. Quando
+     * o repo virar privado, o manifest vira a única fonte viva — e o ritual
+     * de release passa a exigir sync do zip+manifest no CRM.
+     */
+    private function fetch_best_release() {
+        $github = $this->fetch_latest_release();
+        $crm    = $this->fetch_crm_manifest();
+        if (!is_array($github)) return $crm;
+        if (!is_array($crm)) return $github;
+        return version_compare((string) $crm['version'], (string) $github['version'], '>') ? $crm : $github;
+    }
+
+    /**
+     * Manifest de update servido pelo próprio CRM ({endpoint}/downloads/
+     * manifest.json). Formato: {version, package, url, changelog}. Retorna
+     * o mesmo shape do fetch_latest_release() ou null (fail-soft).
+     */
+    private function fetch_crm_manifest() {
+        $core = AdSpirit_Settings::get_core();
+        if (empty($core['endpoint_url'])) return null;
+        $url = rtrim((string) $core['endpoint_url'], '/') . '/downloads/manifest.json';
+        $resp = wp_remote_get($url, array(
+            'timeout' => 8,
+            'headers' => array('User-Agent' => 'AdSpirit-Connector/' . ADSPIRIT_CONNECTOR_VERSION),
+        ));
+        if (is_wp_error($resp)) return null;
+        if ((int) wp_remote_retrieve_response_code($resp) !== 200) return null;
+        $data = json_decode((string) wp_remote_retrieve_body($resp), true);
+        if (!is_array($data) || empty($data['version']) || empty($data['package'])) return null;
+        return array(
+            'version' => ltrim((string) $data['version'], 'v'),
+            'url'     => (string) ($data['url'] ?? $core['endpoint_url']),
+            'zip'     => (string) $data['package'],
+            'body'    => (string) ($data['changelog'] ?? ''),
         );
     }
 

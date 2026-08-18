@@ -117,6 +117,26 @@ class AdSpirit_Integrations {
             $payload['_adspirit_telemetry'] = AdSpirit_Telemetry::collect_from_post('woocommerce', (string) $order->get_id(), home_url('/'));
         }
 
+        // F0 Connector 3.0: identidade no payload (pedido Woo = comercial).
+        $payload['_adspirit_form_id'] = 'woocommerce:' . $event;
+        $payload['_adspirit_form_kind'] = 'comercial';
+
+        // ID determinístico por pedido+evento — idempotente por natureza
+        // (retry do cron reusa e o CRM não duplica).
+        $submission_id = 'woo-' . $order->get_id() . '-' . $event;
+
+        // Connector 3.0: antes era fire-and-forget sem registro nenhum — pedido
+        // Woo que falhava no POST sumia sem rastro. Agora: rede de segurança +
+        // dispatcher canônico (blocking 5s; hooks de status de pedido rodam
+        // fora do request do visitante na maioria dos gateways) + retry do cron.
+        if (class_exists('AdSpirit_Lead_Store')) {
+            AdSpirit_Lead_Store::record_pending($submission_id, $payload, 'woocommerce', 'woo-' . $event);
+            $result = AdSpirit_Lead_Store::dispatch_to_crm($submission_id, $payload, 5);
+            AdSpirit_Lead_Store::mark_crm_attempt($submission_id, $result);
+            return;
+        }
+
+        // Fallback raro (Lead_Store não carregou): fire-and-forget legado.
         $endpoint = rtrim($core['endpoint_url'], '/') . '/api/webhooks/contact-form-7';
         wp_remote_post($endpoint, array(
             'timeout' => 8, 'blocking' => false,
@@ -124,7 +144,7 @@ class AdSpirit_Integrations {
                 'Content-Type' => 'application/json',
                 'x-brand-slug' => $core['brand_slug'],
                 'x-cf7-secret' => $core['secret'],
-                'x-cf7-submission-id' => 'woo-' . $order->get_id() . '-' . $event,
+                'x-cf7-submission-id' => $submission_id,
                 'User-Agent' => 'AdSpirit-Connector/' . ADSPIRIT_CONNECTOR_VERSION,
             ),
             'body' => wp_json_encode($payload),

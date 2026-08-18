@@ -41,6 +41,12 @@ class AdSpirit_Lead_Store {
     const MAX_ATTEMPTS      = 5;
     const OPTION_AUTH_ERROR = 'adspirit_connector_crm_auth_error';
 
+    // Connector 3.0: TTL CONSERVADOR da tabela (antes: append-only infinito).
+    // Purga SÓ linhas 'sent' (lead confirmado no CRM — a auditoria de longo
+    // prazo vive lá; aqui é rede de segurança). pending/failed ficam PRA
+    // SEMPRE: são exatamente os leads que ainda precisam de resgate.
+    const TTL_DAYS_SENT = 90;
+
     private static $instance = null;
     private static $available = null;
 
@@ -57,6 +63,11 @@ class AdSpirit_Lead_Store {
         add_action(
             'admin_post_adspirit_resend_submission',
             AdSpirit_Safe_Hook::action(array($this, 'handle_resend'), 'lead_resend')
+        );
+        // Connector 3.0: reenvio em massa (padrão Fluent API Logs "bulk replay").
+        add_action(
+            'admin_post_adspirit_resend_bulk',
+            AdSpirit_Safe_Hook::action(array($this, 'handle_resend_bulk'), 'lead_resend_bulk')
         );
 
         // P0-3: cron de retry (15min). Agendado aqui (boot) e não só na
@@ -391,12 +402,21 @@ class AdSpirit_Lead_Store {
     }
 
     /**
-     * P0-3 — cron de retry. Re-POSTa SÓ pro CRM (nunca fanout/CAPI/GA4 — esses
-     * rodaram no submit original; retry não pode duplicar linha no Sheets),
-     * reusando o submission_id original (dedup do CRM não duplica lead).
-     * Escopo: source='cf7' (qualifier/nativo têm fluxo próprio e o parcial do
-     * qualifier não deve ser re-empurrado por cron). Respeita backoff e o teto
-     * de MAX_ATTEMPTS; no máx 5 POSTs por execução pra não segurar o wp-cron.
+     * P0-3 / Connector 3.0 — cron de retry UNIVERSAL. Re-POSTa SÓ pro CRM
+     * (nunca fanout/CAPI/GA4 — esses rodaram no submit original; retry não
+     * pode duplicar linha no Sheets), reusando o submission_id original
+     * (dedup do CRM não duplica lead).
+     *
+     * Escopo (3.0): TODAS as fontes que passam pelo dispatcher canônico —
+     * cf7, qualifier, native, gravity/wpforms/elementor/fluent, woocommerce.
+     * Única exclusão: qualifier_partial. O parcial usa submission_id com
+     * sufixo -p (idempotency própria); re-empurrar um parcial DEPOIS do envio
+     * final chegaria fora de ordem no CRM e o processor de parciais poderia
+     * reprocessar um lead já promovido. Parcial falho fica visível na aba
+     * Submissões com reenvio manual.
+     *
+     * Respeita backoff e o teto de MAX_ATTEMPTS; no máx 5 POSTs por execução
+     * pra não segurar o wp-cron.
      */
     public function run_retry() {
         if (!self::available()) return;
@@ -405,9 +425,9 @@ class AdSpirit_Lead_Store {
             $table = self::table_name();
             $rows = $wpdb->get_results($wpdb->prepare(
                 "SELECT id, submission_id, attempts, updated_at, payload FROM {$table}
-                 WHERE source = %s AND status IN ('pending','failed') AND attempts < %d
+                 WHERE source <> %s AND status IN ('pending','failed') AND attempts < %d
                  ORDER BY id ASC LIMIT 20",
-                'cf7',
+                'qualifier_partial',
                 self::MAX_ATTEMPTS
             ), ARRAY_A);
             if (!is_array($rows) || empty($rows)) return;
@@ -428,6 +448,20 @@ class AdSpirit_Lead_Store {
                 if (++$posted >= 5) break;
             }
         }, null, 'lead_store_retry_run');
+
+        // Connector 3.0: purga TTL no mesmo cron (barato, sem cron novo).
+        // DELETE capado em 200 linhas por execução — dreno gradual, nunca
+        // um DELETE gigante segurando lock. Só 'sent' (ver TTL_DAYS_SENT).
+        AdSpirit_Safe_Hook::try_run(function () {
+            global $wpdb;
+            $table = self::table_name();
+            $cutoff = gmdate('Y-m-d H:i:s', time() - self::TTL_DAYS_SENT * DAY_IN_SECONDS);
+            $wpdb->query($wpdb->prepare(
+                "DELETE FROM {$table} WHERE status = %s AND created_at < %s LIMIT 200",
+                'sent',
+                $cutoff
+            ));
+        }, null, 'lead_store_ttl_purge');
     }
 
     /** P0-3 — aviso persistente quando o CRM rejeitou as credenciais (401/403). */
@@ -512,13 +546,21 @@ class AdSpirit_Lead_Store {
         }, null, 'lead_store_get');
     }
 
-    /** Conta pendentes + falhos (pro badge na aba). */
+    /**
+     * Conta pendentes + falhos (pro badge na aba). Exclui qualifier_partial:
+     * parcial abandonado com POST falho fica pendente pra sempre (está fora
+     * do cron de retry por design) e inflaria o badge com falso positivo —
+     * o lead completo correspondente tem linha própria.
+     */
     public static function count_unsent() {
         if (!self::available()) return 0;
         return (int) AdSpirit_Safe_Hook::try_run(function () {
             global $wpdb;
             $table = self::table_name();
-            return (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table} WHERE status IN ('pending','failed')");
+            return (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$table} WHERE status IN ('pending','failed') AND source <> %s",
+                'qualifier_partial'
+            ));
         }, 0, 'lead_store_count');
     }
 
@@ -555,6 +597,47 @@ class AdSpirit_Lead_Store {
         self::mark_crm_attempt((string) $row['submission_id'], $result);
 
         wp_safe_redirect(add_query_arg('resend', $result['ok'] ? 'ok' : 'fail', $back));
+        exit;
+    }
+
+    /**
+     * Connector 3.0 — reenvio em massa. Mesmo caminho do reenvio unitário
+     * (dispatch_to_crm + mark_crm_attempt, submission_id original), capado em
+     * 20 por request pra não estourar timeout de admin. O botão unitário da
+     * linha também chega aqui (name="single").
+     */
+    public function handle_resend_bulk() {
+        if (!current_user_can(AdSpirit_Menu::CAPABILITY)) wp_die('forbidden', 403);
+        check_admin_referer('adspirit_resend_bulk');
+
+        $single = isset($_POST['single']) ? (int) $_POST['single'] : 0;
+        $ids = $single > 0
+            ? array($single)
+            : (isset($_POST['ids']) && is_array($_POST['ids']) ? array_map('intval', $_POST['ids']) : array());
+        $ids = array_slice(array_filter(array_unique($ids)), 0, 20);
+
+        $back = add_query_arg(
+            array('page' => AdSpirit_Menu::PAGE_SLUG, 'tab' => 'submissions'),
+            admin_url('admin.php')
+        );
+        if (empty($ids)) {
+            wp_safe_redirect(add_query_arg('resend', 'none', $back));
+            exit;
+        }
+
+        $ok = 0;
+        $fail = 0;
+        foreach ($ids as $id) {
+            $row = self::get($id);
+            if (!$row || !in_array((string) ($row['status'] ?? ''), array('pending', 'failed'), true)) continue;
+            $payload = json_decode((string) $row['payload'], true);
+            if (!is_array($payload)) { $fail++; continue; }
+            $result = self::dispatch_to_crm((string) $row['submission_id'], $payload);
+            self::mark_crm_attempt((string) $row['submission_id'], $result);
+            if (!empty($result['ok'])) { $ok++; } else { $fail++; }
+        }
+
+        wp_safe_redirect(add_query_arg(array('resend' => 'bulk', 'r_ok' => $ok, 'r_fail' => $fail), $back));
         exit;
     }
 
@@ -626,7 +709,9 @@ class AdSpirit_Lead_Store {
             <p class="as-section-help">
                 Toda submissão é gravada aqui <strong>antes</strong> de ir pro CRM — nenhum lead se perde,
                 mesmo se uma integração falhar. <strong>Source of truth é o CRM</strong>; isto é a rede de segurança local.
-                Leads CF7 pendentes/falhos são <strong>reenviados automaticamente</strong> (a cada 15min,
+                Leads pendentes/falhos de <strong>todas as origens</strong> (CF7, qualifier, form nativo,
+                Gravity/WPForms/Elementor/Fluent e WooCommerce — exceto parciais do qualifier)
+                são <strong>reenviados automaticamente</strong> (a cada 15min,
                 backoff 15min/1h/6h/24h, máx <?php echo (int) self::MAX_ATTEMPTS; ?> tentativas, sempre com o ID original — o CRM não duplica;
                 o reenvio automático fala só com o CRM, nunca repete Sheets/CAPI/GA4).
                 <strong>Reenviar</strong> manual continua disponível pra qualquer lead falho.
@@ -638,6 +723,15 @@ class AdSpirit_Lead_Store {
                 <div class="as-notice danger"><p>Falha ao reenviar — veja o status na linha.</p></div>
             <?php elseif ($notice === 'notfound' || $notice === 'badpayload') : ?>
                 <div class="as-notice warn"><p>Não foi possível reenviar (registro não encontrado ou payload inválido).</p></div>
+            <?php elseif ($notice === 'bulk') :
+                $r_ok = isset($_GET['r_ok']) ? (int) $_GET['r_ok'] : 0;
+                $r_fail = isset($_GET['r_fail']) ? (int) $_GET['r_fail'] : 0; ?>
+                <div class="as-notice <?php echo $r_fail > 0 ? 'warn' : 'info'; ?>"><p>
+                    Reenvio em massa: <strong><?php echo $r_ok; ?></strong> enviado(s),
+                    <strong><?php echo $r_fail; ?></strong> falha(s).
+                </p></div>
+            <?php elseif ($notice === 'none') : ?>
+                <div class="as-notice warn"><p>Nenhum lead selecionado pra reenviar.</p></div>
             <?php endif; ?>
 
             <div style="display:flex; gap:16px; flex-wrap:wrap; margin:18px 0; font-size:13px;">
@@ -656,6 +750,12 @@ class AdSpirit_Lead_Store {
                     <option value="cf7" <?php selected($filters['source'], 'cf7'); ?>>Contact Form 7</option>
                     <option value="qualifier" <?php selected($filters['source'], 'qualifier'); ?>>Qualifier</option>
                     <option value="qualifier_partial" <?php selected($filters['source'], 'qualifier_partial'); ?>>Qualifier (parcial)</option>
+                    <option value="native" <?php selected($filters['source'], 'native'); ?>>Form AdSpirit</option>
+                    <option value="gravity" <?php selected($filters['source'], 'gravity'); ?>>Gravity Forms</option>
+                    <option value="wpforms" <?php selected($filters['source'], 'wpforms'); ?>>WPForms</option>
+                    <option value="elementor" <?php selected($filters['source'], 'elementor'); ?>>Elementor</option>
+                    <option value="fluent" <?php selected($filters['source'], 'fluent'); ?>>Fluent Forms</option>
+                    <option value="woocommerce" <?php selected($filters['source'], 'woocommerce'); ?>>WooCommerce</option>
                 </select>
                 <select name="sl_status">
                     <option value="">Todos status</option>
@@ -672,9 +772,18 @@ class AdSpirit_Lead_Store {
             <?php if (empty($rows)) : ?>
                 <div class="as-notice"><p>Nenhuma submissão registrada (com os filtros atuais).</p></div>
             <?php else : ?>
+                <?php // Form ÚNICO pra tabela inteira (bulk + botão por linha via
+                      // name="single") — form aninhado por linha é HTML inválido. ?>
+                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                <input type="hidden" name="action" value="adspirit_resend_bulk">
+                <?php wp_nonce_field('adspirit_resend_bulk'); ?>
+                <p style="margin:0 0 8px;">
+                    <button type="submit" class="button" title="Reenvia os leads marcados (máx. 20 por vez), reusando o ID original — o CRM não duplica">Reenviar selecionados</button>
+                </p>
                 <table class="wp-list-table widefat striped">
                     <thead>
                         <tr>
+                            <th style="width:28px;"></th>
                             <th style="width:120px;">Quando</th>
                             <th style="width:100px;">Origem</th>
                             <th>Contato</th>
@@ -696,6 +805,11 @@ class AdSpirit_Lead_Store {
                         $can_resend = in_array($status, array('pending', 'failed'), true);
                     ?>
                         <tr>
+                            <td>
+                                <?php if ($can_resend) : ?>
+                                    <input type="checkbox" name="ids[]" value="<?php echo (int) $r['id']; ?>">
+                                <?php endif; ?>
+                            </td>
                             <td title="<?php echo esc_attr($when_title); ?>"><?php echo esc_html($when); ?></td>
                             <td><span class="as-badge muted"><?php echo esc_html((string) ($r['source'] ?? '')); ?></span></td>
                             <td>
@@ -718,12 +832,7 @@ class AdSpirit_Lead_Store {
                             <td><?php echo $r['profile'] !== '' ? '<span class="as-badge accent">' . esc_html((string) $r['profile']) . '</span>' : '<span style="opacity:.4;">—</span>'; ?></td>
                             <td>
                                 <?php if ($can_resend) : ?>
-                                    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin:0;">
-                                        <input type="hidden" name="action" value="adspirit_resend_submission">
-                                        <input type="hidden" name="id" value="<?php echo (int) $r['id']; ?>">
-                                        <?php wp_nonce_field('adspirit_resend_submission'); ?>
-                                        <button type="submit" class="button button-small" title="Reenvia ao CRM reusando o ID original (sem duplicar)">Reenviar</button>
-                                    </form>
+                                    <button type="submit" class="button button-small" name="single" value="<?php echo (int) $r['id']; ?>" title="Reenvia ao CRM reusando o ID original (sem duplicar)">Reenviar</button>
                                 <?php else : ?>
                                     <span style="opacity:.4;">—</span>
                                 <?php endif; ?>
@@ -732,6 +841,7 @@ class AdSpirit_Lead_Store {
                     <?php endforeach; ?>
                     </tbody>
                 </table>
+                </form>
             <?php endif; ?>
         </div>
         <?php
