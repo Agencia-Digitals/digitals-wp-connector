@@ -954,6 +954,18 @@ class AdSpirit_Lead_Store {
                                         </ul>
                                     </details>
                                 <?php endif; ?>
+                                <?php
+                                // Dados enviados (o "request" do diagnóstico sem
+                                // SSH): o payload já mora na linha — só faltava
+                                // mostrar. Pretty-print sob demanda, admin-only.
+                                $pl = json_decode((string) ($r['payload'] ?? ''), true);
+                                ?>
+                                <?php if (is_array($pl) && !empty($pl)) : ?>
+                                    <details style="margin-top:2px;">
+                                        <summary style="cursor:pointer; font-size:11px; opacity:.7;">dados enviados (<?php echo count($pl); ?> campos)</summary>
+                                        <pre style="margin:4px 0 0; padding:8px 10px; max-height:220px; overflow:auto; font-size:11px; line-height:1.5; background:var(--as-bg-subtle); border-radius:6px; white-space:pre-wrap; word-break:break-word;"><?php echo esc_html((string) wp_json_encode($pl, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)); ?></pre>
+                                    </details>
+                                <?php endif; ?>
                             </td>
                             <td><?php echo $r['profile'] !== '' ? '<span class="as-badge accent">' . esc_html((string) $r['profile']) . '</span>' : '<span style="opacity:.4;">—</span>'; ?></td>
                             <td>
