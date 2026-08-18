@@ -32,6 +32,10 @@ antes de release do plugin.**
 ## Próximo — não-destrutivos aprovados (Pedro, 2026-08-17)
 
 UI/admin (prioridade declarada do Pedro: "nossa interface está muito ruim"):
+- [x] Nav do painel reorganizada por TAREFA (regra 08-18): 5 grupos com
+      ponto de saúde, rótulos leigos centralizados (tab_meta), legenda da
+      aba ativa; builder/cf7-scope saíram do "Mais"; Leads enviados abre
+      o grupo de leads
 - [ ] Aba Submissões: status por integração na linha + paginação (bulk e
       filtros já feitos)
 - [ ] Aba de logs com request+response por tentativa (diagnóstico sem SSH)
