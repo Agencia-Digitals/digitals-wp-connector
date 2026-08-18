@@ -50,8 +50,10 @@ Tracking/analytics:
       não dispara (excluir /obrigado do cache dos sites)
 
 Captação:
-- [ ] WhatsApp com contexto dinâmico (padrão Joinchat): mensagem com
-      `{TITLE}/{URL}` + UTM, `generate_lead` no clique, multi-agente/horário
+- [x] WhatsApp: mensagem com `{TITLE}`/`{URL}` (contexto da página) +
+      `generate_lead` no clique em qualquer wa.me (via auto-events)
+- [ ] WhatsApp: multi-agente com horário (roteamento pelo dono automático
+      do CRM) — fase 2 do widget
 - [ ] Quiz framing do qualifier: título de diagnóstico + resultado por perfil
       (mecânica Thrive/Interact — gate de contato no pico de investimento)
 - [ ] A/B maduro (padrão WPFunnels): pesos com trava, vencedor automático,
