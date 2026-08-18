@@ -364,6 +364,24 @@
   function render(direction) {
     var step = STEPS[state.currentStep];
     saveState(); // grava a etapa atual a cada navegação (retomada)
+
+    // Connector 3.0 — drop-off por etapa (lição Thrive/Interact): um evento
+    // único `form_step_view` com step_number permite Funnel Exploration no
+    // GA4 e mostra ONDE o lead morre. Dedupe por índice (voltar re-conta de
+    // propósito: revisita é sinal real). Push só se dataLayer existir/criável.
+    try {
+      if (window.__adspiritQfLastStepTracked !== state.currentStep) {
+        window.__adspiritQfLastStepTracked = state.currentStep;
+        window.dataLayer = window.dataLayer || [];
+        window.dataLayer.push({
+          event: 'form_step_view',
+          form_id: 'adspirit_form_qualifier',
+          step_number: state.currentStep + 1,
+          step_total: STEPS.length,
+          step_key: step && step.id ? String(step.id) : String(state.currentStep + 1),
+        });
+      }
+    } catch (e) { /* analytics nunca quebra o form */ }
     var root = document.querySelector('.adspirit-qualifier-root');
     if (!root) return;
     ensureShell(root);
@@ -797,6 +815,18 @@
         }
         // Sucesso — guarda response + avança
         window.AdSpiritQualifierLastResponse = json.data || {};
+        // Connector 3.0 — generate_lead (nome recomendado GA4 de lead gen)
+        // no sucesso do submit FINAL, com o perfil devolvido pelo CRM. O
+        // push manual é obrigatório: submit AJAX é invisível pro Enhanced
+        // Measurement/GTM nativo.
+        try {
+          window.dataLayer = window.dataLayer || [];
+          window.dataLayer.push({
+            event: 'generate_lead',
+            method: 'adspirit_form_qualifier',
+            lead_profile: (json.data && json.data.profile) ? String(json.data.profile) : null,
+          });
+        } catch (e) { /* analytics nunca quebra o form */ }
         clearState();
         state.currentStep = STEPS.length - 1;
         render('next');

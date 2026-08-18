@@ -103,6 +103,8 @@ adspirit_connector_safe_require('includes/class-adspirit-setup-wizard.php');
 adspirit_connector_safe_require('includes/class-adspirit-turnstile.php');
 // v2.28 widget de leads no dashboard do WP (presença diária + deep-link CRM)
 adspirit_connector_safe_require('includes/class-adspirit-dashboard-widget.php');
+// v2.29 eventos automáticos nomeados (tel/email/whatsapp/download → dataLayer)
+adspirit_connector_safe_require('includes/class-adspirit-auto-events.php');
 
 /**
  * Bootstrap on plugins_loaded.
@@ -164,6 +166,8 @@ function adspirit_connector_init() {
     if (class_exists('AdSpirit_Turnstile')) AdSpirit_Turnstile::instance();
     // v2.28 widget de leads no dashboard
     if (class_exists('AdSpirit_Dashboard_Widget')) AdSpirit_Dashboard_Widget::instance();
+    // v2.29 eventos automáticos nomeados
+    if (class_exists('AdSpirit_Auto_Events')) AdSpirit_Auto_Events::instance();
 }
 
 /**

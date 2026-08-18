@@ -35,15 +35,14 @@ UI/admin (prioridade declarada do Pedro: "nossa interface está muito ruim"):
 - [ ] Aba Submissões: status por integração na linha + paginação (bulk e
       filtros já feitos)
 - [ ] Aba de logs com request+response por tentativa (diagnóstico sem SSH)
-- [ ] Quarentena de spam revisável (status `spam` no Lead Store em vez de
-      descarte silencioso — padrão WPForms)
+- [x] Quarentena de spam revisável (status `spam` + motivo na aba
+      Submissões; resgate pelo Reenviar; TTL 30d; anti-flood 10/min)
 
 Tracking/analytics:
-- [ ] Eventos automáticos nomeados (padrão PixelYourSite): `TelClick`,
-      `EmailClick`, `Download`, scroll/tempo — com parâmetros ricos
-- [ ] Eventos GA4 com nomes recomendados de lead gen (`generate_lead` já ok;
-      adicionar `form_step_view {step_number}` no qualifier = drop-off por
-      etapa, o analytics que falta no A/B)
+- [x] Eventos automáticos nomeados (tel_click, email_click, whatsapp_click
+      +generate_lead, file_download → dataLayer, arquivo versionado)
+- [x] `form_step_view {step_number}` no qualifier (drop-off por etapa) +
+      `generate_lead` com perfil no sucesso do submit
 - [ ] Pixel servido de path first-party (anti ad-blocker, padrão Stape) +
       migrar JS inline (telemetria/LGPD/cross-domain) pra arquivos versionados
 - [ ] Verificar dedup×cache do event_id CAPI (lição PYS) — Lead ok
