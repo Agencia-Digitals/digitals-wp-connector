@@ -101,6 +101,8 @@ adspirit_connector_safe_require('includes/class-adspirit-lead-store.php');
 adspirit_connector_safe_require('includes/class-adspirit-setup-wizard.php');
 // v2.10 cloudflare turnstile (anti-bot invisível)
 adspirit_connector_safe_require('includes/class-adspirit-turnstile.php');
+// v2.28 widget de leads no dashboard do WP (presença diária + deep-link CRM)
+adspirit_connector_safe_require('includes/class-adspirit-dashboard-widget.php');
 
 /**
  * Bootstrap on plugins_loaded.
@@ -160,6 +162,8 @@ function adspirit_connector_init() {
     if (class_exists('AdSpirit_Setup_Wizard')) AdSpirit_Setup_Wizard::instance();
     // v2.10 cloudflare turnstile
     if (class_exists('AdSpirit_Turnstile')) AdSpirit_Turnstile::instance();
+    // v2.28 widget de leads no dashboard
+    if (class_exists('AdSpirit_Dashboard_Widget')) AdSpirit_Dashboard_Widget::instance();
 }
 
 /**

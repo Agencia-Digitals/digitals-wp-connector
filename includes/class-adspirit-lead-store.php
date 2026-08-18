@@ -64,6 +64,11 @@ class AdSpirit_Lead_Store {
             'admin_post_adspirit_resend_submission',
             AdSpirit_Safe_Hook::action(array($this, 'handle_resend'), 'lead_resend')
         );
+        // Connector 3.0: reenvio em massa (padrão Fluent API Logs "bulk replay").
+        add_action(
+            'admin_post_adspirit_resend_bulk',
+            AdSpirit_Safe_Hook::action(array($this, 'handle_resend_bulk'), 'lead_resend_bulk')
+        );
 
         // P0-3: cron de retry (15min). Agendado aqui (boot) e não só na
         // ativação — cobre update via GitHub, onde o activation hook não roda.
@@ -596,6 +601,47 @@ class AdSpirit_Lead_Store {
     }
 
     /**
+     * Connector 3.0 — reenvio em massa. Mesmo caminho do reenvio unitário
+     * (dispatch_to_crm + mark_crm_attempt, submission_id original), capado em
+     * 20 por request pra não estourar timeout de admin. O botão unitário da
+     * linha também chega aqui (name="single").
+     */
+    public function handle_resend_bulk() {
+        if (!current_user_can(AdSpirit_Menu::CAPABILITY)) wp_die('forbidden', 403);
+        check_admin_referer('adspirit_resend_bulk');
+
+        $single = isset($_POST['single']) ? (int) $_POST['single'] : 0;
+        $ids = $single > 0
+            ? array($single)
+            : (isset($_POST['ids']) && is_array($_POST['ids']) ? array_map('intval', $_POST['ids']) : array());
+        $ids = array_slice(array_filter(array_unique($ids)), 0, 20);
+
+        $back = add_query_arg(
+            array('page' => AdSpirit_Menu::PAGE_SLUG, 'tab' => 'submissions'),
+            admin_url('admin.php')
+        );
+        if (empty($ids)) {
+            wp_safe_redirect(add_query_arg('resend', 'none', $back));
+            exit;
+        }
+
+        $ok = 0;
+        $fail = 0;
+        foreach ($ids as $id) {
+            $row = self::get($id);
+            if (!$row || !in_array((string) ($row['status'] ?? ''), array('pending', 'failed'), true)) continue;
+            $payload = json_decode((string) $row['payload'], true);
+            if (!is_array($payload)) { $fail++; continue; }
+            $result = self::dispatch_to_crm((string) $row['submission_id'], $payload);
+            self::mark_crm_attempt((string) $row['submission_id'], $result);
+            if (!empty($result['ok'])) { $ok++; } else { $fail++; }
+        }
+
+        wp_safe_redirect(add_query_arg(array('resend' => 'bulk', 'r_ok' => $ok, 'r_fail' => $fail), $back));
+        exit;
+    }
+
+    /**
      * POSTa pro CRM com o submission_id ORIGINAL. Endpoint/headers/body
      * idênticos ao dispatch legado (contrato que o CRM consome não muda).
      * Blocking pra capturar o resultado real. P0-3: público — é o caminho
@@ -677,6 +723,15 @@ class AdSpirit_Lead_Store {
                 <div class="as-notice danger"><p>Falha ao reenviar — veja o status na linha.</p></div>
             <?php elseif ($notice === 'notfound' || $notice === 'badpayload') : ?>
                 <div class="as-notice warn"><p>Não foi possível reenviar (registro não encontrado ou payload inválido).</p></div>
+            <?php elseif ($notice === 'bulk') :
+                $r_ok = isset($_GET['r_ok']) ? (int) $_GET['r_ok'] : 0;
+                $r_fail = isset($_GET['r_fail']) ? (int) $_GET['r_fail'] : 0; ?>
+                <div class="as-notice <?php echo $r_fail > 0 ? 'warn' : 'info'; ?>"><p>
+                    Reenvio em massa: <strong><?php echo $r_ok; ?></strong> enviado(s),
+                    <strong><?php echo $r_fail; ?></strong> falha(s).
+                </p></div>
+            <?php elseif ($notice === 'none') : ?>
+                <div class="as-notice warn"><p>Nenhum lead selecionado pra reenviar.</p></div>
             <?php endif; ?>
 
             <div style="display:flex; gap:16px; flex-wrap:wrap; margin:18px 0; font-size:13px;">
@@ -695,6 +750,12 @@ class AdSpirit_Lead_Store {
                     <option value="cf7" <?php selected($filters['source'], 'cf7'); ?>>Contact Form 7</option>
                     <option value="qualifier" <?php selected($filters['source'], 'qualifier'); ?>>Qualifier</option>
                     <option value="qualifier_partial" <?php selected($filters['source'], 'qualifier_partial'); ?>>Qualifier (parcial)</option>
+                    <option value="native" <?php selected($filters['source'], 'native'); ?>>Form AdSpirit</option>
+                    <option value="gravity" <?php selected($filters['source'], 'gravity'); ?>>Gravity Forms</option>
+                    <option value="wpforms" <?php selected($filters['source'], 'wpforms'); ?>>WPForms</option>
+                    <option value="elementor" <?php selected($filters['source'], 'elementor'); ?>>Elementor</option>
+                    <option value="fluent" <?php selected($filters['source'], 'fluent'); ?>>Fluent Forms</option>
+                    <option value="woocommerce" <?php selected($filters['source'], 'woocommerce'); ?>>WooCommerce</option>
                 </select>
                 <select name="sl_status">
                     <option value="">Todos status</option>
@@ -711,9 +772,18 @@ class AdSpirit_Lead_Store {
             <?php if (empty($rows)) : ?>
                 <div class="as-notice"><p>Nenhuma submissão registrada (com os filtros atuais).</p></div>
             <?php else : ?>
+                <?php // Form ÚNICO pra tabela inteira (bulk + botão por linha via
+                      // name="single") — form aninhado por linha é HTML inválido. ?>
+                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                <input type="hidden" name="action" value="adspirit_resend_bulk">
+                <?php wp_nonce_field('adspirit_resend_bulk'); ?>
+                <p style="margin:0 0 8px;">
+                    <button type="submit" class="button" title="Reenvia os leads marcados (máx. 20 por vez), reusando o ID original — o CRM não duplica">Reenviar selecionados</button>
+                </p>
                 <table class="wp-list-table widefat striped">
                     <thead>
                         <tr>
+                            <th style="width:28px;"></th>
                             <th style="width:120px;">Quando</th>
                             <th style="width:100px;">Origem</th>
                             <th>Contato</th>
@@ -735,6 +805,11 @@ class AdSpirit_Lead_Store {
                         $can_resend = in_array($status, array('pending', 'failed'), true);
                     ?>
                         <tr>
+                            <td>
+                                <?php if ($can_resend) : ?>
+                                    <input type="checkbox" name="ids[]" value="<?php echo (int) $r['id']; ?>">
+                                <?php endif; ?>
+                            </td>
                             <td title="<?php echo esc_attr($when_title); ?>"><?php echo esc_html($when); ?></td>
                             <td><span class="as-badge muted"><?php echo esc_html((string) ($r['source'] ?? '')); ?></span></td>
                             <td>
@@ -757,12 +832,7 @@ class AdSpirit_Lead_Store {
                             <td><?php echo $r['profile'] !== '' ? '<span class="as-badge accent">' . esc_html((string) $r['profile']) . '</span>' : '<span style="opacity:.4;">—</span>'; ?></td>
                             <td>
                                 <?php if ($can_resend) : ?>
-                                    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin:0;">
-                                        <input type="hidden" name="action" value="adspirit_resend_submission">
-                                        <input type="hidden" name="id" value="<?php echo (int) $r['id']; ?>">
-                                        <?php wp_nonce_field('adspirit_resend_submission'); ?>
-                                        <button type="submit" class="button button-small" title="Reenvia ao CRM reusando o ID original (sem duplicar)">Reenviar</button>
-                                    </form>
+                                    <button type="submit" class="button button-small" name="single" value="<?php echo (int) $r['id']; ?>" title="Reenvia ao CRM reusando o ID original (sem duplicar)">Reenviar</button>
                                 <?php else : ?>
                                     <span style="opacity:.4;">—</span>
                                 <?php endif; ?>
@@ -771,6 +841,7 @@ class AdSpirit_Lead_Store {
                     <?php endforeach; ?>
                     </tbody>
                 </table>
+                </form>
             <?php endif; ?>
         </div>
         <?php
