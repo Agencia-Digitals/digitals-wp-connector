@@ -903,7 +903,21 @@ class AdSpirit_Lead_Store {
                                 <?php endif; ?>
                             </td>
                             <td title="<?php echo esc_attr($when_title); ?>"><?php echo esc_html($when); ?></td>
-                            <td><span class="as-badge muted"><?php echo esc_html((string) ($r['source'] ?? '')); ?></span></td>
+                            <td>
+                                <span class="as-badge muted"><?php echo esc_html((string) ($r['source'] ?? '')); ?></span>
+                                <?php
+                                // Integrações secundárias da linha (fanout etc.)
+                                // — o CRM já é o status principal ao lado.
+                                $integ_row = json_decode((string) ($r['integrations'] ?? ''), true);
+                                if (is_array($integ_row)) {
+                                    foreach (array('fanout' => 'webhooks', 'capi' => 'Meta', 'ga4' => 'GA4') as $ik => $ilabel) {
+                                        if (!empty($integ_row[$ik])) {
+                                            echo '<br><small style="opacity:.6;">' . esc_html($ilabel) . ' ✓</small>';
+                                        }
+                                    }
+                                }
+                                ?>
+                            </td>
                             <td>
                                 <strong><?php echo esc_html((string) ($r['name'] ?? '—')); ?></strong><br>
                                 <small><?php echo esc_html((string) ($r['email'] ?? '')); ?></small>

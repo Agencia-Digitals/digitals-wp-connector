@@ -36,8 +36,8 @@ UI/admin (prioridade declarada do Pedro: "nossa interface está muito ruim"):
       ponto de saúde, rótulos leigos centralizados (tab_meta), legenda da
       aba ativa; builder/cf7-scope saíram do "Mais"; Leads enviados abre
       o grupo de leads
-- [ ] Aba Submissões: status por integração na linha + paginação (bulk e
-      filtros já feitos)
+- [x] Aba Submissões completa (bulk, filtros, histórico, paginação,
+      integrações secundárias na linha)
 - [ ] Aba de logs com request+response por tentativa (diagnóstico sem SSH)
 - [x] Quarentena de spam revisável (status `spam` + motivo na aba
       Submissões; resgate pelo Reenviar; TTL 30d; anti-flood 10/min)
@@ -111,8 +111,9 @@ tokens de baixo contraste com piso. Toda passada usa SÓ esses padrões.
 - [x] Conexão (referência da doutrina: toggles com legenda, sub-opção aninhada)
 - [x] Testes A/B (estrutura ok; conformidade fina no QA visual)
 - [x] Leads enviados (bulk+filtros+histórico; conformidade fina no QA)
-- [ ] Visão geral (overview — checklist/métricas; tela mais vista)
-- [ ] Primeiros passos (setup wizard)
+- [x] Visão geral (checklist recolhe quando pronto; erro só quando há;
+      ambiente/proteções em details; teste vira rodapé de ações)
+- [x] Primeiros passos (DS-only, OK silencioso, seção pronta recolhe)
 - [ ] Form de avaliação (qualifier — aba grande, tem os cards de modelos)
 - [ ] Criar formulário (builder)
 - [ ] Mapear campos · Contact Form 7 (escopo)
