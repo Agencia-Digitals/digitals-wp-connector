@@ -93,17 +93,20 @@ class AdSpirit_Forms_Hub {
             'preview'  => self::preview_url('qualifier'),
         );
 
-        // 2) Forms do builder (locais deste site).
+        // 2) Forms do builder (locais deste site). "Sincronizado" = também
+        // vive na Central (salvou aqui → refletiu lá).
         $builder_forms = class_exists('AdSpirit_Form') ? AdSpirit_Form::get_forms() : array();
+        $builder_slugs = array();
         foreach ($builder_forms as $fid => $cfg) {
             if (!is_array($cfg)) continue;
+            $builder_slugs[sanitize_key((string) $fid)] = true;
             $fields = isset($cfg['steps'][0]['fields']) && is_array($cfg['steps'][0]['fields'])
                 ? $cfg['steps'][0]['fields'] : array();
             $cards[] = array(
                 'title'    => (string) ($cfg['title'] ?? $fid),
                 'format'   => count($cfg['steps'] ?? array()) > 1 ? 'Multi-etapas' : 'Simples',
                 'fin'      => (($cfg['finalidade'] ?? '') === 'nutricao') ? 'Nutrição' : 'Comercial',
-                'origem'   => 'Este site',
+                'origem'   => !empty($cfg['synced_at']) ? 'Sincronizado' : 'Este site',
                 'shortcode'=> '[adspirit_form id="' . esc_attr((string) $fid) . '"]',
                 'snapshot' => array('kind' => 'fields', 'fields' => $fields),
                 'edit'     => $this->admin_tab_url('builder', array('edit' => (string) $fid)),
@@ -118,7 +121,10 @@ class AdSpirit_Forms_Hub {
         $crm_forms_url = !empty($core['endpoint_url'])
             ? rtrim((string) $core['endpoint_url'], '/') . '/settings/formularios' : '';
         foreach ($central as $slug => $cf) {
-            $fmt = $cf['style'] === 'quiz' ? 'Quiz' : ($cf['style'] === 'chat' ? 'Chat' : 'Multi-etapas');
+            if (isset($builder_slugs[$slug])) continue; // já aparece como card local sincronizado
+            $fmt = $cf['style'] === 'quiz' ? 'Quiz'
+                : ($cf['style'] === 'chat' ? 'Chat'
+                : ($cf['style'] === 'single' ? 'Simples' : 'Multi-etapas'));
             $cards[] = array(
                 'title'    => (string) $cf['name'],
                 'format'   => $fmt,
@@ -150,7 +156,7 @@ class AdSpirit_Forms_Hub {
                         <div class="fh-chips">
                             <span class="fh-chip"><?php echo esc_html($c['format']); ?></span>
                             <span class="fh-chip"><?php echo esc_html($c['fin']); ?></span>
-                            <span class="fh-chip <?php echo $c['origem'] === 'AdSpirit' ? 'accent' : ''; ?>"><?php echo esc_html($c['origem']); ?></span>
+                            <span class="fh-chip <?php echo in_array($c['origem'], array('AdSpirit', 'Sincronizado'), true) ? 'accent' : ''; ?>"><?php echo esc_html($c['origem']); ?></span>
                         </div>
                         <div class="fh-shortcode"><code><?php echo esc_html($c['shortcode']); ?></code></div>
                         <div class="fh-actions">

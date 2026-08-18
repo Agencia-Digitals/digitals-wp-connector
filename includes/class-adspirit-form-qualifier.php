@@ -676,10 +676,12 @@ class AdSpirit_Form_Qualifier {
             </form>
         </details>
 
-        <details style="margin-top:6px;">
-            <summary>Como o JSON é montado</summary>
-            <p class="as-field-help" style="margin-top:8px;">Uma tela por objeto, na ordem. A primeira é a abertura (<code>isIntro</code>); a tela final de sucesso é acrescentada sozinha.</p>
-            <ul style="margin:0; padding-left:18px; line-height:1.9; color:var(--as-ink-soft);">
+        <?php // Doutrina 08-18: referência técnica é NOTA DE RODAPÉ — texto
+              // menor, sem box, hierarquia abaixo da ação de importar. ?>
+        <details class="as-footnote" style="margin-top:14px;">
+            <summary style="cursor:pointer; font-size:12px; color:var(--as-ink-faint); font-weight:400;">Referência: como o JSON é montado</summary>
+            <p style="margin:8px 0 4px; font-size:12px; color:var(--as-ink-faint);">Uma tela por objeto, na ordem. A primeira é a abertura (<code>isIntro</code>); a tela final de sucesso é acrescentada sozinha.</p>
+            <ul style="margin:0; padding-left:16px; line-height:1.8; font-size:12px; color:var(--as-ink-faint);">
                 <li><strong>Pergunta com opções</strong> (os cards): <code>title</code>, <code>fieldKey</code>, <code>canonical</code> e <code>choices</code> — cada opção com <code>label</code> e, se quiser, <code>meta</code>. O atalho de teclado é atribuído sozinho.</li>
                 <li><strong>Pergunta aberta</strong>: <code>title</code> e <code>fields</code>, cada campo com <code>key</code>, <code>type</code> (text, email, tel, url, textarea), <code>placeholder</code> e <code>canonical</code>.</li>
                 <li><strong><code>canonical</code></strong> é o nome com que a resposta chega no CRM: <code>your-name</code>, <code>your-email</code>, <code>Telefone</code>, <code>empresa</code>, <code>cargo</code>, <code>revenue</code>, <code>Investimento</code>, <code>urgencia</code>, <code>pain</code>. Dois campos com o mesmo <code>canonical</code> chegam juntos (é assim que Nome + Sobrenome viram um nome só).</li>

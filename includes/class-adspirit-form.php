@@ -826,6 +826,16 @@ class AdSpirit_Form {
         }
         if (!empty($rules)) $config['routing_rules'] = $rules;
 
+        // Sync 2 vias (reestruturação 08-18): salvar aqui reflete na
+        // Central do AdSpirit. Fail-soft — sem conexão o form segue 100%
+        // local e o hub mostra "só neste site".
+        if (class_exists('AdSpirit_Central_Forms')) {
+            $pushed = AdSpirit_Central_Forms::push(
+                AdSpirit_Central_Forms::builder_to_central($form_id, $config)
+            );
+            if ($pushed) $config['synced_at'] = time();
+        }
+
         $forms = self::get_forms();
         $forms[$form_id] = $config;
         update_option(self::OPTION_KEY, $forms, false);
