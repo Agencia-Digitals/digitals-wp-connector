@@ -520,7 +520,10 @@ class AdSpirit_Form_Qualifier {
 
     /** Galeria: busca os modelos prontos no CRM. Cache 1h em option;
      *  fail-soft pro cache anterior quando a rede falha. */
-    private function fetch_templates($force = false) {
+    /** Galeria de modelos do CRM (cache 1h). PÚBLICO desde 08-19: o hub
+     *  Formulários também mostra os modelos — antes dependia de alguém ter
+     *  aberto ESTA aba pra popular o cache, e o hub aparecia sem modelos. */
+    public static function fetch_templates($force = false) {
         $cached = get_option('adspirit_qualifier_templates', null);
         $at = (int) get_option('adspirit_qualifier_templates_at', 0);
         if (!$force && is_array($cached) && (time() - $at) < 3600) {
@@ -557,7 +560,7 @@ class AdSpirit_Form_Qualifier {
             add_settings_error(self::OPTION_KEY, 'tpl_missing', 'Escolha um modelo antes de aplicar.');
             return;
         }
-        $templates = $this->fetch_templates(true);
+        $templates = self::fetch_templates(true);
         if (!is_array($templates)) {
             add_settings_error(self::OPTION_KEY, 'tpl_fetch', 'Não consegui buscar os modelos no AdSpirit. Confira a aba Conexão.');
             return;
@@ -700,7 +703,7 @@ class AdSpirit_Form_Qualifier {
         <?php AdSpirit_Menu::card_close(); ?>
 
         <?php
-        $tpls = $this->fetch_templates();
+        $tpls = self::fetch_templates();
         AdSpirit_Menu::card_open(
             'Modelos prontos',
             'Roteiros de referência por mercado, direto do AdSpirit. Aplicar um modelo importa o formulário E a régua de pontuação correspondente.'

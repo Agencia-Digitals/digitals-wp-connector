@@ -188,19 +188,27 @@ class AdSpirit_Forms_Hub {
         </div>
 
         <?php
-        // Modelos prontos (galeria do CRM) — usar de base, não inventar a roda.
-        $tpls = get_option('adspirit_qualifier_templates', null);
+        // Modelos prontos (galeria do CRM) — usar de base, não inventar a
+        // roda. Busca ATIVA (fix 08-19): antes lia só o cache populado pela
+        // aba do qualifier, então quem nunca abriu aquela aba via o hub sem
+        // modelo nenhum.
+        $tpls = class_exists('AdSpirit_Form_Qualifier')
+            ? AdSpirit_Form_Qualifier::fetch_templates()
+            : get_option('adspirit_qualifier_templates', null);
         if (is_array($tpls) && !empty($tpls)) : ?>
             <h2 class="as-section" style="margin-top:28px;"><span class="as-kicker-inline">Modelos prontos</span>Comece de uma base</h2>
             <p class="as-section-help">Roteiros validados por tipo de negócio. Aplicar leva o modelo pro Form de avaliação — daí é só personalizar.</p>
             <div class="fh-grid">
                 <?php foreach (array_slice($tpls, 0, 6) as $t) : if (!is_array($t)) continue; ?>
                     <div class="fh-card">
+                        <div class="fh-snap">
+                            <?php $this->render_snapshot(array('kind' => 'multistep', 'step' => self::first_question(isset($t['steps']) && is_array($t['steps']) ? $t['steps'] : array())), (string) ($t['label'] ?? '')); ?>
+                        </div>
                         <div class="fh-body">
                             <div class="fh-title"><?php echo esc_html((string) ($t['label'] ?? $t['id'] ?? 'Modelo')); ?></div>
                             <p class="fh-help"><?php echo esc_html(mb_substr((string) ($t['description'] ?? ''), 0, 120)); ?></p>
                             <div class="fh-actions">
-                                <a class="button button-small" href="<?php echo esc_url($this->admin_tab_url('qualifier')); ?>">Ver e aplicar</a>
+                                <a class="button button-small" href="<?php echo esc_url($this->admin_tab_url('qualifier', array('tpl' => (string) ($t['id'] ?? '')))); ?>">Ver e aplicar</a>
                             </div>
                         </div>
                     </div>
