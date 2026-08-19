@@ -381,6 +381,12 @@
 
   function afterMount(step, stepEl) {
     if (step.isSuccess) {
+      // Resultado do quiz não redireciona: a tela É o entregável, e o CTA
+      // (ponte pra virar lead) é a decisão do visitante.
+      if (stepEl.querySelector('.adspirit-qf-result')) {
+        bindStepInner(stepEl);
+        return;
+      }
       var url = (window.AdSpiritQualifierLastResponse && window.AdSpiritQualifierLastResponse.redirect_url) || '';
       if (url) {
         startCountdown(5, url);
@@ -550,7 +556,47 @@
       '</div>';
   }
 
+  // Central de Forms Fase 2 — tela de RESULTADO do quiz. É o entregável
+  // do subscriber: ele responde, dá o contato e recebe o diagnóstico na
+  // hora. O template vem por perfil (CFG.quiz_results), com fallback pro
+  // 'default'. Sem template pro perfil devolvido, cai na tela de sempre.
+  function quizResultFor(profile) {
+    var map = CFG.quiz_results;
+    if (!map || typeof map !== 'object') return null;
+    var key = String(profile || '').toUpperCase();
+    var tpl = map[key] || map[key.toLowerCase()] || map['default'] || map['todos'];
+    return (tpl && typeof tpl === 'object') ? tpl : null;
+  }
+
+  function renderQuizResult(tpl) {
+    var items = Array.isArray(tpl.items) ? tpl.items : [];
+    var html = '' +
+      '<div class="adspirit-qf-result">' +
+        (tpl.eyebrow ? '<div class="adspirit-qf-eyebrow">' + escapeHtml(tpl.eyebrow) + '</div>' : '') +
+        '<h1 class="adspirit-qf-title">' + escapeHtml(tpl.title || 'Seu resultado') + '</h1>' +
+        (tpl.summary ? '<p class="adspirit-qf-sub">' + escapeHtml(tpl.summary) + '</p>' : '');
+    if (items.length) {
+      html += '<ul class="adspirit-qf-result-list">';
+      items.forEach(function (it) {
+        html += '<li>' + escapeHtml(String(it)) + '</li>';
+      });
+      html += '</ul>';
+    }
+    if (tpl.ctaLabel && tpl.ctaUrl) {
+      html += '<a class="adspirit-qf-result-cta" href="' + escapeHtml(String(tpl.ctaUrl)) + '">' + escapeHtml(String(tpl.ctaLabel)) + '</a>';
+    }
+    if (tpl.footnote) {
+      html += '<p class="adspirit-qf-result-note">' + escapeHtml(String(tpl.footnote)) + '</p>';
+    }
+    html += '</div>';
+    return html;
+  }
+
   function renderSuccess() {
+    // Quiz com template pro perfil devolvido pelo CRM → resultado na tela.
+    var last = window.AdSpiritQualifierLastResponse || {};
+    var tpl = CFG.quiz ? quizResultFor(last.profile) : null;
+    if (tpl) return renderQuizResult(tpl);
     return '' +
       '<div class="adspirit-qf-success-icon">' +
         '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' +
@@ -825,7 +871,12 @@
 
   function submitToServer() {
     if (CFG.preview) {
-      // Preview: pula direto pra tela final, sem request nenhum.
+      // Preview: pula direto pra tela final, sem request nenhum. Em quiz,
+      // finge um perfil pra tela de resultado poder ser revisada.
+      if (CFG.quiz && CFG.quiz_results) {
+        var keys = Object.keys(CFG.quiz_results);
+        window.AdSpiritQualifierLastResponse = { profile: keys.length ? keys[0] : 'default' };
+      }
       state.currentStep = STEPS.length - 1;
       render('next');
       return;

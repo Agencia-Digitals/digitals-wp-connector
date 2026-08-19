@@ -396,6 +396,13 @@ class AdSpirit_Form_Qualifier {
             // Pré-visualização (hub Formulários): avança sem preencher e
             // nunca envia — revisão sem gerar dados.
             'preview' => defined('ADSPIRIT_QF_PREVIEW'),
+            // Central de Forms Fase 2 — QUIZ: o resultado renderizado NA TELA
+            // é o entregável do subscriber (decisão do Pedro 08-18). Sem
+            // templates de resultado, a tela final é a de sempre (countdown +
+            // redirect) — quiz sem resultado configurado não quebra.
+            'quiz' => ($central_form !== null && $central_form['style'] === 'quiz'),
+            'quiz_results' => ($central_form !== null && isset($central_form['destino']['results']) && is_array($central_form['destino']['results']))
+                ? $central_form['destino']['results'] : null,
             // Habilita o gatilho extra a.lead/button.lead no front (JS só o
             // ativa quando o "site todo" está ligado).
             'sitewide' => (string) (self::get_settings()['sitewide'] ?? '0'),
