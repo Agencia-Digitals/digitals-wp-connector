@@ -139,6 +139,7 @@ class AdSpirit_Lead_Identity {
         $status = array(
             'known'       => !empty($body['found']),
             'customer'    => !empty($body['is_customer']),
+            'nurture'     => !empty($body['is_nurture']),
             'profile'     => isset($body['profile']) && is_string($body['profile']) ? $body['profile'] : '',
             'lead_status' => isset($body['lead_status']) && is_string($body['lead_status']) ? $body['lead_status'] : '',
             'stage_type'  => isset($body['stage_type']) && is_string($body['stage_type']) ? $body['stage_type'] : '',
@@ -183,7 +184,7 @@ class AdSpirit_Lead_Identity {
     // ─── Gating server-side (cache-only, nunca bloqueia) ───
 
     /**
-     * [adspirit_if_lead customer="yes" profile="A,B" known="yes"]…[/…]
+     * [adspirit_if_lead customer="yes" nurture="yes" profile="A,B" known="yes"]…[/…]
      * Todas as condições presentes precisam bater (AND). Cache frio =
      * visitante tratado como desconhecido (o AJAX aquece pra próxima).
      */
@@ -191,15 +192,18 @@ class AdSpirit_Lead_Identity {
         $atts = shortcode_atts(array(
             'known'    => '',
             'customer' => '',
+            'nurture'  => '',
             'profile'  => '',
         ), $atts, 'adspirit_if_lead');
         $st = self::status(false);
         $known = is_array($st) && !empty($st['known']);
         $customer = $known && !empty($st['customer']);
+        $nurture = $known && !empty($st['nurture']);
         $profile = $known ? (string) $st['profile'] : '';
 
         if ($atts['known'] !== '' && (($atts['known'] === 'yes') !== $known)) return '';
         if ($atts['customer'] !== '' && (($atts['customer'] === 'yes') !== $customer)) return '';
+        if ($atts['nurture'] !== '' && (($atts['nurture'] === 'yes') !== $nurture)) return '';
         if ($atts['profile'] !== '') {
             $wanted = array_map('trim', explode(',', strtoupper((string) $atts['profile'])));
             if (!in_array(strtoupper($profile), $wanted, true)) return '';

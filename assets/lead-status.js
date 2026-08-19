@@ -6,6 +6,7 @@
  *
  * Supressão via CSS (exemplos):
  *   .adspirit-lead-customer .minha-cta-captacao { display: none; }
+ *   .adspirit-lead-nurture .baixar-material { display: none; }  (já baixou)
  *   .adspirit-lead-profile-a .oferta-premium { display: block; }
  */
 (function () {
@@ -18,10 +19,12 @@
       var el = document.documentElement;
       el.classList.add('adspirit-lead-known');
       if (st.customer) el.classList.add('adspirit-lead-customer');
+      if (st.nurture) el.classList.add('adspirit-lead-nurture');
       if (st.profile) el.classList.add('adspirit-lead-profile-' + String(st.profile).toLowerCase());
       window.__adspiritLead = {
         known: true,
         customer: !!st.customer,
+        nurture: !!st.nurture,
         profile: st.profile || '',
       };
       document.dispatchEvent(new CustomEvent('adspirit:lead', { detail: window.__adspiritLead }));
