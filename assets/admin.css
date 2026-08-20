@@ -719,3 +719,12 @@
 .adspirit-app .fh-new-opts strong { display: block; font-size: 12.5px; }
 .adspirit-app .fh-new-opts small { color: var(--as-ink-faint); font-size: 11px; }
 .adspirit-app .fh-soon { opacity: .55; }
+
+/* Sub-abas do hub de formulários (reestruturação 08-20) */
+.adspirit-app .fh-subnav { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 16px; }
+.adspirit-app .fh-pill {
+  border-radius: 99px; padding: 4px 13px; font-size: 12.5px;
+  color: var(--as-ink-faint); text-decoration: none; border: 1px solid transparent;
+}
+.adspirit-app .fh-pill:hover { color: var(--as-ink); }
+.adspirit-app .fh-pill.on { background: var(--as-bg-subtle); border-color: var(--as-line); color: var(--as-ink); font-weight: 600; }

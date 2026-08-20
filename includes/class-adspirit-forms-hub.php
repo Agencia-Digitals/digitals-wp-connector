@@ -75,7 +75,38 @@ class AdSpirit_Forms_Hub {
         return null;
     }
 
+    /** Sub-abas do hub (pedido 9c do Pedro): visão geral · novo · nossos ·
+     *  de outros plugins. Cada uma responde uma pergunta diferente. */
+    private function subtabs() {
+        return array(
+            'visao'   => 'Visão geral',
+            'novo'    => 'Novo formulário',
+            'nossos'  => 'Formulários AdSpirit',
+            'outros'  => 'De outros plugins',
+        );
+    }
+
+    private function current_sub() {
+        $sub = isset($_GET['sub']) ? sanitize_key((string) $_GET['sub']) : 'visao';
+        return isset($this->subtabs()[$sub]) ? $sub : 'visao';
+    }
+
+    private function render_subnav($current) {
+        echo '<div class="fh-subnav">';
+        foreach ($this->subtabs() as $slug => $label) {
+            $url = $this->admin_tab_url('formularios', array('sub' => $slug));
+            printf(
+                '<a href="%s" class="fh-pill%s">%s</a>',
+                esc_url($url),
+                $slug === $current ? ' on' : '',
+                esc_html($label)
+            );
+        }
+        echo '</div>';
+    }
+
     public function render_tab() {
+        $sub = $this->current_sub();
         $cards = array();
 
         // 1) Form de avaliação (qualifier) — sempre existe (padrão embutido).
@@ -139,12 +170,61 @@ class AdSpirit_Forms_Hub {
             );
         }
 
+        // 4) Formulários de OUTROS plugins (CF7 e afins) — o site já os
+        // tinha; o AdSpirit captura os leads deles do mesmo jeito. Card
+        // sem preview (o render é do outro plugin) e com atalho pro mapa
+        // de campos, que é o que de fato se configura aqui.
+        if (class_exists('WPCF7_ContactForm')) {
+            $cf7 = WPCF7_ContactForm::find(array('posts_per_page' => 30, 'orderby' => 'title', 'order' => 'ASC'));
+            foreach ((array) $cf7 as $f) {
+                if (!is_object($f) || !method_exists($f, 'id')) continue;
+                $fields = array();
+                foreach ((array) $f->scan_form_tags() as $tag) {
+                    if (!empty($tag->name)) $fields[] = array('label' => $tag->name);
+                }
+                $cards[] = array(
+                    'title'    => (string) $f->title(),
+                    'format'   => 'Simples',
+                    'fin'      => 'Comercial',
+                    'origem'   => 'Outro plugin',
+                    'shortcode'=> '[contact-form-7 id="' . (int) $f->id() . '"]',
+                    'snapshot' => array('kind' => 'fields', 'fields' => array_slice($fields, 0, 3)),
+                    'edit'     => admin_url('admin.php?page=wpcf7&post=' . (int) $f->id() . '&action=edit'),
+                    'map'      => $this->admin_tab_url('forms', array('form_id' => (int) $f->id())),
+                    'preview'  => '',
+                );
+            }
+        }
+
+        // Separa por origem: nossos (avaliação + builder + Central) vs de
+        // outros plugins (CF7 e afins, que o site já tinha).
+        $nossos = array();
+        $outros = array();
+        foreach ($cards as $c) {
+            if (($c['origem'] ?? '') === 'Outro plugin') $outros[] = $c;
+            else $nossos[] = $c;
+        }
         ?>
-        <h2 class="as-section"><span class="as-kicker-inline">Receber leads</span>Formulários</h2>
-        <p class="as-section-help">Todos os formulários do site num lugar só. Escolha um pra visualizar, editar ou configurar — cada form carrega as próprias configurações.</p>
+        <h2 class="as-section"><span class="as-kicker-inline">Formulários</span><?php echo esc_html($this->subtabs()[$sub]); ?></h2>
+        <?php $this->render_subnav($sub); ?>
+
+        <?php if ($sub === 'visao') { $this->render_overview($cards); return; } ?>
+        <?php if ($sub === 'novo') { $this->render_new($cards); return; } ?>
+        <?php
+        $show = $sub === 'outros' ? $outros : $nossos;
+        if (empty($show)) {
+            echo '<p class="as-section-help">' . ($sub === 'outros'
+                ? 'Nenhum formulário de outro plugin detectado neste site.'
+                : 'Nenhum formulário do AdSpirit ainda — crie um na aba "Novo formulário".') . '</p>';
+            return;
+        }
+        ?>
+        <p class="as-section-help"><?php echo $sub === 'outros'
+            ? 'Formulários que já existiam no site (Contact Form 7 e afins). O AdSpirit captura os leads deles; o mapeamento de campos fica em Mapear campos.'
+            : 'Os formulários do AdSpirit neste site. Escolha um pra visualizar, editar ou configurar.'; ?></p>
 
         <div class="fh-grid">
-            <?php foreach ($cards as $c) : ?>
+            <?php foreach ($show as $c) : ?>
                 <div class="fh-card">
                     <a class="fh-snap-link" href="<?php echo esc_url($c['preview'] ?: $c['edit']); ?>" <?php echo $c['preview'] ? 'target="_blank" rel="noopener"' : ''; ?> aria-label="Pré-visualizar <?php echo esc_attr($c['title']); ?>">
                         <div class="fh-snap">
@@ -174,19 +254,9 @@ class AdSpirit_Forms_Hub {
                 </div>
             <?php endforeach; ?>
 
-            <div class="fh-card fh-new">
-                <div class="fh-body">
-                    <div class="fh-title">Criar formulário</div>
-                    <p class="fh-help">Escolha o formato:</p>
-                    <div class="fh-new-opts">
-                        <a href="<?php echo esc_url($this->admin_tab_url('qualifier')); ?>"><strong>Multi-etapas</strong><small>Uma pergunta por tela — o formato que mais converte.</small></a>
-                        <a href="<?php echo esc_url($this->admin_tab_url('builder', array('new' => '1'))); ?>"><strong>Simples</strong><small>Todos os campos numa tela só.</small></a>
-                        <span class="fh-soon"><strong>Chat</strong><small>Cara de conversa — em breve.</small></span>
-                    </div>
-                </div>
-            </div>
         </div>
 
+        <?php return; ?>
         <?php
         // Modelos prontos (galeria do CRM) — usar de base, não inventar a
         // roda. Busca ATIVA (fix 08-19): antes lia só o cache populado pela
@@ -215,6 +285,82 @@ class AdSpirit_Forms_Hub {
                 <?php endforeach; ?>
             </div>
         <?php endif;
+    }
+
+    /** Aba "Visão geral": o que o site tem hoje (saiu do Início, pedido 9c). */
+    private function render_overview($cards) {
+        $nossos = 0; $outros = 0;
+        foreach ($cards as $c) {
+            if (($c['origem'] ?? '') === 'Outro plugin') $outros++; else $nossos++;
+        }
+        $unsent = (class_exists('AdSpirit_Lead_Store') && AdSpirit_Lead_Store::available())
+            ? AdSpirit_Lead_Store::count_unsent() : 0;
+        $ty = class_exists('AdSpirit_ThankYou_Setup') ? AdSpirit_ThankYou_Setup::confirmed() : null;
+        ?>
+        <p class="as-section-help">O que este site tem hoje pra capturar leads.</p>
+        <div class="as-metric-grid">
+            <div class="as-metric">
+                <div class="label">Formulários do AdSpirit</div>
+                <div class="value"><?php echo (int) $nossos; ?></div>
+                <div class="sub">criados aqui ou no AdSpirit</div>
+            </div>
+            <div class="as-metric">
+                <div class="label">De outros plugins</div>
+                <div class="value"><?php echo (int) $outros; ?></div>
+                <div class="sub">capturados mesmo assim</div>
+            </div>
+            <div class="as-metric">
+                <div class="label">Aguardando entrega</div>
+                <div class="value <?php echo $unsent > 0 ? 'danger' : ''; ?>"><?php echo (int) $unsent; ?></div>
+                <div class="sub">leads na fila de reenvio</div>
+            </div>
+            <div class="as-metric">
+                <div class="label">Página de obrigado</div>
+                <div class="value text"><?php echo $ty ? esc_html($ty['path']) : 'não definida'; ?></div>
+                <div class="sub"><?php echo $ty ? 'conta como conversão' : 'confirme pra medir conversão'; ?></div>
+            </div>
+        </div>
+        <p style="margin-top:14px;">
+            <a class="button" href="<?php echo esc_url($this->admin_tab_url('formularios', array('sub' => 'nossos'))); ?>">Ver formulários do AdSpirit</a>
+            <a class="button-link" style="margin-left:10px;" href="<?php echo esc_url($this->admin_tab_url('forms')); ?>">Mapear campos →</a>
+        </p>
+        <?php
+    }
+
+    /** Aba "Novo formulário": criar do zero ou partir de um modelo (9c). */
+    private function render_new($cards) {
+        ?>
+        <p class="as-section-help">Crie um formulário do AdSpirit. Escolha o formato — dá pra mudar depois.</p>
+        <div class="fh-grid">
+            <div class="fh-card fh-new">
+                <div class="fh-body">
+                    <div class="fh-title">Do zero</div>
+                    <p class="fh-help">Escolha o formato:</p>
+                    <div class="fh-new-opts">
+                        <a href="<?php echo esc_url($this->admin_tab_url('qualifier')); ?>"><strong>Multi-etapas</strong><small>Uma pergunta por tela — o formato que mais converte.</small></a>
+                        <a href="<?php echo esc_url($this->admin_tab_url('builder', array('new' => '1'))); ?>"><strong>Simples</strong><small>Todos os campos numa tela só.</small></a>
+                        <span class="fh-soon"><strong>Chat</strong><small>Cara de conversa — em breve.</small></span>
+                    </div>
+                </div>
+            </div>
+            <?php
+            $tpls = class_exists('AdSpirit_Form_Qualifier') ? AdSpirit_Form_Qualifier::fetch_templates() : null;
+            if (is_array($tpls)) : foreach (array_slice($tpls, 0, 6) as $t) : if (!is_array($t)) continue; ?>
+                <div class="fh-card">
+                    <div class="fh-snap">
+                        <?php $this->render_snapshot(array('kind' => 'multistep', 'step' => self::first_question(isset($t['steps']) && is_array($t['steps']) ? $t['steps'] : array())), (string) ($t['label'] ?? '')); ?>
+                    </div>
+                    <div class="fh-body">
+                        <div class="fh-title"><?php echo esc_html((string) ($t['label'] ?? 'Modelo')); ?></div>
+                        <p class="fh-help"><?php echo esc_html(mb_substr((string) ($t['description'] ?? ''), 0, 110)); ?></p>
+                        <div class="fh-actions">
+                            <a class="button button-small" href="<?php echo esc_url($this->admin_tab_url('qualifier', array('tpl' => (string) ($t['id'] ?? '')))); ?>">Usar este modelo</a>
+                        </div>
+                    </div>
+                </div>
+            <?php endforeach; endif; ?>
+        </div>
+        <?php
     }
 
     /** Miniatura visual do form (vitrine) — puro CSS, sem iframe. */
