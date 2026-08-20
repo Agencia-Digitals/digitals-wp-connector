@@ -39,13 +39,12 @@ class AdSpirit_Cross_Domain {
             AdSpirit_Safe_Hook::action(array($this, 'handle_save'), 'cross_domain_save')
         );
         add_action(
-            'wp_footer',
-            AdSpirit_Safe_Hook::action(array($this, 'inject_script'), 'cross_domain_inject'),
-            99
+            'wp_enqueue_scripts',
+            AdSpirit_Safe_Hook::action(array($this, 'enqueue_assets'), 'cross_domain_enqueue')
         );
     }
 
-    public function inject_script() {
+    public function enqueue_assets() {
         $cfg = AdSpirit_Settings::get_cross_domain();
         if ($cfg['enabled'] !== '1') return;
         $raw = (string) ($cfg['domains'] ?? '');
@@ -58,98 +57,64 @@ class AdSpirit_Cross_Domain {
         }, preg_split('/\r?\n/', $raw)));
         if (empty($domains)) return;
 
-        $domains_json = wp_json_encode(array_values($domains));
-        ?>
-        <script>
-        (function() {
-            try {
-                var DOMAINS = <?php echo $domains_json; ?>;
-                if (!DOMAINS.length) return;
-
-                function getCookie(name) {
-                    var m = document.cookie.match('(?:^|; )' + name.replace(/([.$?*|{}()[\]\\\/+^])/g, '\\$1') + '=([^;]*)');
-                    return m ? decodeURIComponent(m[1]) : null;
-                }
-                function setCookie(name, value, days) {
-                    var d = new Date(); d.setTime(d.getTime() + days * 86400000);
-                    document.cookie = name + '=' + encodeURIComponent(value) + ';expires=' + d.toUTCString() + ';path=/;samesite=lax';
-                }
-                function uuid() {
-                    return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, function(c) {
-                        return (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c/4)).toString(16);
-                    });
-                }
-                var vid = getCookie('adspirit_vid');
-                if (!vid) {
-                    vid = uuid();
-                    setCookie('adspirit_vid', vid, 90);
-                }
-
-                function decorate(a) {
-                    if (!a.href || a.dataset.dosDecorated === '1') return;
-                    try {
-                        var u = new URL(a.href);
-                        if (DOMAINS.indexOf(u.hostname.toLowerCase()) !== -1) {
-                            u.searchParams.set('dos_vid', vid);
-                            a.href = u.toString();
-                            a.dataset.dosDecorated = '1';
-                        }
-                    } catch (e) { /* ignore invalid URLs */ }
-                }
-
-                document.querySelectorAll('a[href]').forEach(decorate);
-
-                // Watch dinamicamente-injetados
-                if (typeof MutationObserver !== 'undefined') {
-                    var mo = new MutationObserver(function(mutations) {
-                        mutations.forEach(function(m) {
-                            m.addedNodes.forEach(function(node) {
-                                if (!node.querySelectorAll) return;
-                                if (node.tagName === 'A') decorate(node);
-                                node.querySelectorAll && node.querySelectorAll('a[href]').forEach(decorate);
-                            });
-                        });
-                    });
-                    mo.observe(document.body, { childList: true, subtree: true });
-                }
-            } catch (e) {
-                /* silenciado */
-            }
-        })();
-        </script>
-        <?php
+        $version = defined('ADSPIRIT_CONNECTOR_VERSION') ? ADSPIRIT_CONNECTOR_VERSION : '2.30.0';
+        wp_enqueue_script(
+            'adspirit-cross-domain',
+            ADSPIRIT_CONNECTOR_URL . 'assets/cross-domain.js',
+            array(),
+            $version,
+            true
+        );
+        wp_add_inline_script(
+            'adspirit-cross-domain',
+            'window.__adspiritXDomainCfg = ' . wp_json_encode(array('domains' => array_values($domains))) . ';',
+            'before'
+        );
     }
 
     public function render_tab() {
         $c = AdSpirit_Settings::get_cross_domain();
         $status_badge = $c['enabled'] === '1' ? '<span class="as-badge ok">Ativo</span>' : '<span class="as-badge muted">Desligado</span>';
         ?>
-        <h2 class="as-section"><span class="as-kicker-inline">Cross-domain</span>Decoration de links entre TLDs próprios</h2>
-        <p class="as-section-help">
-            Quando o cliente tem múltiplos domínios próprios (landing.com → checkout.io), o pixel perde continuidade do visitor ao navegar entre eles. Esta camada decora links de saída com <code>?dos_vid=&lt;id&gt;</code> automaticamente. Sincroniza com <code>linked_domains</code> em <code>tracking_install</code> no CRM — ideal manter idêntico nos dois lados.
-        </p>
+        <h2 class="as-section"><span class="as-kicker-inline">Cross-domain</span>Rastreio entre sites</h2>
+        <p class="as-section-help">Mantém a jornada do visitante quando ele sai de um site seu pra outro (ex.: da landing page pro checkout).</p>
 
-        <?php AdSpirit_Menu::card_open('Configuração', 'Lista de hostnames próprios do cliente — não inclua redes sociais ou destinos de terceiros', $status_badge); ?>
+        <?php
+        // Handshake: o rastreador central do AdSpirit já decora links pros
+        // domínios vinculados da marca — se já há cobertura, dizer, em vez
+        // de pedir a mesma lista de novo.
+        $central = class_exists('AdSpirit_Setup_Wizard') ? AdSpirit_Setup_Wizard::central_status() : null;
+        $linked = is_array($central) && !empty($central['linked_domains']) && is_array($central['linked_domains'])
+            ? array_map('strval', $central['linked_domains']) : array();
+        if (!empty($linked)) : ?>
+            <div class="notice notice-info inline" style="margin:0 0 16px;">
+                <p>O AdSpirit já rastreia entre estes domínios da marca (o rastreador central decora os links sozinho): <strong><?php echo esc_html(implode(', ', $linked)); ?></strong>. Este módulo só é necessário se o rastreador estiver desligado neste site.</p>
+            </div>
+        <?php endif; ?>
+
+        <?php AdSpirit_Menu::card_open('Configuração', 'Liste só os domínios que são seus', $status_badge); ?>
         <?php AdSpirit_Menu::form_open('cross-domain'); ?>
 
-        <table class="form-table">
-            <tr>
-                <th>Status</th>
-                <td>
-                    <label>
-                        <input type="checkbox" name="enabled" value="1" <?php checked($c['enabled'], '1'); ?>>
-                        Ativar decoration
-                    </label>
-                </td>
-            </tr>
-            <tr>
-                <th><label for="domains">Domínios afiliados</label></th>
-                <td>
-                    <textarea id="domains" name="domains" rows="6" class="large-text code" placeholder="checkout.cliente.com&#10;app.cliente.com.br"><?php echo esc_textarea($c['domains']); ?></textarea>
-                    <p class="description">Um hostname por linha. Sem <code>http://</code> nem path. Apenas domínios <strong>próprios</strong> do cliente — não inclua redes sociais ou destinos de terceiros.</p>
-                </td>
-            </tr>
-        </table>
+        <div class="as-toggle">
+            <input type="checkbox" id="xd_enabled" name="enabled" value="1" <?php checked($c['enabled'], '1'); ?>>
+            <label class="t" for="xd_enabled">Rastreio entre sites ligado<small>Os links pros domínios da lista abaixo passam a carregar o código do visitante.</small></label>
+        </div>
+
+        <div class="as-field">
+            <label class="as-field-label" for="domains">Seus outros domínios</label>
+            <textarea id="domains" name="domains" rows="6" class="large-text code" placeholder="checkout.cliente.com&#10;app.cliente.com.br"><?php echo esc_textarea($c['domains']); ?></textarea>
+            <p class="description">Um domínio por linha, sem <code>http://</code> nem barra. Só domínios seus — nunca redes sociais ou sites de terceiros.</p>
+        </div>
+
+        <details class="as-help">
+            <summary>Como funciona</summary>
+            <ul>
+                <li>Sem isso, o visitante que troca de domínio vira "visitante novo" e a jornada se perde.</li>
+                <li>Os links de saída pros domínios da lista ganham automaticamente <code>?dos_vid=&lt;id&gt;</code>; o pixel do destino lê e continua a mesma jornada.</li>
+                <li>Mantenha a mesma lista no AdSpirit (domínios vinculados do rastreio) pros dois lados baterem.</li>
+            </ul>
+        </details>
+
         <?php AdSpirit_Menu::form_close('Salvar cross-domain'); ?>
         <?php AdSpirit_Menu::card_close(); ?>
         <?php

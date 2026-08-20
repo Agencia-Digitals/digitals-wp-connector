@@ -117,6 +117,26 @@ class AdSpirit_Integrations {
             $payload['_adspirit_telemetry'] = AdSpirit_Telemetry::collect_from_post('woocommerce', (string) $order->get_id(), home_url('/'));
         }
 
+        // F0 Connector 3.0: identidade no payload (pedido Woo = comercial).
+        $payload['_adspirit_form_id'] = 'woocommerce:' . $event;
+        $payload['_adspirit_form_kind'] = 'comercial';
+
+        // ID determinístico por pedido+evento — idempotente por natureza
+        // (retry do cron reusa e o CRM não duplica).
+        $submission_id = 'woo-' . $order->get_id() . '-' . $event;
+
+        // Connector 3.0: antes era fire-and-forget sem registro nenhum — pedido
+        // Woo que falhava no POST sumia sem rastro. Agora: rede de segurança +
+        // dispatcher canônico (blocking 5s; hooks de status de pedido rodam
+        // fora do request do visitante na maioria dos gateways) + retry do cron.
+        if (class_exists('AdSpirit_Lead_Store')) {
+            AdSpirit_Lead_Store::record_pending($submission_id, $payload, 'woocommerce', 'woo-' . $event);
+            $result = AdSpirit_Lead_Store::dispatch_to_crm($submission_id, $payload, 5);
+            AdSpirit_Lead_Store::mark_crm_attempt($submission_id, $result);
+            return;
+        }
+
+        // Fallback raro (Lead_Store não carregou): fire-and-forget legado.
         $endpoint = rtrim($core['endpoint_url'], '/') . '/api/webhooks/contact-form-7';
         wp_remote_post($endpoint, array(
             'timeout' => 8, 'blocking' => false,
@@ -124,7 +144,7 @@ class AdSpirit_Integrations {
                 'Content-Type' => 'application/json',
                 'x-brand-slug' => $core['brand_slug'],
                 'x-cf7-secret' => $core['secret'],
-                'x-cf7-submission-id' => 'woo-' . $order->get_id() . '-' . $event,
+                'x-cf7-submission-id' => $submission_id,
                 'User-Agent' => 'AdSpirit-Connector/' . ADSPIRIT_CONNECTOR_VERSION,
             ),
             'body' => wp_json_encode($payload),
@@ -247,20 +267,27 @@ class AdSpirit_Integrations {
         $urls = (string) get_option(self::OPTION_WEBHOOK_OUT, '');
         $status = $urls ? '<span class="as-badge ok">Configurado</span>' : '<span class="as-badge muted">Não configurado</span>';
         ?>
-        <h2 class="as-section"><span class="as-kicker-inline">Webhook out</span>Replicar leads pra ferramentas externas</h2>
-        <p class="as-section-help">Toda submissão enviada pro CRM também é POSTada pras URLs listadas abaixo. Útil pra Zapier, Make, n8n e ferramentas próprias.</p>
+        <h2 class="as-section"><span class="as-kicker-inline">Webhook out</span>Webhooks de saída</h2>
+        <p class="as-section-help">Cada lead que vai pro AdSpirit também é enviado pros endereços abaixo — útil pra Zapier, Make, n8n e ferramentas próprias.</p>
 
-        <?php AdSpirit_Menu::card_open('URLs', '1 por linha. POST com mesmo payload (JSON) que vai pro CRM, sem secret nem auth', $status); ?>
+        <?php AdSpirit_Menu::card_open('Endereços de destino', 'Um endereço por linha', $status); ?>
         <?php AdSpirit_Menu::form_open('webhook-out'); ?>
-        <table class="form-table">
-            <tr>
-                <th><label for="webhook_urls">Endpoints</label></th>
-                <td>
-                    <textarea id="webhook_urls" name="urls" rows="6" class="large-text code" placeholder="https://hooks.zapier.com/...&#10;https://hook.us2.make.com/..."><?php echo esc_textarea($urls); ?></textarea>
-                    <p class="description">Fire-and-forget — timeout 5s por URL. Falhas são logadas mas não bloqueiam o envio pro CRM.</p>
-                </td>
-            </tr>
-        </table>
+
+        <div class="as-field">
+            <label class="as-field-label" for="webhook_urls">Endereços (URLs)</label>
+            <textarea id="webhook_urls" name="urls" rows="6" class="large-text code" placeholder="https://hooks.zapier.com/...&#10;https://hook.us2.make.com/..."><?php echo esc_textarea($urls); ?></textarea>
+            <p class="description">Linhas que não forem um endereço válido são descartadas ao salvar.</p>
+        </div>
+
+        <details class="as-help">
+            <summary>O que é enviado e como</summary>
+            <ul>
+                <li>Cada destino recebe um POST em JSON com os mesmos dados que vão pro AdSpirit — sem chave nem autenticação.</li>
+                <li>O envio tem limite de 5 segundos por endereço; falha em um destino não atrasa nem bloqueia o envio pro AdSpirit.</li>
+                <li>Falhas ficam registradas em Diagnóstico.</li>
+            </ul>
+        </details>
+
         <?php AdSpirit_Menu::form_close('Salvar URLs'); ?>
         <?php AdSpirit_Menu::card_close(); ?>
         <?php

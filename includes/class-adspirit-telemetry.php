@@ -24,142 +24,41 @@ class AdSpirit_Telemetry {
     }
 
     private function __construct() {
+        // v2.30 "inline → arquivos": os dois scripts (atribuição + coletor)
+        // viraram assets/telemetry.js — cacheável, versionado, UM observer.
+        // Comportamento byte-equivalente (cookies, hidden _adspirit_t_*,
+        // global __adspirit_t que o qualifier lê). Config mínima inline.
         add_action(
-            'wp_footer',
-            AdSpirit_Safe_Hook::action(array($this, 'inject_collector'), 'telemetry_collector'),
-            99
+            'wp_enqueue_scripts',
+            AdSpirit_Safe_Hook::action(array($this, 'enqueue_assets'), 'telemetry_enqueue')
         );
     }
 
-    /**
-     * JS coleta browser data e popula campos hidden em todos os forms
-     * relevantes (CF7, Gravity, etc) com prefix `_adspirit_t_*`.
-     * Plugin server-side lê esses campos no submit.
-     */
-    public function inject_collector() {
+    /** Enfileira o arquivo de telemetria no front (footer) + whitelist. */
+    public function enqueue_assets() {
         if (is_admin()) return;
-
-        // Respeita consent LGPD se desabilitado
-        if (class_exists('AdSpirit_Lgpd_Popup')
-            && method_exists('AdSpirit_Lgpd_Popup', 'has_telemetry_consent')
-            && !AdSpirit_Lgpd_Popup::has_telemetry_consent()) {
-            return;
-        }
-
-        ?>
-        <script>
-        (function() {
-          try {
-            var t = window.__adspirit_t = window.__adspirit_t || {};
-            t.start_ts = t.start_ts || Date.now();
-            t.locale = navigator.language || '';
-            t.timezone = (Intl && Intl.DateTimeFormat && Intl.DateTimeFormat().resolvedOptions().timeZone) || '';
-            t.color_scheme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-            t.screen = (window.screen ? (window.screen.width + 'x' + window.screen.height) : '');
-            t.viewport = (window.innerWidth + 'x' + window.innerHeight);
-            t.connection_type = (navigator.connection && navigator.connection.effectiveType) || '';
-
-            function cookie(name) {
-              var m = document.cookie.match('(?:^|; )' + name.replace(/([.$?*|{}()[\]\\\/+^])/g, '\\$1') + '=([^;]*)');
-              return m ? decodeURIComponent(m[1]) : '';
-            }
-            t.visitor_id = cookie('adspirit_vid') || '';
-            t.session_id = cookie('adspirit_sid') || '';
-            t.fbp = cookie('_fbp');
-            t.fbc = cookie('_fbc');
-            t.ga = cookie('_ga');
-            t.gid = cookie('_gid');
-            t.gcl_au = cookie('_gcl_au');
-
-            // Tempo no form (focus no primeiro campo até submit)
-            t.form_focus_ts = null;
-            t.fields_visited = 0;
-            var visited = {};
-            document.addEventListener('focusin', function(e) {
-              var el = e.target;
-              if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT')) {
-                if (!t.form_focus_ts) t.form_focus_ts = Date.now();
-                if (el.name && !visited[el.name]) {
-                  visited[el.name] = true;
-                  t.fields_visited++;
-                }
-              }
-            });
-
-            // Last 5 pages visitadas nesta sessão (via sessionStorage)
-            try {
-              var history = JSON.parse(sessionStorage.getItem('adspirit_history') || '[]');
-              t.pages_in_session = history.length;
-            } catch(e) {}
-
-            // Behavior summary (escrito pelo behavior tracker em sessionStorage)
-            // Lido como JSON cru aqui e ressubmetido como string no submit.
-            function readBehavior() {
-              try {
-                var raw = sessionStorage.getItem('adspirit_bhv_v1') || '';
-                if (!raw) return '';
-                // cap em 16KB (alinhado com server-side BEHAVIOR_PAYLOAD_MAX_BYTES)
-                if (raw.length > 16384) return '';
-                return raw;
-              } catch(e) { return ''; }
-            }
-
-            // Hook em CF7 submit: popula campos hidden com a telemetria
-            // antes de enviar, pra plugin server-side ler dos $_POST.
-            function attachHidden() {
-              document.querySelectorAll('form.wpcf7-form, form.adspirit-form, .gform_wrapper form, form.wpforms-form').forEach(function(form) {
-                if (form.dataset.adspiritAttached) return;
-                form.dataset.adspiritAttached = '1';
-                var fields = ['visitor_id', 'session_id', 'fbp', 'fbc', 'ga', 'gid', 'gcl_au',
-                              'locale', 'timezone', 'color_scheme', 'screen', 'viewport', 'connection_type'];
-                fields.forEach(function(name) {
-                  var input = document.createElement('input');
-                  input.type = 'hidden';
-                  input.name = '_adspirit_t_' + name;
-                  input.value = '';
-                  form.appendChild(input);
-                });
-                // Time on page + time in form + fields visited preenchidos no submit
-                form.addEventListener('submit', function() {
-                  fields.forEach(function(name) {
-                    var el = form.querySelector('input[name="_adspirit_t_' + name + '"]');
-                    if (el) el.value = String(t[name] || '');
-                  });
-                  var i = document.createElement('input');
-                  i.type = 'hidden'; i.name = '_adspirit_t_time_on_page_ms'; i.value = String(Date.now() - t.start_ts);
-                  form.appendChild(i);
-                  var j = document.createElement('input');
-                  j.type = 'hidden'; j.name = '_adspirit_t_time_in_form_ms';
-                  j.value = String(t.form_focus_ts ? (Date.now() - t.form_focus_ts) : 0);
-                  form.appendChild(j);
-                  var k = document.createElement('input');
-                  k.type = 'hidden'; k.name = '_adspirit_t_fields_visited'; k.value = String(t.fields_visited);
-                  form.appendChild(k);
-                  var l = document.createElement('input');
-                  l.type = 'hidden'; l.name = '_adspirit_t_pages_in_session'; l.value = String(t.pages_in_session || 1);
-                  form.appendChild(l);
-                  // Behavior summary (JSON string lido de sessionStorage no momento do submit).
-                  var bhv = document.createElement('input');
-                  bhv.type = 'hidden'; bhv.name = '_adspirit_t_behavior';
-                  bhv.value = readBehavior();
-                  form.appendChild(bhv);
-                });
-              });
-            }
-            if (document.readyState === 'loading') {
-              document.addEventListener('DOMContentLoaded', attachHidden);
-            } else {
-              attachHidden();
-            }
-            // Re-attach pra forms dinâmicos
-            if (typeof MutationObserver !== 'undefined') {
-              new MutationObserver(attachHidden).observe(document.body, { childList: true, subtree: true });
-            }
-          } catch (e) { /* silenciado */ }
-        })();
-        </script>
-        <?php
+        wp_enqueue_script(
+            'adspirit-telemetry',
+            ADSPIRIT_CONNECTOR_URL . 'assets/telemetry.js',
+            array(),
+            ADSPIRIT_CONNECTOR_VERSION,
+            true
+        );
+        wp_add_inline_script(
+            'adspirit-telemetry',
+            'window.__adspiritTelemetryCfg={wl:' . wp_json_encode(self::attribution_params()) . '};',
+            'before'
+        );
     }
+
+    /** Parâmetros de URL capturados pra atribuição (whitelist fixa). */
+    public static function attribution_params() {
+        return array(
+            'gclid', 'gbraid', 'wbraid', 'fbclid', 'ttclid', 'msclkid',
+            'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
+        );
+    }
+
 
     /**
      * Lê do $_POST tudo que o JS injetou + adiciona server-side data.
@@ -170,6 +69,15 @@ class AdSpirit_Telemetry {
             return isset($_POST['_adspirit_t_' . $k])
                 ? sanitize_text_field((string) $_POST['_adspirit_t_' . $k])
                 : '';
+        };
+        // UTM first/last chegam como JSON string ({source,medium,...}). Decode
+        // pra array (null se ausente/inválido). wp_unslash antes do json_decode.
+        $get_json = function($k) {
+            if (!isset($_POST['_adspirit_t_' . $k])) return null;
+            $raw = (string) wp_unslash($_POST['_adspirit_t_' . $k]);
+            if ($raw === '') return null;
+            $decoded = json_decode($raw, true);
+            return is_array($decoded) ? $decoded : null;
         };
 
         $ua = isset($_SERVER['HTTP_USER_AGENT']) ? (string) $_SERVER['HTTP_USER_AGENT'] : '';
@@ -196,7 +104,14 @@ class AdSpirit_Telemetry {
             }
         }
 
-        return array(
+        // P0-1: atribuição first/last-touch — cookies adspirit_ft/adspirit_lt
+        // (gravados ungated pelo inject_attribution; ver comentário lá) chegam
+        // como JSON nos hidden _adspirit_t_ft/_adspirit_t_lt e viram chaves
+        // flat ft_*/lt_*. Aditivo: nenhuma chave pré-existente muda.
+        $ft = self::attribution_from_post('_adspirit_t_ft', 'ft_');
+        $lt = self::attribution_from_post('_adspirit_t_lt', 'lt_');
+
+        $telemetry = array(
             // Linkage pixel
             'visitor_id' => $get('visitor_id'),
             'session_id' => $get('session_id'),
@@ -211,12 +126,32 @@ class AdSpirit_Telemetry {
             'timezone' => $get('timezone'),
             'color_scheme' => $get('color_scheme'),
 
-            // Atribuição
+            // Atribuição (cookies de plataforma)
             'fbp' => $get('fbp'),
             'fbc' => $get('fbc'),
             'ga' => $get('ga'),
             'gid' => $get('gid'),
             'gcl_au' => $get('gcl_au'),
+
+            // Identidade de navegação (do _dos_attr do pixel) — carrega a
+            // jornada pro CRM mesmo quando o cf7_url (referer) chega vazio.
+            'landing_page' => $get('landing_page'),
+            'conversion_page' => $get('conversion_page'),
+            'referrer' => $get('referrer'),
+            'first_seen_at' => $get('first_seen_at'),
+            'last_seen_at' => $get('last_seen_at'),
+            'utm_first' => $get_json('utm_first'),
+            'utm_last' => $get_json('utm_last'),
+
+            // Click IDs crus de mídia paga (os 6). Antes só vinham fbp/fbc/
+            // gcl_au (cookies derivados) — sem o click id cru o CRM jogava
+            // lead pago em "direto".
+            'fbclid' => $get('fbclid'),
+            'gclid' => $get('gclid'),
+            'gbraid' => $get('gbraid'),
+            'wbraid' => $get('wbraid'),
+            'li_fat_id' => $get('li_fat_id'),
+            'ttclid' => $get('ttclid'),
 
             // WordPress
             'wp_post_id' => $current_post ? (int) $current_post->ID : null,
@@ -249,8 +184,62 @@ class AdSpirit_Telemetry {
             // null se ausente, inválido ou >16KB. CRM trata como opcional.
             'behavior_v1' => $behavior_v1,
         );
+
+        // Atribuição first/last-touch (ft_*/lt_*) + aliases planos que o
+        // Customer.io já lê (utm_*, referrer, landing_page) — valores do
+        // last-touch; referrer/landing_page caem pro first-touch quando não
+        // houve last-touch (visitante só orgânico).
+        $telemetry = array_merge($telemetry, $ft, $lt, array(
+            'utm_source'   => $lt['lt_utm_source'],
+            'utm_medium'   => $lt['lt_utm_medium'],
+            'utm_campaign' => $lt['lt_utm_campaign'],
+            'utm_term'     => $lt['lt_utm_term'],
+            'utm_content'  => $lt['lt_utm_content'],
+            'referrer'     => $lt['lt_referrer'] !== '' ? $lt['lt_referrer'] : $ft['ft_referrer'],
+            'landing_page' => $lt['lt_landing_url'] !== '' ? $lt['lt_landing_url'] : $ft['ft_landing_url'],
+        ));
+
+        return $telemetry;
     }
 
+    /**
+     * P0-1: decodifica um hidden de atribuição (_adspirit_t_ft/_adspirit_t_lt,
+     * JSON gravado pelo inject_attribution) em chaves flat com prefixo
+     * (ft_/lt_). Re-sanitiza server-side: whitelist fixa de chaves,
+     * sanitize_text_field + cap de 200 chars por valor, JSON cru capado em
+     * 4KB. Ausente/inválido → todas as chaves presentes com '' (mesmo
+     * contrato dos demais campos de atribuição, ex. fbp/fbc).
+     */
+    private static function attribution_from_post($post_key, $prefix) {
+        $allowed = array_merge(
+            self::attribution_params(),
+            array('referrer', 'landing_url', 'ts')
+        );
+        $out = array();
+        foreach ($allowed as $k) {
+            $out[$prefix . $k] = '';
+        }
+        if (!isset($_POST[$post_key])) return $out;
+        $raw = (string) wp_unslash($_POST[$post_key]);
+        if ($raw === '' || strlen($raw) > 4096) return $out;
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded)) return $out;
+        foreach ($allowed as $k) {
+            if (isset($decoded[$k]) && is_scalar($decoded[$k])) {
+                $out[$prefix . $k] = substr(sanitize_text_field((string) $decoded[$k]), 0, 200);
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * IP real do cliente — helper CANÔNICO do plugin (v2.30 unifica as 6
+     * derivações que existiam espalhadas). Cascata: CF-Connecting-IP >
+     * X-Forwarded-For (primeiro) > REMOTE_ADDR; '' quando nada existe.
+     * Fica na Telemetry por ser classe sempre carregada cedo (linha 68 do
+     * bootstrap) — NÃO mover sem revisar os delegantes (anti-spam, form,
+     * lead-score, qualifier).
+     */
     public static function client_ip() {
         if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) return (string) $_SERVER['HTTP_CF_CONNECTING_IP'];
         if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {

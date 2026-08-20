@@ -69,7 +69,23 @@ class AdSpirit_WhatsApp {
             $this->rendered_once = true;
         }
 
-        $message_encoded = rawurlencode((string) $atts['message']);
+        // Connector 3.0 — contexto dinâmico na mensagem (padrão Joinchat):
+        // {TITLE} e {URL} viram a página atual — o atendente já sabe de onde
+        // o lead veio ("Oi! Vi a página {TITLE} e quero saber mais"). Sem
+        // placeholder, comportamento idêntico ao de sempre (aditivo).
+        $message = (string) $atts['message'];
+        if (strpos($message, '{TITLE}') !== false || strpos($message, '{URL}') !== false) {
+            $page_title = trim(wp_strip_all_tags((string) wp_title('', false)));
+            if ($page_title === '') $page_title = get_bloginfo('name');
+            if (is_singular()) {
+                $t = get_the_title();
+                if (is_string($t) && trim($t) !== '') $page_title = trim(wp_strip_all_tags($t));
+            }
+            global $wp;
+            $page_url = home_url(isset($wp->request) ? '/' . ltrim((string) $wp->request, '/') : '/');
+            $message = str_replace(array('{TITLE}', '{URL}'), array($page_title, $page_url), $message);
+        }
+        $message_encoded = rawurlencode($message);
         $wa_url = "https://api.whatsapp.com/send/?phone={$number}&text={$message_encoded}&type=phone_number&app_absent=0";
 
         $position_class = $atts['position'] === 'bottom-left' ? 'pos-bl' : 'pos-br';
@@ -92,7 +108,7 @@ class AdSpirit_WhatsApp {
         ?>
         <div class="adspirit-wa-root <?php echo esc_attr($position_class); ?>"
              data-wa-number="<?php echo esc_attr($number); ?>"
-             data-wa-message="<?php echo esc_attr($atts['message']); ?>">
+             data-wa-message="<?php echo esc_attr($message); ?>">
             <button type="button" class="adspirit-wa-fab" aria-label="<?php echo esc_attr($atts['cta_label']); ?>" aria-expanded="false">
                 <?php echo $this->wa_icon(); ?>
             </button>

@@ -15,6 +15,7 @@ class AdSpirit_Settings {
     // 1 row pra config geral. Features grandes (field mapping, anti-spam stats,
     // cf7 log) têm options separadas porque crescem com uso.
     const OPTION_CORE         = 'adspirit_connector_settings';
+    const OPTION_CF7_SCOPE    = 'adspirit_connector_cf7_scope';
     const OPTION_FIELD_MAP    = 'adspirit_connector_field_mappings';
     const OPTION_ANTISPAM     = 'adspirit_connector_antispam';
     const OPTION_ANTISPAM_LOG = 'adspirit_connector_antispam_log';
@@ -79,16 +80,39 @@ class AdSpirit_Settings {
             'pixel_token'   => '',
             'cf7_enabled'   => '1',
             'pixel_enabled' => '0',
+            // v2.29: servir o pixel do próprio domínio (anti ad-blocker).
+            // Sub-opção do pixel; default OFF — opt-in por site.
+            'pixel_firstparty' => '0',
             // Feature 35: preview de lead score no [adspirit_form].
             // Off por default (opt-in) — feature visível só pra brands que
             // querem ativar gamification de qualificação.
             'show_lead_score_preview' => '0',
+            // v2.30: coletor genérico (rede de segurança pra form builder
+            // desconhecido, padrão HubSpot). Beta, opt-in — nasce desligado.
+            'generic_forms_enabled' => '0',
         );
+    }
+
+    /**
+     * v2.30: segredo pode vir de constante no wp-config.php — fica fora do
+     * DB (backup de banco não expõe) e sobrevive a reset de options. A
+     * constante definida VENCE o valor salvo na UI. Os update_* mergeiam a
+     * partir da OPTION crua (não do getter) justamente pra constante nunca
+     * ser persistida no banco.
+     */
+    public static function secret_from_config($constant, $fallback) {
+        if (defined($constant)) {
+            $v = constant($constant);
+            if (is_string($v) && $v !== '') return $v;
+        }
+        return $fallback;
     }
 
     public static function get_core() {
         $stored = get_option(self::OPTION_CORE, array());
         $merged = wp_parse_args($stored, self::core_defaults());
+        $merged['secret'] = self::secret_from_config('ADSPIRIT_CRM_SECRET', $merged['secret']);
+        $merged['pixel_token'] = self::secret_from_config('ADSPIRIT_PIXEL_TOKEN', $merged['pixel_token']);
         // Defesa: se user colou a URL completa do endpoint (com path
         // /api/webhooks/contact-form-7), strip pra evitar duplicar o path
         // no dispatcher. Salva no DB normalizado pra próxima leitura.
@@ -126,8 +150,32 @@ class AdSpirit_Settings {
     }
 
     public static function update_core(array $patch) {
-        $current = self::get_core();
+        $current = (array) get_option(self::OPTION_CORE, array());
         update_option(self::OPTION_CORE, array_merge($current, $patch), false);
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // ESCOPO CF7 (P0-2)
+    //   mode 'all' (default, retrocompatível): captura + anti-spam em todos
+    //   os forms CF7, como sempre foi. mode 'allowlist': só os form_ids
+    //   listados — os demais ficam 100% intocados pelo plugin.
+    // ─────────────────────────────────────────────────────────
+    public static function cf7_scope_defaults() {
+        return array(
+            'mode'     => 'all',
+            'form_ids' => array(),
+        );
+    }
+    public static function get_cf7_scope() {
+        $v = wp_parse_args(get_option(self::OPTION_CF7_SCOPE, array()), self::cf7_scope_defaults());
+        $v['mode'] = ($v['mode'] === 'allowlist') ? 'allowlist' : 'all';
+        $ids = is_array($v['form_ids']) ? $v['form_ids'] : array();
+        $v['form_ids'] = array_values(array_unique(array_filter(array_map('intval', $ids))));
+        return $v;
+    }
+    public static function update_cf7_scope(array $patch) {
+        $current = self::get_cf7_scope();
+        update_option(self::OPTION_CF7_SCOPE, array_merge($current, $patch), false);
     }
 
     // ─────────────────────────────────────────────────────────
@@ -175,7 +223,29 @@ class AdSpirit_Settings {
 
     // Campos canônicos que o CRM (cf7-processor) reconhece. Plugin mapeia
     // campos do CF7 pra esses nomes antes do POST.
+    // v2.19: a lista vem do sync com o CRM (Field_Mapping_Sync baixa
+    // {canonical,label,aliases} de /api/wp/field-mapping — inclui os campos
+    // PERSONALIZADOS da brand criados em /settings do AdSpirit). Lê a option
+    // DIRETO, sem Field_Mapping_Sync::get_defaults(): o lazy-refresh de lá
+    // faz wp_remote_get síncrono (até 10s) quando o cache de 1h expira, e
+    // canonical_fields() roda em render de admin. Fallback obrigatório no
+    // array hardcoded: sync nunca rodou / falhou / Safe Mode.
     public static function canonical_fields() {
+        if (class_exists('AdSpirit_Field_Mapping_Sync')) {
+            $synced = get_option(AdSpirit_Field_Mapping_Sync::OPTION_DEFAULTS, array());
+            if (is_array($synced) && !empty($synced)) {
+                $out = array();
+                foreach ($synced as $entry) {
+                    if (!is_array($entry) || empty($entry['canonical'])) continue;
+                    $canonical = (string) $entry['canonical'];
+                    $label = isset($entry['label']) && $entry['label'] !== ''
+                        ? (string) $entry['label']
+                        : $canonical;
+                    $out[$canonical] = $label;
+                }
+                if (!empty($out)) return $out;
+            }
+        }
         return array(
             'your-name'           => 'Nome',
             'your-email'          => 'Email',
@@ -204,10 +274,12 @@ class AdSpirit_Settings {
         );
     }
     public static function get_capi_meta() {
-        return wp_parse_args(get_option(self::OPTION_CAPI_META, array()), self::capi_meta_defaults());
+        $c = wp_parse_args(get_option(self::OPTION_CAPI_META, array()), self::capi_meta_defaults());
+        $c['access_token'] = self::secret_from_config('ADSPIRIT_CAPI_ACCESS_TOKEN', $c['access_token']);
+        return $c;
     }
     public static function update_capi_meta(array $patch) {
-        $current = self::get_capi_meta();
+        $current = (array) get_option(self::OPTION_CAPI_META, array());
         update_option(self::OPTION_CAPI_META, array_merge($current, $patch), false);
     }
 
@@ -224,10 +296,12 @@ class AdSpirit_Settings {
         );
     }
     public static function get_ga4() {
-        return wp_parse_args(get_option(self::OPTION_GA4, array()), self::ga4_defaults());
+        $c = wp_parse_args(get_option(self::OPTION_GA4, array()), self::ga4_defaults());
+        $c['api_secret'] = self::secret_from_config('ADSPIRIT_GA4_API_SECRET', $c['api_secret']);
+        return $c;
     }
     public static function update_ga4(array $patch) {
-        $current = self::get_ga4();
+        $current = (array) get_option(self::OPTION_GA4, array());
         update_option(self::OPTION_GA4, array_merge($current, $patch), false);
     }
 

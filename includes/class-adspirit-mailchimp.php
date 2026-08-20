@@ -336,80 +336,64 @@ class AdSpirit_Mailchimp {
         $ping_nonce = wp_create_nonce('adspirit_mailchimp_ping');
         $ajax_url   = admin_url('admin-ajax.php');
         ?>
-        <h2 class="as-section"><span class="as-kicker-inline">Mailchimp</span>Passthrough de leads pra lista</h2>
-        <p class="as-section-help">
-            Sincroniza toda submissão CF7 com uma lista (audience) Mailchimp.
-            Idempotente — mesmo email submetendo duas vezes não duplica.
-        </p>
+        <h2 class="as-section"><span class="as-kicker-inline">Mailchimp</span>Leads na lista do Mailchimp</h2>
+        <p class="as-section-help">Cada lead do site é inscrito na sua audiência do Mailchimp — sem duplicar quem já está na lista.</p>
+
+        <?php // Doutrina: o dado (últimos envios) vem antes do controle. ?>
+        <?php $this->render_logs_card(); ?>
 
         <?php AdSpirit_Menu::card_open(
             'Credenciais Mailchimp',
-            'API Key e List ID você pega em <em>Mailchimp → Account → Extras → API keys</em> + <em>Audience → Settings → Audience name &amp; defaults</em>.',
+            'API Key em <em>Account → Extras → API keys</em>; Audience ID em <em>Audience → Settings</em>',
             $status_badge
         ); ?>
         <?php AdSpirit_Menu::form_open('mailchimp'); ?>
 
-        <table class="form-table">
-            <tr>
-                <th>Status</th>
-                <td>
-                    <label>
-                        <input type="checkbox" name="enabled" value="1" <?php checked($c['enabled'], '1'); ?>>
-                        Ativar passthrough Mailchimp
-                    </label>
-                    <p class="description">Quando ligado, cada lead do CF7 vira membro da lista escolhida.</p>
-                </td>
-            </tr>
-            <tr>
-                <th><label for="mc_api_key">API Key</label></th>
-                <td>
-                    <input type="password" id="mc_api_key" name="api_key" value="<?php echo esc_attr($c['api_key']); ?>" class="regular-text" autocomplete="off" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-us21">
-                    <button type="button" class="button" onclick="var e=document.getElementById('mc_api_key');e.type=e.type==='password'?'text':'password';">Mostrar</button>
-                    <p class="description">
-                        Formato: <code>chave-usN</code>. Data Center detectado:
-                        <strong id="mc-dc-badge"><?php echo $dc ? esc_html($dc) : '<em style="color:var(--as-ink-faint)">aguardando key</em>'; ?></strong>
-                    </p>
-                </td>
-            </tr>
-            <tr>
-                <th><label for="mc_list_id">List ID</label></th>
-                <td>
-                    <input type="text" id="mc_list_id" name="list_id" value="<?php echo esc_attr($c['list_id']); ?>" class="regular-text" placeholder="a1b2c3d4e5">
-                    <p class="description">Também chamado de "Audience ID". 10 chars alfanuméricos.</p>
-                </td>
-            </tr>
-            <tr>
-                <th><label for="mc_status">Status do novo membro</label></th>
-                <td>
-                    <select id="mc_status" name="status">
-                        <option value="subscribed" <?php selected($c['status'], 'subscribed'); ?>>subscribed (direto na lista)</option>
-                        <option value="pending"    <?php selected($c['status'], 'pending'); ?>>pending (double opt-in — manda email de confirmação)</option>
-                    </select>
-                    <p class="description">
-                        <code>pending</code> respeita double opt-in e é safer pra evitar suspensão da conta Mailchimp.
-                    </p>
-                </td>
-            </tr>
-            <tr>
-                <th><label for="mc_tags">Tags default</label></th>
-                <td>
-                    <input type="text" id="mc_tags" name="tags_default" value="<?php echo esc_attr($c['tags_default']); ?>" class="regular-text" placeholder="AdSpirit, Lead CF7">
-                    <p class="description">CSV. Aplicadas a todo membro criado por este passthrough.</p>
-                </td>
-            </tr>
-            <tr>
-                <th>Testar API</th>
-                <td>
-                    <button type="button" class="button button-primary" id="adspirit-mc-test-btn">Testar API agora</button>
-                    <p class="description">Faz <code>GET /3.0/ping</code> usando o API Key acima (não precisa salvar antes).</p>
-                    <pre class="as-test-result" id="adspirit-mc-test-result" style="display:none; margin-top:12px;"></pre>
-                </td>
-            </tr>
-        </table>
+        <div class="as-toggle">
+            <input type="checkbox" id="mc_enabled" name="enabled" value="1" <?php checked($c['enabled'], '1'); ?>>
+            <label class="t" for="mc_enabled">Envio pro Mailchimp ligado<small>Cada lead do site entra na lista escolhida abaixo.</small></label>
+        </div>
+
+        <div class="as-field">
+            <label class="as-field-label" for="mc_api_key">Chave da API (API Key)</label>
+            <input type="password" id="mc_api_key" name="api_key" value="<?php echo esc_attr($c['api_key']); ?>" class="regular-text" autocomplete="off" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-us21">
+            <button type="button" class="button" onclick="var e=document.getElementById('mc_api_key');e.type=e.type==='password'?'text':'password';">Mostrar</button>
+            <p class="description">
+                Termina em <code>-usN</code>. Servidor detectado:
+                <strong id="mc-dc-badge"><?php echo $dc ? esc_html($dc) : '<em style="color:var(--as-ink-faint)">aguardando a chave</em>'; ?></strong>
+            </p>
+        </div>
+
+        <div class="as-field">
+            <label class="as-field-label" for="mc_list_id">Audience ID (List ID)</label>
+            <input type="text" id="mc_list_id" name="list_id" value="<?php echo esc_attr($c['list_id']); ?>" class="regular-text" placeholder="a1b2c3d4e5">
+            <p class="description">10 letras e números. Está em Audience → Settings → Audience name &amp; defaults.</p>
+        </div>
+
+        <div class="as-field">
+            <label class="as-field-label" for="mc_status">Como o lead entra na lista</label>
+            <select id="mc_status" name="status">
+                <option value="subscribed" <?php selected($c['status'], 'subscribed'); ?>>Inscrito direto, sem confirmação</option>
+                <option value="pending"    <?php selected($c['status'], 'pending'); ?>>Com email de confirmação (double opt-in)</option>
+            </select>
+            <p class="description">A confirmação por email é mais segura pra reputação da sua conta Mailchimp.</p>
+        </div>
+
+        <div class="as-field">
+            <label class="as-field-label" for="mc_tags">Tags aplicadas</label>
+            <input type="text" id="mc_tags" name="tags_default" value="<?php echo esc_attr($c['tags_default']); ?>" class="regular-text" placeholder="AdSpirit, Lead CF7">
+            <p class="description">Separadas por vírgula. Todo lead inscrito por aqui recebe essas tags.</p>
+        </div>
+
+        <div class="as-field">
+            <label class="as-field-label" for="adspirit-mc-test-btn">Testar a chave</label>
+            <button type="button" class="button" id="adspirit-mc-test-btn">Testar API agora</button>
+            <p class="description">Usa a chave digitada acima, sem precisar salvar antes. O resultado aparece logo abaixo.</p>
+            <pre class="as-test-result" id="adspirit-mc-test-result" style="display:none; margin-top:12px;"></pre>
+        </div>
+
         <?php AdSpirit_Menu::form_close('Salvar Mailchimp'); ?>
         <?php AdSpirit_Menu::card_close(); ?>
-
-        <?php $this->render_logs_card(); ?>
 
         <script>
         (function() {
@@ -469,11 +453,11 @@ class AdSpirit_Mailchimp {
     private function render_logs_card() {
         $logs = self::get_logs();
         AdSpirit_Menu::card_open(
-            'Últimos disparos',
-            'Circular buffer com os últimos ' . self::LOG_MAX . ' eventos.'
+            'Últimos envios',
+            'Os ' . self::LOG_MAX . ' eventos mais recentes ficam guardados aqui.'
         );
         if (empty($logs)) {
-            echo '<p class="description">Nenhum disparo registrado ainda.</p>';
+            echo '<p class="description">Nenhum envio registrado ainda. Quando um lead for pro Mailchimp, ele aparece aqui.</p>';
         } else {
             echo '<table class="as-table"><thead><tr>'
                 . '<th>Quando</th><th>Status</th><th>Email</th><th>Detalhes</th>'

@@ -13,16 +13,21 @@
   var STORAGE_KEY = 'adspirit_qf_v1';
 
   // --- STEPS DEFINITION ---
-  var STEPS = [
+  // DEFAULT_STEPS é o roteiro da Digitals. Um tenant com perguntas próprias
+  // manda as dele em CFG.steps (option `adspirit_qualifier.steps`, editável
+  // na aba "Form de avaliação") e NADA aqui muda — mesmo runtime, mesma UI,
+  // mesmo lead parcial. Sem config custom, cai neste array e o site da
+  // Digitals segue byte a byte como estava.
+  var DEFAULT_STEPS = [
     {
       isIntro: true,
       eyebrow: 'Avaliação para novos clientes',
       title: 'Preencha os seus dados',
-      sub: 'A Digitals trabalha com um número limitado de novos clientes a cada ciclo. Vamos avaliar o fit estratégico entre o seu negócio e o nosso modelo de crescimento. Avaliação individual, leva poucos minutos.',
+      sub: 'A Digitals trabalha com um número limitado de novos clientes a cada ciclo. Vamos avaliar o fit estratégico entre o seu negócio e o nosso modelo de crescimento. Avaliação individual, leva aproximadamente 2 minutos.',
     },
     {
       eyebrow: 'identificação',
-      title: 'Nome completo',
+      title: 'Seu nome',
       fields: [
         { key: 'first_name', type: 'text', placeholder: 'Nome', required: true },
         { key: 'last_name', type: 'text', placeholder: 'Sobrenome', required: true },
@@ -30,20 +35,11 @@
     },
     {
       eyebrow: 'contato',
-      title: 'Email, WhatsApp e presença online',
-      sub: 'A rede social é obrigatória (Instagram, LinkedIn ou outra). O site da empresa é opcional — nem toda empresa tem site, mas presença em rede social é essencial.',
+      title: 'Seu WhatsApp',
       capturePartial: true, // ao passar daqui, dispara lead PARCIAL pro CRM
       fields: [
-        { key: 'email', type: 'email', placeholder: 'Email corporativo', required: true },
         { key: 'phone', type: 'tel', placeholder: 'WhatsApp com DDD', required: true },
-        { key: 'instagram', type: 'text', placeholder: 'Instagram, LinkedIn ou outra rede (obrigatório)', required: true },
-        { key: 'site', type: 'text', placeholder: 'Site da empresa (opcional)', required: false },
       ],
-    },
-    {
-      eyebrow: 'empresa',
-      title: 'Nome da empresa',
-      fields: [{ key: 'company', type: 'text', placeholder: 'Razão social ou nome fantasia', required: true }],
     },
     {
       eyebrow: 'cargo',
@@ -56,6 +52,11 @@
         { label: 'Coordenador, analista ou especialista', kbd: 'D' },
         { label: 'Outro', kbd: 'E' },
       ],
+    },
+    {
+      eyebrow: 'empresa',
+      title: 'Nome da empresa',
+      fields: [{ key: 'company', type: 'text', placeholder: 'Razão social ou nome fantasia', required: true }],
     },
     {
       eyebrow: 'porte',
@@ -85,29 +86,45 @@
       ],
     },
     {
+      eyebrow: 'presença online',
+      title: 'Site ou Instagram da empresa',
+      sub: 'Ou outra rede social. Um deles basta — a gente localiza o resto.',
+      fields: [
+        { key: 'social', type: 'text', placeholder: 'Site, @ ou link do perfil', required: true },
+      ],
+    },
+    {
       eyebrow: 'experiência',
       title: 'Tem time interno de marketing ou já trabalhou com agência?',
       fieldKey: 'experience',
+      // Redação C + troca (2026-08-15), do maior sinal pro menor. A régua
+      // AGD v4 pontua cada uma; Sim/Não antigos têm defensiva no CRM.
       choices: [
-        { label: 'Sim', kbd: 'A' },
-        { label: 'Não', kbd: 'B' },
+        { label: 'Quero trocar a minha agência atual', kbd: 'A' },
+        { label: 'Sim, trabalhamos com agência atualmente', kbd: 'B' },
+        { label: 'Já tivemos agência, hoje não', kbd: 'C' },
+        { label: 'Sim, temos time interno', kbd: 'D' },
+        { label: 'Não, seria a primeira vez', kbd: 'E' },
       ],
     },
     {
       eyebrow: 'faturamento',
-      title: 'Faturamento mensal',
+      title: 'Faixa de faturamento mensal',
       fieldKey: 'revenue',
       choices: [
+        // Faixas alinhadas ao ICP (piso 100k/mês) — a antiga 50–200
+        // atravessava o piso e a régua não conseguia expressar o corte.
         { label: 'Até R$ 50 mil', kbd: 'A' },
-        { label: 'R$ 50 mil – R$ 200 mil', kbd: 'B' },
-        { label: 'R$ 200 mil – R$ 1 milhão', kbd: 'C' },
-        { label: 'R$ 1 milhão – R$ 5 milhões', kbd: 'D' },
-        { label: 'Acima de R$ 5 milhões', kbd: 'E' },
+        { label: 'R$ 50 mil – R$ 100 mil', kbd: 'B' },
+        { label: 'R$ 100 mil – R$ 200 mil', kbd: 'C' },
+        { label: 'R$ 200 mil – R$ 1 milhão', kbd: 'D' },
+        { label: 'R$ 1 milhão – R$ 5 milhões', kbd: 'E' },
+        { label: 'Acima de R$ 5 milhões', kbd: 'F' },
       ],
     },
     {
       eyebrow: 'investimento',
-      title: 'Orçamento mensal para marketing e ads',
+      title: 'Quanto você costuma investir em Tráfego Pago?',
       fieldKey: 'investment',
       choices: [
         { label: 'Nunca investi em marketing', kbd: 'A' },
@@ -116,11 +133,12 @@
         { label: 'R$ 5 mil – R$ 10 mil', kbd: 'D' },
         { label: 'Acima de R$ 10 mil mensal', kbd: 'E' },
         { label: 'Acima de R$ 20 mil mensal', kbd: 'F' },
+        { label: 'Não sei dizer, não sou responsável por essa área', kbd: 'G' },
       ],
     },
     {
       eyebrow: 'urgência',
-      title: 'Quando pretende começar o trabalho com a agência',
+      title: 'Quando pretende começar o trabalho com a agência?',
       fieldKey: 'timing',
       choices: [
         { label: 'O quanto antes', kbd: 'A' },
@@ -130,14 +148,69 @@
       ],
     },
     {
+      eyebrow: 'contato',
+      title: 'Seu email',
+      fields: [
+        { key: 'email', type: 'email', placeholder: 'Email corporativo', required: true },
+      ],
+    },
+    {
       eyebrow: 'contexto',
-      title: 'Motivo do contato',
+      title: 'O que te levou a buscar a Digitals',
       sub: 'Campo opcional.',
       optional: true,
       fields: [{ key: 'pain', type: 'textarea', placeholder: 'O que motivou a busca e o que espera resolver.', required: false }],
     },
     { isSuccess: true },
   ];
+
+  // Config custom vence o default. Validação de forma (intro no começo,
+  // success no fim, campos com key) é feita no PHP antes de salvar a option
+  // — aqui só exigimos um array não-vazio pra nunca renderizar tela em branco.
+  var STEPS = (CFG.steps && CFG.steps.length) ? CFG.steps : DEFAULT_STEPS;
+
+  // --- CONDICIONAL (modelo Gravity: rules + all/any) ---
+  // step.showIf = { match: 'all'|'any', rules: [{field, op: is|not|contains, value}] }
+  // Regra avaliada contra as respostas JÁ dadas. Etapa sem showIf é sempre
+  // visível — roteiro sem condicional se comporta EXATAMENTE como antes.
+  function ruleOk(rule) {
+    var got = String((state.responses[rule.field] != null ? state.responses[rule.field] : '')).trim().toLowerCase();
+    var want = String(rule.value == null ? '' : rule.value).trim().toLowerCase();
+    if (rule.op === 'not') return got !== want;
+    if (rule.op === 'contains') return got.indexOf(want) !== -1;
+    return got === want; // 'is' (default)
+  }
+  function stepVisible(i) {
+    var st = STEPS[i];
+    if (!st) return false;
+    if (st.isSuccess || st.isIntro) return true;
+    var cond = st.showIf;
+    if (!cond || !cond.rules || !cond.rules.length) return true;
+    try {
+      var hits = cond.rules.filter(ruleOk).length;
+      return cond.match === 'any' ? hits > 0 : hits === cond.rules.length;
+    } catch (e) { return true; } // condicional quebrada nunca esconde pergunta
+  }
+  function nextVisibleIndex(from) {
+    for (var i = from + 1; i < STEPS.length; i++) { if (stepVisible(i)) return i; }
+    return STEPS.length - 1; // success é sempre o teto
+  }
+  function prevVisibleIndex(from) {
+    for (var i = from - 1; i >= 0; i--) { if (stepVisible(i)) return i; }
+    return 0;
+  }
+  // Chaves de resposta pertencentes às etapas visíveis AGORA — resposta de
+  // etapa escondida por condicional não viaja no submit (padrão Gravity).
+  function visibleResponseKeys() {
+    var keys = {};
+    for (var i = 0; i < STEPS.length; i++) {
+      if (!stepVisible(i)) continue;
+      var st = STEPS[i];
+      if (st.fieldKey) keys[st.fieldKey] = true;
+      (st.fields || []).forEach(function (f) { if (f.key) keys[f.key] = true; });
+    }
+    return keys;
+  }
 
   // --- STATE ---
   var state = {
@@ -153,12 +226,22 @@
         if (parsed && typeof parsed.responses === 'object') {
           state.responses = parsed.responses;
         }
+        // Retoma de onde parou. Sem isso, fechar o form (ou um tropeço de
+        // rolagem no celular) devolvia a pessoa pra primeira pergunta e ela
+        // desistia. Nunca retoma na tela de sucesso nem fora do intervalo.
+        var st = parsed && parsed.currentStep;
+        if (typeof st === 'number' && st > 0 && st < STEPS.length - 1) {
+          state.currentStep = st;
+        }
       }
     } catch (e) {}
   }
   function saveState() {
     try {
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ responses: state.responses }));
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
+        responses: state.responses,
+        currentStep: state.currentStep,
+      }));
     } catch (e) {}
   }
   function clearState() {
@@ -183,7 +266,7 @@
     if (f.type === 'textarea') {
       return '<textarea class="adspirit-qf-input" data-key="' + escapeHtml(f.key) + '" placeholder="' + escapeHtml(f.placeholder) + '">' + escapeHtml(v) + '</textarea>';
     }
-    return '<input class="adspirit-qf-input" type="' + escapeHtml(f.type) + '" data-key="' + escapeHtml(f.key) + '" placeholder="' + escapeHtml(f.placeholder) + '" value="' + escapeHtml(v) + '"' + (f === STEPS[state.currentStep].fields[0] ? ' autofocus' : '') + '>';
+    return '<input class="adspirit-qf-input" type="' + escapeHtml(f.type) + '" data-key="' + escapeHtml(f.key) + '" placeholder="' + escapeHtml(f.placeholder) + '" value="' + escapeHtml(v) + '"' + (f === ((STEPS[state.currentStep] || {}).fields || [])[0] ? ' autofocus' : '') + '>';
   }
 
   function renderChoices(step) {
@@ -213,7 +296,12 @@
     // Modo "embed": form contido na seção (sem overlay full-screen). Os mesmos
     // steps/inputs/transições rodam dentro de um card dark .adspirit-qf-embed.
     if (root.getAttribute('data-mode') === 'embed') {
-      root.innerHTML = '<div class="adspirit-qf-embed"><div class="adspirit-qf-stage"></div></div>';
+      root.innerHTML = '<div class="adspirit-qf-embed">' +
+        '<div class="adspirit-qf-progress"><div class="adspirit-qf-progress-fill"></div></div>' +
+        '<div class="adspirit-qf-stage"></div>' +
+        buildFooter() +
+      '</div>';
+      bindFooter(root);
       return;
     }
     // Modos popup/inline: overlay full-screen + botão fechar.
@@ -222,11 +310,64 @@
       '<button class="adspirit-qf-close" aria-label="Fechar">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
       '</button>' +
-      '<div class="adspirit-qf-main"><div class="adspirit-qf-stage"></div></div>';
+      '<div class="adspirit-qf-progress"><div class="adspirit-qf-progress-fill"></div></div>' +
+      '<div class="adspirit-qf-main"><div class="adspirit-qf-stage"></div></div>' +
+      buildFooter();
     var closeBtn = root.querySelector('.adspirit-qf-close');
     var overlay = root.querySelector('.adspirit-qf-overlay');
     if (closeBtn) closeBtn.addEventListener('click', closePopup);
     if (overlay) overlay.addEventListener('click', closePopup);
+    bindFooter(root);
+  }
+
+  // SETINHAS fixas no canto inferior direito (feedback do Pedro 2026-08-15):
+  // o Typeform real é HÍBRIDO — botão de avançar/voltar INLINE abaixo do
+  // campo (ação primária, perto da mão) + setas compactas no canto
+  // (navegação secundária, posição constante). A 2.24.0 tinha movido o
+  // botão principal pro canto e piorou; revertido pro híbrido.
+  function buildFooter() {
+    return '' +
+      '<div class="adspirit-qf-footer" hidden aria-label="Navegação">' +
+        '<button class="adspirit-qf-arrow" data-action="back" aria-label="Pergunta anterior">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>' +
+        '</button>' +
+        '<button class="adspirit-qf-arrow" data-action="next" aria-label="Próxima pergunta">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>' +
+        '</button>' +
+      '</div>';
+  }
+  function bindFooter(root) {
+    var f = root.querySelector('.adspirit-qf-footer');
+    if (!f) return;
+    var n = f.querySelector('[data-action="next"]');
+    var b = f.querySelector('[data-action="back"]');
+    if (n) n.addEventListener('click', next);
+    if (b) b.addEventListener('click', back);
+  }
+
+  // Progresso honesto com arranque de 8% (curva do wizard do CRM): os
+  // primeiros passos andam mais que o linear — reduz a sensação de caminho
+  // longo num form de 13 perguntas.
+  function updateChrome(root, step) {
+    var fill = root.querySelector('.adspirit-qf-progress-fill');
+    if (fill) {
+      var total = STEPS.length - 1; // sem contar o success
+      var real = Math.min(1, (state.currentStep + 1) / total);
+      var pct = step.isSuccess ? 100 : 8 + Math.pow(real, 0.6) * 92;
+      fill.style.width = pct + '%';
+    }
+    var f = root.querySelector('.adspirit-qf-footer');
+    if (f) {
+      // Intro tem CTA próprio ("Iniciar avaliação") e o success não navega —
+      // rodapé some (mesma regra das capas do wizard: sem botão duplicado).
+      if (step.isIntro || step.isSuccess) f.setAttribute('hidden', 'hidden');
+      else f.removeAttribute('hidden');
+      var backBtn = f.querySelector('[data-action="back"]');
+      if (backBtn) {
+        if (prevVisibleIndex(state.currentStep) <= 0) backBtn.setAttribute('disabled', 'disabled');
+        else backBtn.removeAttribute('disabled');
+      }
+    }
   }
 
   function buildStepEl(step) {
@@ -240,6 +381,12 @@
 
   function afterMount(step, stepEl) {
     if (step.isSuccess) {
+      // Resultado do quiz não redireciona: a tela É o entregável, e o CTA
+      // (ponte pra virar lead) é a decisão do visitante.
+      if (stepEl.querySelector('.adspirit-qf-result')) {
+        bindStepInner(stepEl);
+        return;
+      }
       var url = (window.AdSpiritQualifierLastResponse && window.AdSpiritQualifierLastResponse.redirect_url) || '';
       if (url) {
         startCountdown(5, url);
@@ -264,7 +411,31 @@
   }
 
   function render(direction) {
+    // Etapa atual escondida por condicional (retomada com respostas novas,
+    // roteiro editado): pula pra próxima visível antes de pintar.
+    if (!stepVisible(state.currentStep)) {
+      state.currentStep = nextVisibleIndex(state.currentStep - 1);
+    }
     var step = STEPS[state.currentStep];
+    saveState(); // grava a etapa atual a cada navegação (retomada)
+
+    // Connector 3.0 — drop-off por etapa (lição Thrive/Interact): um evento
+    // único `form_step_view` com step_number permite Funnel Exploration no
+    // GA4 e mostra ONDE o lead morre. Dedupe por índice (voltar re-conta de
+    // propósito: revisita é sinal real). Push só se dataLayer existir/criável.
+    try {
+      if (window.__adspiritQfLastStepTracked !== state.currentStep) {
+        window.__adspiritQfLastStepTracked = state.currentStep;
+        window.dataLayer = window.dataLayer || [];
+        window.dataLayer.push({
+          event: 'form_step_view',
+          form_id: 'adspirit_form_qualifier',
+          step_number: state.currentStep + 1,
+          step_total: STEPS.length,
+          step_key: step && step.id ? String(step.id) : String(state.currentStep + 1),
+        });
+      }
+    } catch (e) { /* analytics nunca quebra o form */ }
     var root = document.querySelector('.adspirit-qualifier-root');
     if (!root) return;
     ensureShell(root);
@@ -273,6 +444,7 @@
     if (!stage) return;
     if (main) main.scrollTop = 0;
 
+    updateChrome(root, step);
     var prev = stage.querySelector('.adspirit-qf-step');
     var nextEl = buildStepEl(step);
     var back = direction === 'back';
@@ -361,8 +533,6 @@
     } else if (step.choices) {
       body = renderChoices(step);
     }
-    var isFirst = state.currentStep <= 1;
-    var isLast = state.currentStep === STEPS.length - 2;
     return '' +
       '<p class="adspirit-qf-eyebrow">' + escapeHtml(step.eyebrow) + '</p>' +
       '<h1 class="adspirit-qf-title">' + escapeHtml(step.title) + '</h1>' +
@@ -370,21 +540,63 @@
       body +
       '<p class="adspirit-qf-error" id="adspirit-qf-error"></p>' +
       '<div class="adspirit-qf-nav">' +
-        '<span class="adspirit-qf-kbd-hint">Pressione <span class="adspirit-qf-kbd">Enter</span> pra avançar</span>' +
+      (step.fields && step.fields.some(function (f) { return f.type === 'textarea'; })
+        ? '<span class="adspirit-qf-kbd-hint"><span class="adspirit-qf-kbd">Enter</span> avança · <span class="adspirit-qf-kbd">Shift+Enter</span> pula linha</span>'
+        : '<span class="adspirit-qf-kbd-hint">Pressione <span class="adspirit-qf-kbd">Enter</span> pra avançar</span>') +
         '<div class="adspirit-qf-nav-actions">' +
-          '<button class="adspirit-qf-btn adspirit-qf-btn-back" data-action="back"' + (isFirst ? ' disabled' : '') + '>' +
+          '<button class="adspirit-qf-btn adspirit-qf-btn-back" data-action="back"' + (prevVisibleIndex(state.currentStep) <= 0 ? ' disabled' : '') + '>' +
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>' +
             '<span>Voltar</span>' +
           '</button>' +
           '<button class="adspirit-qf-btn" data-action="next">' +
-            '<span>' + (isLast ? 'Enviar para análise' : 'Continuar') + '</span>' +
+            '<span>' + (nextVisibleIndex(state.currentStep) >= STEPS.length - 1 ? 'Enviar para análise' : 'Continuar') + '</span>' +
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>' +
           '</button>' +
         '</div>' +
       '</div>';
   }
 
+  // Central de Forms Fase 2 — tela de RESULTADO do quiz. É o entregável
+  // do subscriber: ele responde, dá o contato e recebe o diagnóstico na
+  // hora. O template vem por perfil (CFG.quiz_results), com fallback pro
+  // 'default'. Sem template pro perfil devolvido, cai na tela de sempre.
+  function quizResultFor(profile) {
+    var map = CFG.quiz_results;
+    if (!map || typeof map !== 'object') return null;
+    var key = String(profile || '').toUpperCase();
+    var tpl = map[key] || map[key.toLowerCase()] || map['default'] || map['todos'];
+    return (tpl && typeof tpl === 'object') ? tpl : null;
+  }
+
+  function renderQuizResult(tpl) {
+    var items = Array.isArray(tpl.items) ? tpl.items : [];
+    var html = '' +
+      '<div class="adspirit-qf-result">' +
+        (tpl.eyebrow ? '<div class="adspirit-qf-eyebrow">' + escapeHtml(tpl.eyebrow) + '</div>' : '') +
+        '<h1 class="adspirit-qf-title">' + escapeHtml(tpl.title || 'Seu resultado') + '</h1>' +
+        (tpl.summary ? '<p class="adspirit-qf-sub">' + escapeHtml(tpl.summary) + '</p>' : '');
+    if (items.length) {
+      html += '<ul class="adspirit-qf-result-list">';
+      items.forEach(function (it) {
+        html += '<li>' + escapeHtml(String(it)) + '</li>';
+      });
+      html += '</ul>';
+    }
+    if (tpl.ctaLabel && tpl.ctaUrl) {
+      html += '<a class="adspirit-qf-result-cta" href="' + escapeHtml(String(tpl.ctaUrl)) + '">' + escapeHtml(String(tpl.ctaLabel)) + '</a>';
+    }
+    if (tpl.footnote) {
+      html += '<p class="adspirit-qf-result-note">' + escapeHtml(String(tpl.footnote)) + '</p>';
+    }
+    html += '</div>';
+    return html;
+  }
+
   function renderSuccess() {
+    // Quiz com template pro perfil devolvido pelo CRM → resultado na tela.
+    var last = window.AdSpiritQualifierLastResponse || {};
+    var tpl = CFG.quiz ? quizResultFor(last.profile) : null;
+    if (tpl) return renderQuizResult(tpl);
     return '' +
       '<div class="adspirit-qf-success-icon">' +
         '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' +
@@ -440,6 +652,9 @@
 
   // --- VALIDATION ---
   function validateCurrent(root) {
+    // Preview (hub Formulários): revisão sem gerar dados — obrigatórios
+    // podem ser pulados.
+    if (CFG.preview) return { ok: true };
     var step = STEPS[state.currentStep];
     if (step.isIntro || step.isSuccess || step.optional) return { ok: true };
 
@@ -504,23 +719,21 @@
     var curStep = STEPS[state.currentStep];
     if (curStep && curStep.capturePartial) submitPartialToServer();
 
-    // Se está no penúltimo step (último com pergunta), submete
-    var isLastQuestion = state.currentStep === STEPS.length - 2;
-    if (isLastQuestion) {
+    // Última pergunta VISÍVEL = o próximo índice visível já é o success.
+    var nxt = nextVisibleIndex(state.currentStep);
+    if (nxt >= STEPS.length - 1) {
       submitToServer();
       return;
     }
-    if (state.currentStep < STEPS.length - 1) {
-      state.currentStep++;
-      render('next');
-    }
+    state.currentStep = nxt;
+    render('next');
   }
   function back() {
     if (submitting || animating) return;
-    if (state.currentStep > 0) {
-      state.currentStep--;
-      render('back');
-    }
+    var prv = prevVisibleIndex(state.currentStep);
+    if (prv <= 0) return; // intro tem CTA próprio — Voltar nunca regressa a ela
+    state.currentStep = prv;
+    render('back');
   }
 
   // --- SUBMIT ---
@@ -553,6 +766,42 @@
     }
   }
 
+  // P0-1: telemetria + atribuição no FormData. O submit AJAX do qualifier
+  // nunca passava pelos hidden _adspirit_t_* que o collector injeta em
+  // <form>s reais — collect_from_post() recebia tudo vazio neste caminho.
+  // Anexamos aqui o MESMO conjunto do attachHidden do collector.
+  function qfReadCookie(name) {
+    var m = document.cookie.match('(?:^|; )' + name.replace(/([.$?*|{}()[\]\\\/+^])/g, '\\$1') + '=([^;]*)');
+    return m ? decodeURIComponent(m[1]) : '';
+  }
+  function appendTelemetry(fd) {
+    try {
+      // Atribuição first/last-touch: cookies gravados pelo snippet ungated do
+      // plugin (padrão pixel/adspirit_vid — ver AdSpirit_Telemetry::inject_attribution).
+      fd.append('_adspirit_t_ft', qfReadCookie('adspirit_ft') || '');
+      fd.append('_adspirit_t_lt', qfReadCookie('adspirit_lt') || '');
+
+      // Telemetria de navegador: lê window.__adspirit_t, populado pelo
+      // collector (desde 2.13.1 sempre injetado — legítimo interesse; se um
+      // dia voltar a ser gated, os campos só vão vazios, nada quebra).
+      var t = window.__adspirit_t || {};
+      ['visitor_id', 'session_id', 'fbp', 'fbc', 'ga', 'gid', 'gcl_au',
+       'locale', 'timezone', 'color_scheme', 'screen', 'viewport', 'connection_type'].forEach(function (name) {
+        fd.append('_adspirit_t_' + name, String(t[name] || ''));
+      });
+      fd.append('_adspirit_t_time_on_page_ms', String(t.start_ts ? (Date.now() - t.start_ts) : 0));
+      fd.append('_adspirit_t_time_in_form_ms', String(t.form_focus_ts ? (Date.now() - t.form_focus_ts) : 0));
+      fd.append('_adspirit_t_fields_visited', String(t.fields_visited || 0));
+      fd.append('_adspirit_t_pages_in_session', String(t.pages_in_session || 1));
+      var bhv = '';
+      try {
+        var raw = sessionStorage.getItem('adspirit_bhv_v1') || '';
+        if (raw && raw.length <= 16384) bhv = raw; // cap alinhado ao server
+      } catch (e) {}
+      fd.append('_adspirit_t_behavior', bhv);
+    } catch (e) { /* telemetria nunca bloqueia o submit */ }
+  }
+
   // v2.10: monta widget Turnstile invisible quando configurado.
   // Cloudflare renderiza auto, callback salva token em window pra submit.
   // Token expira em ~5min; se expirar, callback executa de novo automaticamente.
@@ -571,30 +820,67 @@
 
   // Lead parcial: fire-and-forget após a etapa de contato. Manda o que já
   // foi preenchido + _adspirit_partial=1. Roda no máximo uma vez.
+  // Nonce fresco via admin-ajax (nunca cacheado). O nonce embutido no HTML
+  // pode estar VENCIDO quando a página vem de page cache (LiteSpeed servia
+  // max-age de 7 dias; nonce vive 12-24h) — submeter com ele dava bad_nonce
+  // e o form mostrava "Falha de conexão" (incidente 2026-07-14). Resolve
+  // sempre (fallback = CFG.nonce atual); nunca rejeita.
+  function fetchFreshNonce() {
+    var fd = new FormData();
+    fd.append('action', 'adspirit_qualifier_nonce');
+    return fetch(CFG.ajax_url, { method: 'POST', body: fd, credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (json) {
+        if (json && json.success && json.data && json.data.nonce) {
+          CFG.nonce = json.data.nonce;
+        }
+        return CFG.nonce || '';
+      })
+      .catch(function () { return CFG.nonce || ''; });
+  }
+
   var partialSent = false;
   function submitPartialToServer() {
+    if (CFG.preview) return; // preview nunca envia (nem parcial)
     if (partialSent) return;
     partialSent = true;
     try {
-      var fd = new FormData();
-      fd.append('action', 'adspirit_qualifier_submit');
-      fd.append('nonce', CFG.nonce || '');
-      fd.append('submission_id', qfSubmissionId());
-      fd.append('_adspirit_partial', '1');
-      appendAntibotMeta(fd);
-      Object.keys(state.responses).forEach(function (k) {
-        fd.append('fields[' + k + ']', state.responses[k] || '');
-      });
-      fetch(CFG.ajax_url, {
-        method: 'POST',
-        body: fd,
-        credentials: 'same-origin',
-        keepalive: true,
+      fetchFreshNonce().then(function (nonce) {
+        var fd = new FormData();
+        fd.append('action', 'adspirit_qualifier_submit');
+        if (CFG.central_form) fd.append('central_form', CFG.central_form);
+        fd.append('nonce', nonce);
+        fd.append('submission_id', qfSubmissionId());
+        fd.append('_adspirit_partial', '1');
+        appendAntibotMeta(fd);
+        appendTelemetry(fd); // P0-1: atribuição + telemetria também no parcial
+        var vk1 = visibleResponseKeys();
+        Object.keys(state.responses).forEach(function (k) {
+          if (!vk1[k]) return; // etapa escondida por condicional não viaja
+          fd.append('fields[' + k + ']', state.responses[k] || '');
+        });
+        return fetch(CFG.ajax_url, {
+          method: 'POST',
+          body: fd,
+          credentials: 'same-origin',
+          keepalive: true,
+        });
       }).catch(function () {});
     } catch (e) { /* nunca quebra o fluxo do form */ }
   }
 
   function submitToServer() {
+    if (CFG.preview) {
+      // Preview: pula direto pra tela final, sem request nenhum. Em quiz,
+      // finge um perfil pra tela de resultado poder ser revisada.
+      if (CFG.quiz && CFG.quiz_results) {
+        var keys = Object.keys(CFG.quiz_results);
+        window.AdSpiritQualifierLastResponse = { profile: keys.length ? keys[0] : 'default' };
+      }
+      state.currentStep = STEPS.length - 1;
+      render('next');
+      return;
+    }
     if (submitting) return;
     submitting = true;
     var nextBtn = document.querySelector('[data-action="next"]');
@@ -602,20 +888,26 @@
       nextBtn.setAttribute('disabled', 'disabled');
       nextBtn.querySelector('span').textContent = 'Enviando…';
     }
-    var formData = new FormData();
-    formData.append('action', 'adspirit_qualifier_submit');
-    formData.append('nonce', CFG.nonce || '');
-    formData.append('submission_id', qfSubmissionId());
-    appendAntibotMeta(formData);
-    Object.keys(state.responses).forEach(function (k) {
-      formData.append('fields[' + k + ']', state.responses[k] || '');
-    });
-
     var controller = new AbortController();
     window.__adspiritQfAbortController = controller;
     var timeoutId = setTimeout(function () { controller.abort(); }, 15000);
 
-    fetch(CFG.ajax_url, { method: 'POST', body: formData, credentials: 'same-origin', signal: controller.signal })
+    fetchFreshNonce()
+      .then(function (nonce) {
+        var formData = new FormData();
+        formData.append('action', 'adspirit_qualifier_submit');
+        if (CFG.central_form) formData.append('central_form', CFG.central_form);
+        formData.append('nonce', nonce);
+        formData.append('submission_id', qfSubmissionId());
+        appendAntibotMeta(formData);
+        appendTelemetry(formData); // P0-1: atribuição + telemetria no submit final
+        var vk2 = visibleResponseKeys();
+        Object.keys(state.responses).forEach(function (k) {
+          if (!vk2[k]) return;
+          formData.append('fields[' + k + ']', state.responses[k] || '');
+        });
+        return fetch(CFG.ajax_url, { method: 'POST', body: formData, credentials: 'same-origin', signal: controller.signal });
+      })
       .then(function (r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         var ct = r.headers.get('content-type') || '';
@@ -636,6 +928,18 @@
         }
         // Sucesso — guarda response + avança
         window.AdSpiritQualifierLastResponse = json.data || {};
+        // Connector 3.0 — generate_lead (nome recomendado GA4 de lead gen)
+        // no sucesso do submit FINAL, com o perfil devolvido pelo CRM. O
+        // push manual é obrigatório: submit AJAX é invisível pro Enhanced
+        // Measurement/GTM nativo.
+        try {
+          window.dataLayer = window.dataLayer || [];
+          window.dataLayer.push({
+            event: 'generate_lead',
+            method: 'adspirit_form_qualifier',
+            lead_profile: (json.data && json.data.profile) ? String(json.data.profile) : null,
+          });
+        } catch (e) { /* analytics nunca quebra o form */ }
         clearState();
         state.currentStep = STEPS.length - 1;
         render('next');
@@ -670,12 +974,66 @@
       ring.style.strokeDashoffset = circ * (1 - remaining / seconds);
       if (remaining <= 0) {
         clearInterval(countdownTimer);
-        if (redirectUrl) window.location.href = redirectUrl;
+        if (redirectUrl) {
+          // Ponte pixel↔WhatsApp: redirect via JS não é clique, então a
+          // decoração proativa do pixel não alcança este caminho. Se o
+          // destino for WhatsApp e o pixel do CRM estiver na página,
+          // dos.waLink() anexa o código de sessão (invisível) — é o que
+          // liga a conversa à jornada/campanha no inbox. Fail-soft: sem
+          // pixel ou erro, navega com a URL crua como sempre.
+          var finalUrl = redirectUrl;
+          try {
+            if (/(wa\.me|api\.whatsapp\.com|web\.whatsapp\.com)\//i.test(redirectUrl)
+                && window.dos && typeof window.dos.waLink === 'function') {
+              var decorated = window.dos.waLink(redirectUrl);
+              if (typeof decorated === 'string' && decorated) finalUrl = decorated;
+            }
+          } catch (e) { /* nunca bloqueia o redirect */ }
+          window.location.href = finalUrl;
+        }
       }
       remaining--;
     }
     tick();
     countdownTimer = setInterval(tick, 1000);
+  }
+
+  // --- CHROME DO NAVEGADOR (iOS) ---
+  // Safari pinta a barra de status e a barra inferior com a cor de
+  // `theme-color` (ou o fundo da página). Com o form escuro por cima de uma
+  // LP de fundo claro, sobra uma tira branca em cima e um degradê branco
+  // embaixo. Enquanto o form full-screen está aberto trocamos a cor e
+  // devolvemos exatamente como estava ao fechar. Modo `embed` não mexe —
+  // ali o form é um card dentro da página, o resto continua claro.
+  var chromeState = null;
+  function setDarkBrowserChrome(on) {
+    try {
+      var meta = document.querySelector('meta[name="theme-color"]:not([media])');
+      if (on) {
+        if (chromeState) return; // já aplicado
+        chromeState = {
+          criouMeta: !meta,
+          corAnterior: meta ? meta.getAttribute('content') : null,
+          bgAnterior: document.documentElement.style.backgroundColor,
+        };
+        if (!meta) {
+          meta = document.createElement('meta');
+          meta.setAttribute('name', 'theme-color');
+          document.head.appendChild(meta);
+        }
+        meta.setAttribute('content', '#060606');
+        document.documentElement.style.backgroundColor = '#060606';
+      } else {
+        if (!chromeState) return;
+        if (chromeState.criouMeta) {
+          if (meta && meta.parentNode) meta.parentNode.removeChild(meta);
+        } else if (meta && chromeState.corAnterior !== null) {
+          meta.setAttribute('content', chromeState.corAnterior);
+        }
+        document.documentElement.style.backgroundColor = chromeState.bgAnterior || '';
+        chromeState = null;
+      }
+    } catch (e) {}
   }
 
   // --- POPUP OPEN/CLOSE ---
@@ -684,8 +1042,9 @@
     if (!root) return;
     root.removeAttribute('hidden');
     document.body.style.overflow = 'hidden';
-    loadState();
+    setDarkBrowserChrome(true);
     state.currentStep = 0;
+    loadState(); // pode restaurar o step salvo — por isso vem DEPOIS do reset
     render();
     mountTurnstile(); // v2.10: monta widget invisível pra capturar token
   }
@@ -694,6 +1053,7 @@
     if (!root) return;
     root.setAttribute('hidden', 'hidden');
     document.body.style.overflow = '';
+    setDarkBrowserChrome(false);
     if (countdownTimer) clearInterval(countdownTimer);
     if (window.__adspiritQfAbortController) {
       try { window.__adspiritQfAbortController.abort(); } catch (e) {}
@@ -706,7 +1066,44 @@
     var visible = document.querySelector('.adspirit-qualifier-root:not([hidden])');
     if (!visible) return;
     if (e.key === 'Escape') closePopup();
-    if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'BUTTON' && !e.isComposing) { e.preventDefault(); next(); }
+    if (e.key === 'Enter' && e.target.tagName !== 'BUTTON' && !e.isComposing) {
+      // Textarea: Enter AVANÇA como em toda outra tela — a quebra de linha
+      // fica no Shift+Enter (padrão Typeform). Antes o Enter pulava linha
+      // só aqui, quebrando a expectativa criada pelas telas anteriores.
+      if (e.target.tagName === 'TEXTAREA' && e.shiftKey) {
+        // deixa o navegador inserir a quebra
+      } else {
+        e.preventDefault();
+        next();
+      }
+    }
+    var inField = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName || '');
+    if (e.metaKey || e.ctrlKey || e.altKey || inField) return;
+    // Setas navegam (padrão do wizard do CRM) — fora de campo de texto.
+    if (e.key === 'ArrowRight') { e.preventDefault(); next(); return; }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); back(); return; }
+    // LETRA seleciona a opção — os chips A/B/C sempre estiveram na tela;
+    // agora o atalho existe de verdade (2026-08-15).
+    var step = STEPS[state.currentStep];
+    if (!step || !step.choices || e.key.length !== 1) return;
+    var k = e.key.toUpperCase();
+    if (k < 'A' || k > 'Z') return;
+    var choice = null;
+    for (var i = 0; i < step.choices.length; i++) {
+      if ((step.choices[i].kbd || '').toUpperCase() === k) { choice = step.choices[i]; break; }
+    }
+    if (!choice) return;
+    e.preventDefault();
+    var stepEl = visible.querySelector('.adspirit-qf-step');
+    var el = stepEl
+      ? stepEl.querySelector('.adspirit-qf-choice[data-label="' + (window.CSS && CSS.escape ? CSS.escape(choice.label) : choice.label) + '"]')
+      : null;
+    if (el) { el.click(); }
+    else {
+      state.responses[step.fieldKey] = choice.label;
+      saveState();
+      setTimeout(next, 240);
+    }
   });
 
   // --- INIT ---
@@ -722,7 +1119,15 @@
       // plugins (CF7, etc) em sites onde o script foi enfileirado mas o
       // qualifier não é usado naquela página.
       var hasRoot = !!document.querySelector('.adspirit-qualifier-root');
-      var hasTrigger = !!document.querySelector('.adspirit-qualifier-trigger, [data-adspirit-qualifier], a[href$="#adspirit-avaliacao"]');
+      // Com o "site todo" ligado, botões/links com a classe `lead` também
+      // disparam o form. Restringido a <a>/<button> DE PROPÓSITO: `.lead` é
+      // classe genérica de tipografia (Bootstrap usa em parágrafo) — sem o
+      // restritor, clicar num texto abriria o popup.
+      var TRIGGER_SEL = '.adspirit-qualifier-trigger, [data-adspirit-qualifier], a[href$="#adspirit-avaliacao"]';
+      // agd_lead é o padrão da ferramenta (namespaced, sem colisão). a.lead/
+      // button.lead ficam por compat: o site da Digitals já usa .lead nos CTAs.
+      if (String(CFG.sitewide) === '1') TRIGGER_SEL += ', .agd_lead, a.lead, button.lead';
+      var hasTrigger = !!document.querySelector(TRIGGER_SEL);
       if (!hasRoot && !hasTrigger) {
         return; // página não usa o qualifier — silent no-op
       }
@@ -732,9 +1137,7 @@
         try {
           var el = e.target;
           if (el && el.nodeType === 3) el = el.parentElement; // text node → elemento
-          var trigger = el && el.closest
-            ? el.closest('.adspirit-qualifier-trigger, [data-adspirit-qualifier], a[href$="#adspirit-avaliacao"]')
-            : null;
+          var trigger = el && el.closest ? el.closest(TRIGGER_SEL) : null;
           if (!trigger) return;
           e.preventDefault();
           openPopup();
@@ -742,9 +1145,21 @@
           console.warn('[AdSpirit Qualifier] click handler erro:', e2);
         }
       });
+      // Deep link: URL que já CHEGA com o hash abre o form direto — pra
+      // anúncio, mensagem de WhatsApp, QR. #adspirit-avaliacao é o canônico;
+      // #adspirit-qualifier é aceito como apelido. Clique em link interno
+      // pro hash não passa por aqui (o handler acima dá preventDefault).
+      function maybeOpenFromHash() {
+        var h = window.location.hash;
+        if (h === '#adspirit-avaliacao' || h === '#adspirit-qualifier') openPopup();
+      }
+      maybeOpenFromHash();
+      window.addEventListener('hashchange', maybeOpenFromHash);
+
       // Inline (full-screen) e embed (contido) renderizam direto no load.
       var auto = document.querySelector('.adspirit-qualifier-root[data-mode="inline"], .adspirit-qualifier-root[data-mode="embed"]');
       if (auto) {
+        if (auto.getAttribute('data-mode') === 'inline') setDarkBrowserChrome(true);
         loadState();
         render();
         mountTurnstile(); // v2.10

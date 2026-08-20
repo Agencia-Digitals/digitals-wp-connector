@@ -139,53 +139,52 @@ class AdSpirit_Ga4 {
         $c = AdSpirit_Settings::get_ga4();
         $status_badge = $c['enabled'] === '1' ? '<span class="as-badge ok">Ativo</span>' : '<span class="as-badge muted">Desligado</span>';
         ?>
-        <h2 class="as-section"><span class="as-kicker-inline">GA4</span>Measurement Protocol v2 server-side</h2>
-        <p class="as-section-help">
-            Dispara eventos GA4 direto do servidor. Funciona em paralelo ao gtag.js client-side — eventos com mesmo <code>event_id</code> são deduplicados pelo GA4.
-        </p>
+        <h2 class="as-section"><span class="as-kicker-inline">GA4</span>Conversões Google</h2>
+        <p class="as-section-help">Envia leads e visitas pro Google Analytics 4 direto do servidor — funciona mesmo com bloqueador de anúncios.</p>
 
-        <?php AdSpirit_Menu::card_open('Credenciais GA4', 'Measurement ID e API Secret você gera em <em>GA4 Admin → Data Streams → Measurement Protocol</em>', $status_badge); ?>
+        <?php AdSpirit_Menu::card_open('Credenciais GA4', 'As duas chaves você gera no painel do Google Analytics', $status_badge); ?>
         <?php AdSpirit_Menu::form_open('ga4'); ?>
 
-        <table class="form-table">
-            <tr>
-                <th>Status</th>
-                <td>
-                    <label>
-                        <input type="checkbox" name="enabled" value="1" <?php checked($c['enabled'], '1'); ?>>
-                        Ativar GA4 server-side
-                    </label>
-                </td>
-            </tr>
-            <tr>
-                <th><label for="ga4_measurement_id">Measurement ID</label></th>
-                <td>
-                    <input type="text" id="ga4_measurement_id" name="measurement_id" value="<?php echo esc_attr($c['measurement_id']); ?>" class="regular-text" placeholder="G-XXXXXXXXXX">
-                    <p class="description">GA4 Admin → Data Streams → Web stream → Measurement ID.</p>
-                </td>
-            </tr>
-            <tr>
-                <th><label for="ga4_api_secret">API Secret</label></th>
-                <td>
-                    <input type="password" id="ga4_api_secret" name="api_secret" value="<?php echo esc_attr($c['api_secret']); ?>" class="regular-text" autocomplete="off">
-                    <button type="button" class="button" onclick="var e=document.getElementById('ga4_api_secret');e.type=e.type==='password'?'text':'password';">Mostrar</button>
-                    <p class="description">GA4 Admin → Data Streams → Web stream → Measurement Protocol API secrets → Create.</p>
-                </td>
-            </tr>
-            <tr>
-                <th>Eventos</th>
-                <td>
-                    <label>
-                        <input type="checkbox" name="send_lead" value="1" <?php checked($c['send_lead'], '1'); ?>>
-                        Disparar <code>generate_lead</code> em cada CF7 submit
-                    </label><br>
-                    <label>
-                        <input type="checkbox" name="send_page_view" value="1" <?php checked($c['send_page_view'], '1'); ?>>
-                        Disparar <code>page_view</code> em cada page load (throttle 30s/URL/cliente)
-                    </label>
-                </td>
-            </tr>
-        </table>
+        <div class="as-toggle">
+            <input type="checkbox" id="ga4_enabled" name="enabled" value="1" <?php checked($c['enabled'], '1'); ?>>
+            <label class="t" for="ga4_enabled">Envio pro Google Analytics ligado<small>Precisa do Measurement ID e da chave da API abaixo pra começar a enviar.</small></label>
+        </div>
+
+        <div class="as-field">
+            <label class="as-field-label" for="ga4_measurement_id">Measurement ID</label>
+            <input type="text" id="ga4_measurement_id" name="measurement_id" value="<?php echo esc_attr($c['measurement_id']); ?>" class="regular-text" placeholder="G-XXXXXXXXXX">
+            <p class="description">Começa com G-. Está em GA4 Admin → Data Streams → Web stream.</p>
+        </div>
+
+        <div class="as-field">
+            <label class="as-field-label" for="ga4_api_secret">Chave da API (API Secret)</label>
+            <?php if (defined('ADSPIRIT_GA4_API_SECRET')) : ?>
+                <input type="password" id="ga4_api_secret" disabled value="" class="regular-text" placeholder="Definido no wp-config.php">
+            <?php else : ?>
+                <input type="password" id="ga4_api_secret" name="api_secret" value="<?php echo esc_attr($c['api_secret']); ?>" class="regular-text" autocomplete="off">
+            <?php endif; ?>
+            <button type="button" class="button" onclick="var e=document.getElementById('ga4_api_secret');e.type=e.type==='password'?'text':'password';">Mostrar</button>
+            <p class="description">Gere em GA4 Admin → Data Streams → Web stream → Measurement Protocol API secrets → Create.</p>
+        </div>
+
+        <div class="as-toggle">
+            <input type="checkbox" id="ga4_send_lead" name="send_lead" value="1" <?php checked($c['send_lead'], '1'); ?>>
+            <label class="t" for="ga4_send_lead">Enviar cada lead<small>Dispara o evento <code>generate_lead</code> quando um formulário é enviado.</small></label>
+        </div>
+
+        <div class="as-toggle">
+            <input type="checkbox" id="ga4_send_page_view" name="send_page_view" value="1" <?php checked($c['send_page_view'], '1'); ?>>
+            <label class="t" for="ga4_send_page_view">Enviar cada visita de página<small>Dispara o evento <code>page_view</code>, no máximo 1 a cada 30s por página e visitante.</small></label>
+        </div>
+
+        <details class="as-help">
+            <summary>Como funciona junto com o gtag do site</summary>
+            <ul>
+                <li>O envio sai do servidor, então conta conversões mesmo quando o visitante usa bloqueador de anúncios.</li>
+                <li>Se o gtag do site também disparar o mesmo evento, o GA4 reconhece e não conta em dobro (mesmo <code>event_id</code>).</li>
+            </ul>
+        </details>
+
         <?php AdSpirit_Menu::form_close('Salvar GA4'); ?>
         <?php AdSpirit_Menu::card_close(); ?>
         <?php
@@ -195,7 +194,9 @@ class AdSpirit_Ga4 {
         $patch = array();
         $patch['enabled']        = !empty($post['enabled']) ? '1' : '0';
         $patch['measurement_id'] = sanitize_text_field((string) ($post['measurement_id'] ?? ''));
-        $patch['api_secret']     = sanitize_text_field((string) ($post['api_secret'] ?? ''));
+        if (!defined('ADSPIRIT_GA4_API_SECRET')) {
+            $patch['api_secret'] = sanitize_text_field((string) ($post['api_secret'] ?? ''));
+        }
         $patch['send_lead']      = !empty($post['send_lead']) ? '1' : '0';
         $patch['send_page_view'] = !empty($post['send_page_view']) ? '1' : '0';
         AdSpirit_Settings::update_ga4($patch);

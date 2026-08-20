@@ -3,7 +3,7 @@
  * Plugin Name:       AdSpirit Connector
  * Plugin URI:        https://crm.agenciadigitals.com.br
  * Description:       Conecta o site WordPress ao CRM AdSpirit (Digitals). CF7 real-time, anti-spam, field mapping, CAPI Meta, GA4 server-side, cross-domain decoration. Configurado via wp-admin.
- * Version:           2.10.3
+ * Version:           2.30.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Tested up to:      6.7
@@ -19,7 +19,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('ADSPIRIT_CONNECTOR_VERSION', '2.10.3');
+define('ADSPIRIT_CONNECTOR_VERSION', '2.30.0');
 define('ADSPIRIT_CONNECTOR_FILE', __FILE__);
 define('ADSPIRIT_CONNECTOR_DIR', plugin_dir_path(__FILE__));
 define('ADSPIRIT_CONNECTOR_URL', plugin_dir_url(__FILE__));
@@ -95,10 +95,22 @@ adspirit_connector_safe_require('includes/class-adspirit-whatsapp.php');
 adspirit_connector_safe_require('includes/class-adspirit-thank-you.php');
 // v2.6 submissions log (substituto local do TablePress)
 adspirit_connector_safe_require('includes/class-adspirit-submissions-log.php');
+// v2.11 lead store (persistência durável de submissões + reenvio)
+adspirit_connector_safe_require('includes/class-adspirit-lead-store.php');
 // v2.8 setup wizard (checklist visual de configuração)
 adspirit_connector_safe_require('includes/class-adspirit-setup-wizard.php');
 // v2.10 cloudflare turnstile (anti-bot invisível)
 adspirit_connector_safe_require('includes/class-adspirit-turnstile.php');
+adspirit_connector_safe_require('includes/class-adspirit-generic-collector.php');
+adspirit_connector_safe_require('includes/class-adspirit-lead-identity.php');
+adspirit_connector_safe_require('includes/class-adspirit-central-forms.php');
+adspirit_connector_safe_require('includes/class-adspirit-forms-hub.php');
+// v2.28 widget de leads no dashboard do WP (presença diária + deep-link CRM)
+adspirit_connector_safe_require('includes/class-adspirit-dashboard-widget.php');
+// v2.29 eventos automáticos nomeados (tel/email/whatsapp/download → dataLayer)
+adspirit_connector_safe_require('includes/class-adspirit-auto-events.php');
+// v2.29 pixel first-party (proxy com cache, anti ad-blocker; opt-in)
+adspirit_connector_safe_require('includes/class-adspirit-pixel-proxy.php');
 
 /**
  * Bootstrap on plugins_loaded.
@@ -152,10 +164,21 @@ function adspirit_connector_init() {
     if (class_exists('AdSpirit_Thank_You')) AdSpirit_Thank_You::instance();
     // v2.6 submissions log
     if (class_exists('AdSpirit_Submissions_Log')) AdSpirit_Submissions_Log::instance();
+    // v2.11 lead store (persistência durável — cria/migra tabela on-load)
+    if (class_exists('AdSpirit_Lead_Store')) AdSpirit_Lead_Store::instance();
     // v2.8 setup wizard
     if (class_exists('AdSpirit_Setup_Wizard')) AdSpirit_Setup_Wizard::instance();
     // v2.10 cloudflare turnstile
     if (class_exists('AdSpirit_Turnstile')) AdSpirit_Turnstile::instance();
+    if (class_exists('AdSpirit_Generic_Collector')) AdSpirit_Generic_Collector::instance();
+    if (class_exists('AdSpirit_Lead_Identity')) AdSpirit_Lead_Identity::instance();
+    if (class_exists('AdSpirit_Forms_Hub')) AdSpirit_Forms_Hub::instance();
+    // v2.28 widget de leads no dashboard
+    if (class_exists('AdSpirit_Dashboard_Widget')) AdSpirit_Dashboard_Widget::instance();
+    // v2.29 eventos automáticos nomeados
+    if (class_exists('AdSpirit_Auto_Events')) AdSpirit_Auto_Events::instance();
+    // v2.29 pixel first-party
+    if (class_exists('AdSpirit_Pixel_Proxy')) AdSpirit_Pixel_Proxy::instance();
 }
 
 /**
@@ -170,6 +193,45 @@ add_action('plugins_loaded', 'adspirit_connector_init_always', 5);
 add_action('plugins_loaded', 'adspirit_connector_init');
 
 /**
+ * Auto-purge de cache na troca de versao. Incidente 2026-08-15: update do
+ * plugin trocou o PHP (?ver= novo no HTML) mas o LiteSpeed seguiu servindo o
+ * CORPO antigo de qualifier-form.js (max-age=1000000, cache de estatico que
+ * ignora query string). "Atualizei e nao mudou nada." Detecta a troca de
+ * versao no boot (cobre update via GitHub, onde o activation hook NAO roda)
+ * e purga os caches conhecidos — fail-soft.
+ */
+function adspirit_connector_maybe_purge_caches() {
+    $stored = get_option('adspirit_connector_version', '');
+    if ($stored === ADSPIRIT_CONNECTOR_VERSION) {
+        return;
+    }
+    update_option('adspirit_connector_version', ADSPIRIT_CONNECTOR_VERSION, false);
+    if ($stored === '') {
+        return; // instalacao nova — nada do plugin cacheado ainda
+    }
+    try {
+        if (has_action('litespeed_purge_all')) {
+            do_action('litespeed_purge_all'); // LiteSpeed (o dos nossos sites)
+        }
+        if (function_exists('rocket_clean_domain')) {
+            rocket_clean_domain(); // WP Rocket
+        }
+        if (function_exists('w3tc_flush_all')) {
+            w3tc_flush_all(); // W3 Total Cache
+        }
+        if (function_exists('wp_cache_clear_cache')) {
+            wp_cache_clear_cache(); // WP Super Cache
+        }
+        if (class_exists('autoptimizeCache') && method_exists('autoptimizeCache', 'clearall')) {
+            autoptimizeCache::clearall(); // Autoptimize (cache proprio de JS)
+        }
+    } catch (Throwable $e) {
+        // purge e cortesia — nunca derruba o boot do plugin
+    }
+}
+add_action('plugins_loaded', 'adspirit_connector_maybe_purge_caches', 20);
+
+/**
  * Activation: valida ambiente. Se PHP/WP for incompatível, plugin se
  * desativa sozinho — site fica intocado.
  */
@@ -179,6 +241,11 @@ function adspirit_connector_activate() {
     }
     if (class_exists('AdSpirit_Settings')) {
         AdSpirit_Settings::seed_defaults();
+    }
+    // v2.11: cria a tabela de submissões duráveis. Em update via GitHub o
+    // activation hook NÃO roda — o maybe_install() no boot cobre esse caso.
+    if (class_exists('AdSpirit_Lead_Store')) {
+        AdSpirit_Lead_Store::install();
     }
     // Reset de safe mode na ativação — nova instalação começa limpa
     if (class_exists('AdSpirit_Safe_Bootstrap')) {
@@ -194,6 +261,11 @@ register_activation_hook(__FILE__, 'adspirit_connector_activate');
  * Deactivation: preserva config. Reativar = pronto pra usar.
  */
 function adspirit_connector_deactivate() {
-    // No-op por design — settings preservadas
+    // Settings preservadas por design. Só desagenda o cron de retry do
+    // Lead Store (P0-3) — reagendado automaticamente no próximo boot se
+    // o plugin for reativado.
+    if (class_exists('AdSpirit_Lead_Store')) {
+        AdSpirit_Lead_Store::unschedule();
+    }
 }
 register_deactivation_hook(__FILE__, 'adspirit_connector_deactivate');

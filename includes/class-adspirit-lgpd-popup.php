@@ -37,6 +37,10 @@ class AdSpirit_Lgpd_Popup {
             5
         );
         add_action(
+            'wp_enqueue_scripts',
+            AdSpirit_Safe_Hook::action(array($this, 'enqueue_assets'), 'lgpd_enqueue')
+        );
+        add_action(
             'adspirit_connector_render_tab_lgpd',
             AdSpirit_Safe_Hook::action(array($this, 'render_tab'), 'lgpd_tab')
         );
@@ -105,12 +109,38 @@ class AdSpirit_Lgpd_Popup {
         return self::has_consent('tracking') || self::has_consent('all');
     }
 
-    public function inject_popup() {
-        if (is_admin()) return;
+    /** O banner deve aparecer nesta request? (mesma regra no enqueue e no render) */
+    private function should_render() {
+        if (is_admin()) return false;
         $c = self::get_settings();
-        if ($c['enabled'] !== '1') return;
+        if ($c['enabled'] !== '1') return false;
         // Não mostra se já tem decisão
-        if (!empty($_COOKIE[self::COOKIE])) return;
+        if (!empty($_COOKIE[self::COOKIE])) return false;
+        return true;
+    }
+
+    public function enqueue_assets() {
+        if (!$this->should_render()) return;
+        $c = self::get_settings();
+        $version = defined('ADSPIRIT_CONNECTOR_VERSION') ? ADSPIRIT_CONNECTOR_VERSION : '2.30.0';
+        wp_enqueue_style('adspirit-lgpd', ADSPIRIT_CONNECTOR_URL . 'assets/lgpd-popup.css', array(), $version);
+        // CSS custom do admin: tira < > pra não escapar do <style> (admin-only,
+        // mas defensivo). Injetado DEPOIS do arquivo → sobrescreve tudo.
+        $custom_css = trim(str_replace(array('<', '>'), '', (string) ($c['custom_css'] ?? '')));
+        if ($custom_css !== '') {
+            wp_add_inline_style('adspirit-lgpd', $custom_css);
+        }
+        wp_enqueue_script('adspirit-lgpd', ADSPIRIT_CONNECTOR_URL . 'assets/lgpd-popup.js', array(), $version, true);
+        wp_add_inline_script(
+            'adspirit-lgpd',
+            'window.__adspiritLgpdCfg = ' . wp_json_encode(array('cookie' => self::COOKIE)) . ';',
+            'before'
+        );
+    }
+
+    public function inject_popup() {
+        if (!$this->should_render()) return;
+        $c = self::get_settings();
 
         // Centro via margin-auto (não translateX) pra não conflitar com o
         // transform da animação de entrada (translateY).
@@ -123,102 +153,8 @@ class AdSpirit_Lgpd_Popup {
 
         // Tema claro/escuro via classe modificadora.
         $theme_class = ($c['theme'] ?? 'dark') === 'light' ? ' adspirit-lgpd-theme-light' : '';
-        // CSS custom do admin: tira < > pra não escapar do <style> (admin-only,
-        // mas defensivo). Injetado por último → sobrescreve tudo.
-        $custom_css = trim((string) ($c['custom_css'] ?? ''));
-        $custom_css = str_replace(array('<', '>'), '', $custom_css);
 
         ?>
-        <style id="adspirit-lgpd-css">
-        #adspirit-lgpd{
-            position:fixed; z-index:99999;
-            /* Tema escuro (default) via custom properties — o tema claro só
-               troca as vars. Minimalista: SEM contorno; o fundo blur dá presença. */
-            --lgpd-bg:rgba(9,9,11,0.88);
-            --lgpd-fg:#F2F2F2;
-            --lgpd-fg-soft:rgba(242,242,242,0.72);
-            --lgpd-fg-faint:rgba(242,242,242,0.48);
-            --lgpd-link:rgba(242,242,242,0.60);
-            --lgpd-btn-bg:rgba(255,255,255,0.15);
-            --lgpd-btn-bg-hover:rgba(255,255,255,0.28);
-            --lgpd-btn-fg:#fff;
-            background:var(--lgpd-bg);
-            -webkit-backdrop-filter:blur(28px) saturate(130%);
-            backdrop-filter:blur(28px) saturate(130%);
-            color:var(--lgpd-fg);
-            border:none;
-            border-radius:14px;
-            padding:20px 22px;
-            box-shadow:0 6px 26px rgba(0,0,0,0.20);
-            /* Puxa a tipografia do SITE (não impõe fonte própria do plugin). */
-            font-family:inherit;
-            font-weight:400; font-size:13px; line-height:1.6;
-            /* Estado "armado": invisível esperando o timer de 10s. */
-            opacity:0; visibility:hidden; transition:opacity 320ms ease;
-        }
-        /* Tema claro — resolve a maioria dos sites de fundo claro. */
-        #adspirit-lgpd.adspirit-lgpd-theme-light{
-            --lgpd-bg:rgba(255,255,255,0.92);
-            --lgpd-fg:#14181F;
-            --lgpd-fg-soft:rgba(20,24,31,0.70);
-            --lgpd-fg-faint:rgba(20,24,31,0.50);
-            --lgpd-link:rgba(20,24,31,0.62);
-            --lgpd-btn-bg:#14181F;
-            --lgpd-btn-bg-hover:#000;
-            --lgpd-btn-fg:#fff;
-            box-shadow:0 6px 26px rgba(0,0,0,0.12);
-        }
-        /* Entrada estilo tela de login do AdSpirit: blur-dissolve + fade + leve
-           subida. Sem 'forwards' pra que o fade-out no dismiss funcione. */
-        #adspirit-lgpd.adspirit-lgpd-show{
-            opacity:1; visibility:visible;
-            animation:adspirit-lgpd-in 1000ms cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        @keyframes adspirit-lgpd-in{
-            from{ opacity:0; filter:blur(10px); transform:translateY(16px); }
-        }
-        #adspirit-lgpd .adspirit-lgpd-kicker{
-            font-size:10px; font-weight:600; letter-spacing:0.22em; text-transform:uppercase;
-            color:var(--lgpd-fg-faint); margin:0 0 10px;
-        }
-        #adspirit-lgpd .adspirit-lgpd-msg{ margin:0 0 16px; color:var(--lgpd-fg-soft); font-size:12.5px; }
-        #adspirit-lgpd .adspirit-lgpd-row{ display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
-        #adspirit-lgpd .adspirit-lgpd-link{
-            color:var(--lgpd-link); text-decoration:underline; text-underline-offset:2px;
-            font-size:11.5px; transition:color 160ms ease;
-        }
-        #adspirit-lgpd .adspirit-lgpd-link:hover{ color:var(--lgpd-fg); }
-        #adspirit-lgpd .adspirit-lgpd-btn{
-            margin-left:auto;
-            background:var(--lgpd-btn-bg); color:var(--lgpd-btn-fg); border:0;
-            padding:9px 28px; border-radius:4px;
-            font-family:inherit;
-            font-size:0.78rem; font-weight:600; letter-spacing:0.04em; text-transform:uppercase;
-            cursor:pointer; transition:background-color .4s ease; line-height:1.6;
-        }
-        #adspirit-lgpd .adspirit-lgpd-btn:hover{ background:var(--lgpd-btn-bg-hover); }
-        #adspirit-lgpd .adspirit-lgpd-btn:focus-visible{ outline:2px solid var(--lgpd-fg); outline-offset:2px; }
-        @media (prefers-reduced-motion: reduce){
-            #adspirit-lgpd{ transition:none; }
-            #adspirit-lgpd.adspirit-lgpd-show{ animation:none; }
-        }
-        /* Mobile: card full-width com gutter, independente da posição do desktop. */
-        @media (max-width:520px){
-            #adspirit-lgpd{
-                left:12px !important; right:12px !important; bottom:12px !important;
-                top:auto !important; max-width:none !important; width:auto !important;
-                border-radius:14px !important;
-                padding:18px 18px;
-            }
-            #adspirit-lgpd .adspirit-lgpd-row{ gap:12px; }
-            #adspirit-lgpd .adspirit-lgpd-btn{ margin-left:0; flex:1 1 auto; text-align:center; }
-        }
-        <?php if ($custom_css !== ''): ?>
-        /* ---- CSS custom (admin) ---- */
-        <?php echo $custom_css; ?>
-
-        <?php endif; ?>
-        </style>
         <div id="adspirit-lgpd" class="adspirit-lgpd<?php echo esc_attr($theme_class); ?>" style="<?php echo esc_attr($style); ?>">
             <div class="adspirit-lgpd-kicker"><?php echo esc_html($c['title']); ?></div>
             <p class="adspirit-lgpd-msg"><?php echo esc_html($c['message']); ?></p>
@@ -229,38 +165,6 @@ class AdSpirit_Lgpd_Popup {
                 <button type="button" class="adspirit-lgpd-btn" onclick="adspiritLgpdOk()"><?php echo esc_html($c['accept_label']); ?></button>
             </div>
         </div>
-        <script>
-        (function(){
-            var BANNER = document.getElementById('adspirit-lgpd');
-            if (!BANNER) return;
-            var done = false;
-            function consent(reload){
-                if (done) return; done = true;
-                var d = new Date(); d.setTime(d.getTime() + 365*86400000);
-                document.cookie = '<?php echo esc_js(self::COOKIE); ?>=accept_all;expires=' + d.toUTCString() + ';path=/;samesite=lax';
-                BANNER.style.opacity = '0';
-                setTimeout(function(){ if (BANNER && BANNER.parentNode) BANNER.parentNode.removeChild(BANNER); }, 320);
-                window.removeEventListener('scroll', onScroll);
-                document.removeEventListener('click', onClick, true);
-                if (reload) setTimeout(function(){ location.reload(); }, 260);
-            }
-            // Consentimento implícito: ao continuar navegando (scroll, clique
-            // em qualquer lugar fora do banner, ou navegação) o visitante aceita.
-            function onScroll(){ if ((window.pageYOffset || document.documentElement.scrollTop) > 140) consent(false); }
-            function onClick(e){ if (BANNER.contains(e.target)) return; consent(false); }
-            // Botão "Entendi": registra e recarrega pra tracking começar já nesta página.
-            window.adspiritLgpdOk = function(){ consent(true); };
-            // Entra só 10s depois do load (entrada estilo login). Os listeners de
-            // consentimento implícito só armam quando o banner aparece — antes
-            // disso não há aviso, então não há consentimento a registrar.
-            setTimeout(function(){
-                if (done) return;
-                BANNER.classList.add('adspirit-lgpd-show');
-                window.addEventListener('scroll', onScroll, { passive: true });
-                document.addEventListener('click', onClick, true);
-            }, 10000);
-        })();
-        </script>
         <?php
     }
 
@@ -268,68 +172,8 @@ class AdSpirit_Lgpd_Popup {
         $c = self::get_settings();
         $status = $c['enabled'] === '1' ? '<span class="as-badge ok">Ativo</span>' : '<span class="as-badge muted">Desligado</span>';
         ?>
-        <h2 class="as-section"><span class="as-kicker-inline">Consentimento</span>Banner LGPD informativo</h2>
-        <p class="as-section-help">Banner pequeno injetado no rodapé, blur + sem contorno. Tema claro/escuro e CSS próprio dão a customização; a <strong>tipografia é puxada do site</strong> (o plugin não impõe fonte). Consentimento <strong>implícito</strong>: ao continuar navegando o visitante aceita. Cookie <code><?php echo esc_html(self::COOKIE); ?></code> registra <code>accept_all</code> por 365 dias.</p>
-
-        <?php AdSpirit_Menu::card_open('Configuração', 'Liga/desliga, textos, tema, posição e CSS próprio', $status); ?>
-        <?php AdSpirit_Menu::form_open('lgpd'); ?>
-        <table class="form-table">
-            <tr>
-                <th>Banner</th>
-                <td><label><input type="checkbox" name="enabled" value="1" <?php checked($c['enabled'], '1'); ?>> <strong>Ativo</strong> — mostrar pra visitantes sem consentimento</label>
-                    <p class="description">Desmarque pra <strong>desativar</strong> o banner no site (sem desinstalar o plugin).</p></td>
-            </tr>
-            <tr>
-                <th><label for="lgpd_title">Título</label></th>
-                <td><input type="text" id="lgpd_title" name="title" value="<?php echo esc_attr($c['title']); ?>" class="regular-text"></td>
-            </tr>
-            <tr>
-                <th><label for="lgpd_message">Mensagem</label></th>
-                <td>
-                    <textarea id="lgpd_message" name="message" rows="4" class="large-text"><?php echo esc_textarea($c['message']); ?></textarea>
-                    <p class="description">Mantenha curto — 2 frases máx.</p>
-                </td>
-            </tr>
-            <tr>
-                <th><label for="lgpd_accept">Texto do botão</label></th>
-                <td><input type="text" id="lgpd_accept" name="accept_label" value="<?php echo esc_attr($c['accept_label']); ?>" class="regular-text">
-                    <p class="description">Botão único de reconhecimento (ex.: "Entendi" / "Continuar").</p></td>
-            </tr>
-            <tr>
-                <th><label for="lgpd_theme">Tema</label></th>
-                <td>
-                    <select id="lgpd_theme" name="theme">
-                        <option value="dark" <?php selected($c['theme'] ?? 'dark', 'dark'); ?>>Escuro (fundo preto)</option>
-                        <option value="light" <?php selected($c['theme'] ?? 'dark', 'light'); ?>>Claro (fundo branco)</option>
-                    </select>
-                    <p class="description">Resolve a maioria dos casos conforme o fundo do site. Pra ajustes finos, use o CSS abaixo.</p>
-                </td>
-            </tr>
-            <tr>
-                <th><label for="lgpd_position">Posição</label></th>
-                <td>
-                    <select id="lgpd_position" name="position">
-                        <option value="bottom-right" <?php selected($c['position'], 'bottom-right'); ?>>Canto inferior direito</option>
-                        <option value="bottom-center" <?php selected($c['position'], 'bottom-center'); ?>>Centro inferior</option>
-                        <option value="bottom-banner" <?php selected($c['position'], 'bottom-banner'); ?>>Barra inferior (banner full-width)</option>
-                    </select>
-                </td>
-            </tr>
-            <tr>
-                <th><label for="lgpd_privacy">URL da política</label></th>
-                <td><input type="url" id="lgpd_privacy" name="privacy_url" value="<?php echo esc_attr($c['privacy_url']); ?>" class="regular-text" placeholder="https://seusite.com/politica-privacidade"></td>
-            </tr>
-            <tr>
-                <th><label for="lgpd_custom_css">CSS personalizado</label></th>
-                <td>
-                    <textarea id="lgpd_custom_css" name="custom_css" rows="6" class="large-text code" placeholder="#adspirit-lgpd { /* ... */ }
-#adspirit-lgpd .adspirit-lgpd-btn { /* ... */ }"><?php echo esc_textarea($c['custom_css'] ?? ''); ?></textarea>
-                    <p class="description">Injetado por último (sobrescreve tudo). Seletor raiz: <code>#adspirit-lgpd</code>. Partes: <code>.adspirit-lgpd-kicker</code>, <code>.adspirit-lgpd-msg</code>, <code>.adspirit-lgpd-link</code>, <code>.adspirit-lgpd-btn</code>. Vars de tema: <code>--lgpd-bg</code>, <code>--lgpd-fg</code>, <code>--lgpd-btn-bg</code>.</p>
-                </td>
-            </tr>
-        </table>
-        <?php AdSpirit_Menu::form_close('Salvar consentimento'); ?>
-        <?php AdSpirit_Menu::card_close(); ?>
+        <h2 class="as-section"><span class="as-kicker-inline">Consentimento</span>Aviso de cookies</h2>
+        <p class="as-section-help">Aviso pequeno mostrado no rodapé do site. Quem continua navegando (ou clica no botão) aceita — e o aviso não volta por 1 ano.</p>
 
         <?php
         $is_light = ($c['theme'] ?? 'dark') === 'light';
@@ -339,7 +183,8 @@ class AdSpirit_Lgpd_Popup {
         $pv_faint = $is_light ? 'rgba(20,24,31,0.50)' : 'rgba(242,242,242,0.48)';
         $pv_btnbg = $is_light ? '#14181F' : 'rgba(255,255,255,0.15)';
         $pv_outer = $is_light ? '#E9EDF2' : 'linear-gradient(120deg,#1a1f29,#2b2233)';
-        AdSpirit_Menu::card_open('Preview ao vivo', 'Reflete o tema escolhido (salve pra atualizar). A fonte real é a do site.');
+        // Doutrina: o estado (como o aviso está hoje) vem antes do controle.
+        AdSpirit_Menu::card_open('Como está no site', 'Reflete o que foi salvo. A fonte real é a do site.', $status);
         ?>
         <div style="background:<?php echo $pv_outer; ?>; padding:34px; border-radius:8px;">
             <div style="background:<?php echo $pv_bg; ?>; color:<?php echo $pv_fg; ?>; border:none; border-radius:14px; padding:20px 22px; max-width:380px; box-shadow:0 6px 26px rgba(0,0,0,0.18); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; font-size:13px; line-height:1.6;">
@@ -353,6 +198,75 @@ class AdSpirit_Lgpd_Popup {
                 </div>
             </div>
         </div>
+        <?php AdSpirit_Menu::card_close(); ?>
+
+        <?php AdSpirit_Menu::card_open('Configuração', 'Textos, tema e posição do aviso'); ?>
+        <?php AdSpirit_Menu::form_open('lgpd'); ?>
+
+        <div class="as-toggle">
+            <input type="checkbox" id="lgpd_enabled" name="enabled" value="1" <?php checked($c['enabled'], '1'); ?>>
+            <label class="t" for="lgpd_enabled">Aviso de cookies ligado<small>Aparece só pra quem ainda não aceitou. Desmarque pra tirar do site sem desinstalar nada.</small></label>
+        </div>
+
+        <div class="as-field">
+            <label class="as-field-label" for="lgpd_title">Título</label>
+            <input type="text" id="lgpd_title" name="title" value="<?php echo esc_attr($c['title']); ?>" class="regular-text">
+        </div>
+
+        <div class="as-field">
+            <label class="as-field-label" for="lgpd_message">Mensagem</label>
+            <textarea id="lgpd_message" name="message" rows="4" class="large-text"><?php echo esc_textarea($c['message']); ?></textarea>
+            <p class="description">Mantenha curto — 2 frases no máximo.</p>
+        </div>
+
+        <div class="as-field">
+            <label class="as-field-label" for="lgpd_accept">Texto do botão</label>
+            <input type="text" id="lgpd_accept" name="accept_label" value="<?php echo esc_attr($c['accept_label']); ?>" class="regular-text">
+            <p class="description">Botão único de reconhecimento (ex.: "Entendi" / "Continuar").</p>
+        </div>
+
+        <div class="as-field">
+            <label class="as-field-label" for="lgpd_theme">Tema</label>
+            <select id="lgpd_theme" name="theme">
+                <option value="dark" <?php selected($c['theme'] ?? 'dark', 'dark'); ?>>Escuro (fundo preto)</option>
+                <option value="light" <?php selected($c['theme'] ?? 'dark', 'light'); ?>>Claro (fundo branco)</option>
+            </select>
+            <p class="description">Escolha conforme o fundo do site. Pra ajuste fino, use o CSS avançado abaixo.</p>
+        </div>
+
+        <div class="as-field">
+            <label class="as-field-label" for="lgpd_position">Posição</label>
+            <select id="lgpd_position" name="position">
+                <option value="bottom-right" <?php selected($c['position'], 'bottom-right'); ?>>Canto inferior direito</option>
+                <option value="bottom-center" <?php selected($c['position'], 'bottom-center'); ?>>Centro inferior</option>
+                <option value="bottom-banner" <?php selected($c['position'], 'bottom-banner'); ?>>Barra inferior (largura toda)</option>
+            </select>
+        </div>
+
+        <div class="as-field">
+            <label class="as-field-label" for="lgpd_privacy">Link da política de privacidade</label>
+            <input type="url" id="lgpd_privacy" name="privacy_url" value="<?php echo esc_attr($c['privacy_url']); ?>" class="regular-text" placeholder="https://seusite.com/politica-privacidade">
+            <p class="description">Opcional. Com um link aqui, o aviso mostra "Política de privacidade".</p>
+        </div>
+
+        <div class="as-field">
+            <label class="as-field-label" for="lgpd_custom_css">CSS avançado (opcional)</label>
+            <textarea id="lgpd_custom_css" name="custom_css" rows="6" class="large-text code" placeholder="#adspirit-lgpd { /* ... */ }
+#adspirit-lgpd .adspirit-lgpd-btn { /* ... */ }"><?php echo esc_textarea($c['custom_css'] ?? ''); ?></textarea>
+            <p class="description">Só se precisar de ajuste fino visual — o aviso já funciona sem nada aqui.</p>
+        </div>
+
+        <details class="as-help">
+            <summary>Como o consentimento funciona + seletores do CSS</summary>
+            <ul>
+                <li>Consentimento implícito: continuar navegando (rolar ou clicar fora do aviso) conta como aceite.</li>
+                <li>O aceite fica no cookie <code><?php echo esc_html(self::COOKIE); ?></code> como <code>accept_all</code> por 365 dias — o aviso não volta.</li>
+                <li>A tipografia é herdada do site; o plugin não impõe fonte.</li>
+                <li>O CSS avançado é injetado por último (sobrescreve tudo). Seletor raiz: <code>#adspirit-lgpd</code>; partes: <code>.adspirit-lgpd-kicker</code>, <code>.adspirit-lgpd-msg</code>, <code>.adspirit-lgpd-link</code>, <code>.adspirit-lgpd-btn</code>; vars de tema: <code>--lgpd-bg</code>, <code>--lgpd-fg</code>, <code>--lgpd-btn-bg</code>.</li>
+            </ul>
+        </details>
+
+        <?php AdSpirit_Menu::form_close('Salvar consentimento'); ?>
         <?php AdSpirit_Menu::card_close(); ?>
         <?php
     }

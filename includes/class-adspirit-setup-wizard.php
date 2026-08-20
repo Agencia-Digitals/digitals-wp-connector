@@ -53,71 +53,99 @@ class AdSpirit_Setup_Wizard {
                 if ($it['status'] === 'ok') $total_ok++;
                 elseif ($it['status'] === 'warn') $total_warn++;
                 elseif ($it['status'] === 'error') $total_error++;
+                elseif ($it['status'] === 'off') $total_items--; // opcional parado não conta no placar
             }
         }
         $progress = $total_items > 0 ? round(($total_ok / $total_items) * 100) : 0;
 
         ?>
-        <div class="as-card">
-            <h2 class="as-section"><span class="as-kicker-inline">Setup</span>Checklist de configuração</h2>
-            <p class="as-section-help">
-                Status de cada parte do plugin. Verde = configurado e funcionando.
-                Amarelo = atenção (ex.: plugin concorrente ativo). Vermelho = falta config obrigatória.
-            </p>
-
-            <div style="display:flex; align-items:center; gap:24px; margin: 20px 0; padding:16px; background:#f6f7f7; border-radius:6px;">
+        <?php // Doutrina: DS-only (zero cor fora de token); OK é silencioso,
+              // só warn/error carregam cor; seção 100% ok recolhe. ?>
+        <div class="as-card" style="padding:18px 22px;">
+            <div style="display:flex; align-items:center; gap:24px;">
                 <div style="flex:1;">
-                    <div style="font-size:14px; font-weight:600; margin-bottom:8px;">
-                        <?php echo (int) $total_ok; ?> de <?php echo (int) $total_items; ?> itens OK
+                    <div style="font-size:13.5px; font-weight:600; margin-bottom:10px; color:var(--as-ink);">
+                        <?php echo (int) $total_ok; ?> de <?php echo (int) $total_items; ?> itens prontos
                         <?php if ($total_error) : ?>
-                            · <span style="color:#dc3545;"><?php echo (int) $total_error; ?> obrigatório(s) faltando</span>
+                            · <span style="color:var(--as-danger);"><?php echo (int) $total_error; ?> obrigatório(s) faltando</span>
                         <?php endif; ?>
                         <?php if ($total_warn) : ?>
-                            · <span style="color:#d39e00;"><?php echo (int) $total_warn; ?> aviso(s)</span>
+                            · <span style="color:var(--as-warning);"><?php echo (int) $total_warn; ?> atenção</span>
                         <?php endif; ?>
                     </div>
-                    <div style="background:#e5e5e5; border-radius:8px; height:8px; overflow:hidden;">
-                        <div style="background:linear-gradient(90deg,#28a745,#5cb85c); height:100%; width:<?php echo (int) $progress; ?>%; transition:width 320ms ease;"></div>
+                    <div style="background:var(--as-bg-subtle); border-radius:8px; height:6px; overflow:hidden;">
+                        <div style="background:var(--as-accent); height:100%; width:<?php echo (int) $progress; ?>%; transition:width 320ms ease;"></div>
                     </div>
                 </div>
-                <div style="font-size:36px; font-weight:700; color:<?php echo $total_error > 0 ? '#dc3545' : ($total_warn > 0 ? '#d39e00' : '#28a745'); ?>;">
+                <div style="font-size:28px; font-weight:600; font-variant-numeric:tabular-nums; color:<?php echo $total_error > 0 ? 'var(--as-danger)' : 'var(--as-ink)'; ?>;">
                     <?php echo (int) $progress; ?>%
                 </div>
             </div>
         </div>
 
-        <?php foreach ($sections as $sec) : ?>
-            <div class="as-card" style="margin-top:16px;">
-                <h2 class="as-section"><span class="as-kicker-inline"><?php echo esc_html($sec['kicker']); ?></span><?php echo esc_html($sec['title']); ?></h2>
+        <?php foreach ($sections as $sec) :
+            $sec_ok = true;
+            foreach ($sec['items'] as $it2) {
+                if (!in_array(($it2['status'] ?? ''), array('ok', 'off'), true)) { $sec_ok = false; break; }
+            }
+        ?>
+            <?php if ($sec_ok) : ?>
+                <details class="as-help" style="margin:0 0 14px;">
+                    <summary><span class="as-badge ok" style="margin-right:8px;">✓</span><?php echo esc_html($sec['title']); ?></summary>
+                    <ul class="adspirit-setup-list" style="margin-top:8px;">
+                        <?php foreach ($sec['items'] as $item) : ?>
+                            <li><span class="st-ic ok">✓</span>
+                                <div style="flex:1;"><div class="st-label"><?php echo esc_html($item['label']); ?></div></div>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                </details>
+            <?php else : ?>
+            <div class="as-card" style="padding:18px 22px;">
+                <h2 class="as-section" style="margin-top:0;"><span class="as-kicker-inline"><?php echo esc_html($sec['kicker']); ?></span><?php echo esc_html($sec['title']); ?></h2>
                 <?php if (!empty($sec['intro'])) : ?>
                     <p class="as-section-help"><?php echo wp_kses_post($sec['intro']); ?></p>
                 <?php endif; ?>
 
                 <ul class="adspirit-setup-list">
                     <?php foreach ($sec['items'] as $item) :
-                        $color = $item['status'] === 'ok' ? '#28a745' : ($item['status'] === 'warn' ? '#d39e00' : '#dc3545');
-                        $icon = $item['status'] === 'ok' ? '✓' : ($item['status'] === 'warn' ? '⚠' : '✗');
+                        $map = array('ok' => array('ok', '✓'), 'warn' => array('warn', '!'), 'off' => array('off', '·'));
+                        list($st, $icon) = isset($map[$item['status']]) ? $map[$item['status']] : array('err', '✕');
                     ?>
-                        <li style="display:flex; align-items:flex-start; gap:14px; padding:12px 0; border-bottom:1px solid #f0f0f0;">
-                            <span style="display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:50%; background:<?php echo esc_attr($color); ?>; color:white; font-weight:700; flex-shrink:0; font-size:14px;"><?php echo esc_html($icon); ?></span>
+                        <li>
+                            <span class="st-ic <?php echo esc_attr($st); ?>"><?php echo esc_html($icon); ?></span>
                             <div style="flex:1;">
-                                <div style="font-weight:600; font-size:14px;"><?php echo esc_html($item['label']); ?></div>
+                                <div class="st-label"><?php echo esc_html($item['label']); ?></div>
                                 <?php if (!empty($item['detail'])) : ?>
-                                    <div style="font-size:12.5px; color:#555; margin-top:3px;"><?php echo wp_kses_post($item['detail']); ?></div>
+                                    <div class="st-detail"><?php echo wp_kses_post($item['detail']); ?></div>
                                 <?php endif; ?>
                             </div>
-                            <?php if (!empty($item['cta_url'])) : ?>
-                                <a href="<?php echo esc_url($item['cta_url']); ?>" class="button" target="<?php echo esc_attr(!empty($item['cta_external']) ? '_blank' : '_self'); ?>"><?php echo esc_html($item['cta_label'] ?? 'Configurar'); ?></a>
+                            <?php if (!empty($item['cta_url']) && $item['status'] !== 'ok') : ?>
+                                <a href="<?php echo esc_url($item['cta_url']); ?>" class="<?php echo $item['status'] === 'off' ? 'button-link' : 'button'; ?>" target="<?php echo esc_attr(!empty($item['cta_external']) ? '_blank' : '_self'); ?>"><?php echo esc_html($item['cta_label'] ?? 'Configurar'); ?></a>
                             <?php endif; ?>
                         </li>
                     <?php endforeach; ?>
                 </ul>
             </div>
+            <?php endif; ?>
         <?php endforeach; ?>
 
         <style>
             .adspirit-setup-list { margin: 8px 0 0; padding: 0; list-style: none; }
-            .adspirit-setup-list li:last-child { border-bottom: none !important; }
+            .adspirit-setup-list li { display:flex; align-items:flex-start; gap:12px; padding:11px 0; border-bottom:1px solid var(--as-line); }
+            .adspirit-setup-list li:last-child { border-bottom: none; }
+            .adspirit-setup-list .st-label { font-weight:600; font-size:13.5px; color:var(--as-ink); }
+            .adspirit-setup-list .st-detail { font-size:12.5px; color:var(--as-ink-faint); margin-top:3px; }
+            /* OK é silencioso (tom suave); só problema carrega cor forte. */
+            .adspirit-setup-list .st-ic {
+                display:inline-flex; align-items:center; justify-content:center;
+                width:22px; height:22px; border-radius:50%; flex-shrink:0;
+                font-size:12px; font-weight:700; margin-top:1px;
+            }
+            .adspirit-setup-list .st-ic.ok  { background:var(--as-bg-success); color:var(--as-success); }
+            .adspirit-setup-list .st-ic.warn{ background:var(--as-bg-warning); color:var(--as-warning); }
+            .adspirit-setup-list .st-ic.err { background:var(--as-bg-danger);  color:var(--as-danger); }
+            .adspirit-setup-list .st-ic.off { background:var(--as-bg-subtle);  color:var(--as-ink-faint); }
         </style>
         <?php
     }
@@ -164,6 +192,48 @@ class AdSpirit_Setup_Wizard {
         );
     }
 
+    /**
+     * v2.30 — handshake de cobertura central (fatia 1). Pergunta ao AdSpirit
+     * o que a marca JÁ TEM configurado do lado de lá (CAPI central, pixel,
+     * domínios vinculados) pra reconciliar o checklist: "Coberto pelo
+     * AdSpirit" em vez de pedir configuração duplicada. Propósito do plugin
+     * é a conexão mágica — detectar o que foi feito à mão e complementar.
+     * Cache 15 min; indisponível/CRM antigo (404) cacheia 5 min e o
+     * checklist se comporta como antes (fail-soft). Nunca bloqueia render.
+     */
+    public static function central_status() {
+        $cached = get_transient('adspirit_central_status');
+        if (is_array($cached)) {
+            return empty($cached['unavailable']) ? $cached : null;
+        }
+        $core = AdSpirit_Settings::get_core();
+        if (empty($core['endpoint_url']) || empty($core['brand_slug']) || empty($core['secret'])) {
+            return null; // sem conexão não há o que perguntar (e nada a cachear)
+        }
+        $url = rtrim((string) $core['endpoint_url'], '/')
+            . '/api/wp/central-status?brand_slug=' . rawurlencode((string) $core['brand_slug']);
+        $resp = wp_remote_get($url, array(
+            'timeout' => 6,
+            'headers' => array(
+                'x-cf7-secret' => (string) $core['secret'],
+                'User-Agent'   => 'AdSpirit-Connector/' . (defined('ADSPIRIT_CONNECTOR_VERSION') ? ADSPIRIT_CONNECTOR_VERSION : ''),
+            ),
+        ));
+        $data = null;
+        if (!is_wp_error($resp) && (int) wp_remote_retrieve_response_code($resp) === 200) {
+            $body = json_decode((string) wp_remote_retrieve_body($resp), true);
+            if (is_array($body) && isset($body['central']) && is_array($body['central'])) {
+                $data = $body['central'];
+            }
+        }
+        if ($data === null) {
+            set_transient('adspirit_central_status', array('unavailable' => true), 300);
+            return null;
+        }
+        set_transient('adspirit_central_status', $data, 900);
+        return $data;
+    }
+
     private function check_tracking() {
         $capi = method_exists('AdSpirit_Settings', 'get_capi_meta') ? AdSpirit_Settings::get_capi_meta() : array();
         $ga4 = method_exists('AdSpirit_Settings', 'get_ga4') ? AdSpirit_Settings::get_ga4() : array();
@@ -172,51 +242,92 @@ class AdSpirit_Setup_Wizard {
 
         $items = array();
 
-        $capi_ok = !empty($capi['enabled']) && $capi['enabled'] === '1'
-            && !empty($capi['pixel_id']) && !empty($capi['access_token']);
+        // Handshake: o que a marca já tem configurado do lado do AdSpirit.
+        $central = self::central_status();
+        $c_capi_meta = is_array($central) && !empty($central['capi_meta']['covered']);
+        $c_capi_goog = is_array($central) && !empty($central['capi_google']['covered']);
+        $c_pixel_events = is_array($central) && isset($central['pixel']['events_30d'])
+            ? (int) $central['pixel']['events_30d'] : 0;
+        $c_pixel_mask = $c_capi_meta && !empty($central['capi_meta']['pixel_id_masked'])
+            ? (string) $central['capi_meta']['pixel_id_masked'] : '';
+
+        // Doutrina: opcional NÃO configurado é 'off' (silencioso) — âmbar é
+        // reservado pra algo que pede ação de verdade. Com o handshake, o
+        // que já foi configurado CENTRALMENTE aparece verde ("coberto") —
+        // o setup feito à mão antes do plugin existir é detectado, não
+        // pedido de novo.
+        $capi_ok = class_exists('AdSpirit_Capi_Meta') && AdSpirit_Capi_Meta::is_configured($capi);
+        if ($capi_ok) {
+            $capi_detail = 'Pixel <code>' . esc_html($capi['pixel_id']) . '</code> · enviando do site'
+                . ($c_capi_meta ? ' · também coberto centralmente pelo AdSpirit (dedup automático)' : '');
+            $capi_status = 'ok';
+        } elseif ($c_capi_meta) {
+            $capi_detail = 'Coberto pelo AdSpirit (central' . ($c_pixel_mask !== '' ? ', pixel <code>' . esc_html($c_pixel_mask) . '</code>' : '') . ') — as conversões da marca disparam do CRM. Ativar o disparo deste site é opcional (dedup automático).';
+            $capi_status = 'ok';
+        } else {
+            $capi_detail = 'Opcional — o AdSpirit pode disparar conversões centralmente pela marca. Ativar aqui adiciona o disparo do próprio site (recupera ~15-30% perdido por bloqueadores), com dedup automático entre os dois.';
+            $capi_status = 'off';
+        }
         $items[] = $this->item(
-            $capi_ok ? 'ok' : 'warn',
-            'Meta Conversions API (server-side)',
-            $capi_ok
-                ? 'Pixel <code>' . esc_html($capi['pixel_id']) . '</code> · CAPI ativa'
-                : 'Configure <code>pixel_id</code> e <code>access_token</code>. Resolve ~15-30% de subnotificação por ad-blockers / iOS Private. Plus dedup automático com Pixel browser-side via <code>event_id</code>.',
+            $capi_status,
+            'Conversões Meta',
+            $capi_detail,
             $capi_url,
             $capi_ok ? 'Editar' : 'Configurar'
         );
 
+        if ($c_capi_goog) {
+            $items[] = $this->item(
+                'ok',
+                'Conversões Google Ads',
+                'Coberto pelo AdSpirit (central) — leads e vendas da marca são reportados ao Google Ads pelo CRM. Nada a fazer neste site.',
+                '',
+                ''
+            );
+        }
+
         $ga4_ok = !empty($ga4['enabled']) && $ga4['enabled'] === '1'
             && !empty($ga4['measurement_id']) && !empty($ga4['api_secret']);
         $items[] = $this->item(
-            $ga4_ok ? 'ok' : 'warn',
-            'GA4 Measurement Protocol (server-side)',
+            $ga4_ok ? 'ok' : 'off',
+            'Conversões Google (deste site)',
             $ga4_ok
-                ? 'Stream <code>' . esc_html($ga4['measurement_id']) . '</code> · server-side ativo'
-                : 'Configure <code>measurement_id</code> e <code>api_secret</code>. Necessário pro <code>[adspirit_thank_you]</code> disparar conversão server-side em GA4.',
+                ? 'Stream <code>' . esc_html($ga4['measurement_id']) . '</code> · enviando do site'
+                : 'Opcional — necessário só se a página de obrigado deste site dispara conversão direto no GA4.',
             $ga4_url,
             $ga4_ok ? 'Editar' : 'Configurar'
         );
 
-        $pixel_browser = !empty($core['pixel_enabled']) && $core['pixel_enabled'] === '1';
         $core_check = AdSpirit_Settings::get_core();
         $pixel_status = !empty($core_check['pixel_enabled']) && $core_check['pixel_enabled'] === '1';
         // v2.10: Turnstile como opcional (recomendado pra anti-bot avançado)
         $turnstile_active = class_exists('AdSpirit_Turnstile') && AdSpirit_Turnstile::is_active();
         $items[] = $this->item(
-            $turnstile_active ? 'ok' : 'warn',
-            'Cloudflare Turnstile (anti-bot invisível)',
+            $turnstile_active ? 'ok' : 'off',
+            'Verificação Cloudflare (anti-bot invisível)',
             $turnstile_active
-                ? 'Configurado e ativo. Pega bots sofisticados que honeypot/time-trap não pegam.'
-                : 'Opcional, mas recomendado. <strong>Grátis e ilimitado.</strong> Substitui reCAPTCHA + complementa o Anti-Spam Pro.',
+                ? 'Ativa. Pega bots sofisticados que as camadas básicas não pegam.'
+                : 'Opcional e grátis — camada extra recomendada se o site sofrer com bots que passam pelo anti-spam.',
             admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=turnstile'),
             $turnstile_active ? 'Editar' : 'Configurar'
         );
 
+        if ($pixel_status) {
+            $px_st = 'ok';
+            $px_detail = 'Injetado pelo plugin. Atenção pra não duplicar com um pixel colado manualmente no tema.';
+        } elseif ($c_pixel_events > 0) {
+            // A marca registra eventos no AdSpirit sem o plugin injetar nada
+            // — instalação manual (pré-plugin) ou outro site da marca.
+            $px_st = 'ok';
+            $px_detail = 'Rastreamento ativo na marca (' . number_format_i18n($c_pixel_events) . ' eventos/30d no AdSpirit) — provavelmente instalado manualmente antes do plugin. Ligar aqui só se quiser que o plugin gerencie a injeção (sem duplicar).';
+        } else {
+            $px_st = 'off';
+            $px_detail = 'Desligado no plugin. Se o rastreio já está colado manualmente no tema, tudo certo — não duplicar.';
+        }
         $items[] = $this->item(
-            $pixel_status ? 'ok' : 'warn',
-            'Pixel Meta (browser-side)',
-            $pixel_status
-                ? 'Pixel injetado no <code>&lt;head&gt;</code> via plugin. Cuidado com Pixel duplicado em Code Block manual.'
-                : 'Pixel browser-side desligado no plugin. Se já está injetado via Code Block manual, OK — não duplicar.',
+            $px_st,
+            'Rastreador no site (pixel)',
+            $px_detail,
             admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=connection'),
             'Configurar'
         );

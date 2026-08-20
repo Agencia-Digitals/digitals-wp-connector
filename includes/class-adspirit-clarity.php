@@ -181,79 +181,68 @@ class AdSpirit_Clarity {
             ? 'https://clarity.microsoft.com/projects/view/' . rawurlencode($c['project_id'])
             : '';
         ?>
-        <h2 class="as-section"><span class="as-kicker-inline">Clarity</span>Heatmaps, session replay e funnels</h2>
-        <p class="as-section-help">
-            Injeta o tag oficial Microsoft Clarity no <code>&lt;head&gt;</code> respeitando o consent de analytics do popup LGPD. Propaga <code>visitor_id</code>, <code>brand_slug</code>, <code>session_id</code> e variants de A/B test como custom tags, e identifica o lead via <code>clarity('identify')</code> no submit de form.
-        </p>
+        <h2 class="as-section"><span class="as-kicker-inline">Clarity</span>Gravações e mapas de calor</h2>
+        <p class="as-section-help">Liga o Microsoft Clarity no site pra você assistir sessões e ver onde as pessoas clicam. Só roda pra quem aceitou cookies de análise.</p>
 
         <?php if (!empty($c['project_id']) && !$valid_id): ?>
             <div class="as-notice danger">
                 <div class="as-notice-kicker">Project ID inválido</div>
-                <p>O ID deve ter 8–12 caracteres alfanuméricos. Enquanto inválido, o loader fica desligado mesmo com a feature marcada como ativa.</p>
+                <p>O ID precisa ter de 8 a 12 letras e números, sem espaços. Corrija o campo abaixo — até lá, o Clarity fica desligado mesmo com a chave marcada.</p>
             </div>
         <?php endif; ?>
 
-        <?php AdSpirit_Menu::card_open('Configuração', 'Cole o Project ID que aparece em <em>clarity.microsoft.com → Settings → Setup</em>', $status_badge); ?>
-        <?php AdSpirit_Menu::form_open('clarity'); ?>
-        <table class="form-table">
-            <tr>
-                <th>Status</th>
-                <td>
-                    <label>
-                        <input type="checkbox" name="enabled" value="1" <?php checked($c['enabled'], '1'); ?>>
-                        Ativar Clarity (depende de consent de analytics + Project ID válido)
-                    </label>
-                </td>
-            </tr>
-            <tr>
-                <th><label for="clarity_project_id">Project ID</label></th>
-                <td>
-                    <input type="text" id="clarity_project_id" name="project_id" value="<?php echo esc_attr($c['project_id']); ?>" class="regular-text" autocomplete="off" pattern="[a-zA-Z0-9]{8,12}" placeholder="abc1d2e3f4">
-                    <p class="description">8 a 12 caracteres alfanuméricos (regex <code>^[a-z0-9]{8,12}$</code>, case-insensitive).</p>
-                </td>
-            </tr>
-            <tr>
-                <th>Identify</th>
-                <td>
-                    <label>
-                        <input type="checkbox" name="identify_on_lead" value="1" <?php checked($c['identify_on_lead'], '1'); ?>>
-                        Chamar <code>clarity('identify')</code> em CF7 submit / <code>adspirit:form-submitted</code>
-                    </label>
-                </td>
-            </tr>
-            <tr>
-                <th>Visitor stitch</th>
-                <td>
-                    <label>
-                        <input type="checkbox" name="share_visitor_id" value="1" <?php checked($c['share_visitor_id'], '1'); ?>>
-                        Propagar <code>adspirit_vid</code> como custom tag <code>visitor_id</code> (recomendado pra stitch com CRM)
-                    </label>
-                </td>
-            </tr>
-            <tr>
-                <th>Email hash</th>
-                <td>
-                    <label>
-                        <input type="checkbox" name="hash_email" value="1" <?php checked($c['hash_email'], '1'); ?>>
-                        Enviar SHA-256 do email (primeiros 16 chars) em vez do plaintext no <code>identify</code>
-                    </label>
-                    <p class="description">Recomendado por padrão pra reduzir superfície de dado pessoal exposto ao Clarity. Desligar só se você precisa cruzar manualmente com outro sistema por email cleartext.</p>
-                </td>
-            </tr>
-        </table>
-        <?php AdSpirit_Menu::form_close('Salvar Clarity'); ?>
-        <?php AdSpirit_Menu::card_close(); ?>
-
+        <?php // Doutrina: o dado (as gravações) vem antes do controle. ?>
         <?php if ($valid_id): ?>
-            <?php AdSpirit_Menu::card_open('Dashboard', 'Atalho pro projeto Clarity correspondente a este Project ID'); ?>
+            <?php AdSpirit_Menu::card_open('Suas gravações', 'Atalho pro projeto Clarity deste site'); ?>
             <p>
                 <a href="<?php echo esc_url($dashboard_url); ?>" target="_blank" rel="noopener" class="button button-secondary">
-                    Abrir dashboard Clarity &rarr;
+                    Abrir painel do Clarity &rarr;
                 </a>
             </p>
-            <p class="description">URL: <code><?php echo esc_html($dashboard_url); ?></code></p>
             <?php AdSpirit_Menu::card_close(); ?>
         <?php endif; ?>
+
+        <?php AdSpirit_Menu::card_open('Configuração', 'O Project ID aparece em <em>clarity.microsoft.com → Settings → Setup</em>', $status_badge); ?>
+        <?php AdSpirit_Menu::form_open('clarity'); ?>
+
+        <div class="as-toggle">
+            <input type="checkbox" id="clarity_enabled" name="enabled" value="1" <?php checked($c['enabled'], '1'); ?>>
+            <label class="t" for="clarity_enabled">Clarity ligado<small>Precisa de um Project ID válido e do aceite de cookies de análise pelo visitante.</small></label>
+        </div>
+
+        <div class="as-field">
+            <label class="as-field-label" for="clarity_project_id">Project ID</label>
+            <input type="text" id="clarity_project_id" name="project_id" value="<?php echo esc_attr($c['project_id']); ?>" class="regular-text" autocomplete="off" pattern="[a-zA-Z0-9]{8,12}" placeholder="abc1d2e3f4">
+            <p class="description">De 8 a 12 letras e números. Copie do painel do Clarity, em Settings → Setup.</p>
+        </div>
+
+        <div class="as-toggle">
+            <input type="checkbox" id="clarity_identify" name="identify_on_lead" value="1" <?php checked($c['identify_on_lead'], '1'); ?>>
+            <label class="t" for="clarity_identify">Ligar a gravação ao lead<small>Quando alguém envia um formulário, a sessão gravada fica identificada com esse lead.</small></label>
+        </div>
+
+        <div class="as-toggle">
+            <input type="checkbox" id="clarity_share_vid" name="share_visitor_id" value="1" <?php checked($c['share_visitor_id'], '1'); ?>>
+            <label class="t" for="clarity_share_vid">Cruzar com o AdSpirit<small>Marca a gravação com o mesmo código de visitante do CRM. Recomendado.</small></label>
+        </div>
+
+        <div class="as-toggle">
+            <input type="checkbox" id="clarity_hash_email" name="hash_email" value="1" <?php checked($c['hash_email'], '1'); ?>>
+            <label class="t" for="clarity_hash_email">Proteger o email do lead<small>Envia o email embaralhado (hash) em vez do texto real. Recomendado; desligue só se precisar cruzar por email em outro sistema.</small></label>
+        </div>
+
+        <details class="as-help">
+            <summary>Detalhes técnicos (pra suporte)</summary>
+            <ul>
+                <li>O tag oficial do Clarity é injetado no <code>&lt;head&gt;</code>, condicionado ao consent de análise do aviso de cookies.</li>
+                <li>Propaga <code>visitor_id</code>, <code>brand_slug</code>, <code>session_id</code> e variante de teste A/B como custom tags.</li>
+                <li>O identify dispara no submit do CF7 e no evento <code>adspirit:form-submitted</code>.</li>
+                <li>Com a proteção de email ligada, vai o SHA-256 (primeiros 16 caracteres) em vez do texto.</li>
+            </ul>
+        </details>
+
+        <?php AdSpirit_Menu::form_close('Salvar Clarity'); ?>
+        <?php AdSpirit_Menu::card_close(); ?>
         <?php
     }
 

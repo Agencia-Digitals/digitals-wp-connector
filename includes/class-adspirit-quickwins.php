@@ -16,7 +16,7 @@ class AdSpirit_Quickwins {
     const UPDATE_TRANSIENT = 'adspirit_connector_update_check';
     const UPDATE_INTERVAL = 21600; // 6h
     const HEALTH_CRON_HOOK = 'adspirit_connector_health_check';
-    const GITHUB_REPO = 'agenciadigitals/digitals-wp-connector';
+    const GITHUB_REPO = 'Agencia-Digitals/digitals-wp-connector';
 
     private static $instance = null;
     public static function instance() {
@@ -26,10 +26,26 @@ class AdSpirit_Quickwins {
 
     private function __construct() {
         // 1. Auto-update
+        // Connector 3.0 (Pedro 2026-08-18): o plugin se auto-opta no
+        // auto-update NATIVO do WP — a frota atrasava crônico (sites 8
+        // versões atrás) porque ninguém clica em "Atualizar". Passa pelo
+        // pipeline padrão do WP (respeita host que desliga auto-updates);
+        // escape hatch via filtro adspirit_connector_auto_update.
+        add_filter('auto_update_plugin',
+            AdSpirit_Safe_Hook::filter(array($this, 'opt_in_auto_update'), 'qw_auto_update'), 10, 2);
         add_filter('pre_set_site_transient_update_plugins',
             AdSpirit_Safe_Hook::filter(array($this, 'check_for_update'), 'qw_update_check'));
+        // 1b. Atualizou ESTE plugin → derruba o cache da release na hora,
+        // pra checagem pós-update já oferecer a próxima se existir.
+        add_action('upgrader_process_complete',
+            AdSpirit_Safe_Hook::action(array($this, 'flush_update_cache_after_upgrade'), 'qw_upgrade_flush'), 10, 2);
         add_filter('plugins_api',
             AdSpirit_Safe_Hook::filter(array($this, 'plugin_info'), 'qw_plugin_info'), 10, 3);
+        // 1c. Checksum do pacote: quando o manifest do CRM declara sha256,
+        // o zip baixado é verificado ANTES de instalar. Mismatch aborta o
+        // update (WP_Error) — a versão instalada fica intacta.
+        add_filter('upgrader_pre_download',
+            AdSpirit_Safe_Hook::filter(array($this, 'verify_package_checksum'), 'qw_checksum'), 10, 3);
 
         // 2. Test event button — registrado como admin-post
         add_action('admin_post_adspirit_send_test_event',
@@ -47,10 +63,34 @@ class AdSpirit_Quickwins {
 
     // ========== 1. AUTO-UPDATE via GitHub Releases ==========
 
+    /**
+     * Auto-opta ESTE plugin no auto-update do WP (aprovado Pedro 2026-08-18).
+     * Só toca o próprio basename — nunca muda a decisão pros outros plugins.
+     */
+    public function opt_in_auto_update($update, $item) {
+        if (is_object($item) && isset($item->plugin)
+            && $item->plugin === plugin_basename(ADSPIRIT_CONNECTOR_FILE)) {
+            return (bool) apply_filters('adspirit_connector_auto_update', true);
+        }
+        return $update;
+    }
+
     /** Logo do plugin pra tela de Plugins / Atualizações / modal de detalhes. */
     private function icon_urls() {
         $svg = ADSPIRIT_CONNECTOR_URL . 'assets/adspirit-mark.svg';
         return array('svg' => $svg, '1x' => $svg, '2x' => $svg, 'default' => $svg);
+    }
+
+    /** upgrader_process_complete: se o pacote atualizado inclui este plugin,
+     *  esvazia o cache interno da release. */
+    public function flush_update_cache_after_upgrade($upgrader, $hook_extra) {
+        if (!is_array($hook_extra) || ($hook_extra['type'] ?? '') !== 'plugin') return;
+        $me = plugin_basename(ADSPIRIT_CONNECTOR_FILE);
+        $plugins = (array) ($hook_extra['plugins'] ?? array());
+        if (!empty($hook_extra['plugin'])) $plugins[] = $hook_extra['plugin'];
+        if (in_array($me, $plugins, true)) {
+            delete_transient(self::UPDATE_TRANSIENT);
+        }
     }
 
     public function check_for_update($transient) {
@@ -60,11 +100,23 @@ class AdSpirit_Quickwins {
         $current = ADSPIRIT_CONNECTOR_VERSION;
 
         $cached = get_transient(self::UPDATE_TRANSIENT);
+        $fetched_at = is_array($cached) ? (int) ($cached['fetched_at'] ?? 0) : 0;
+        $has_newer = is_array($cached) && !empty($cached['version'])
+            && version_compare($cached['version'], $current, '>');
+        // Cache SEM update pra oferecer (pós-update, ou instalada já é a
+        // última) envelhece em 15 min — releases publicadas em sequência
+        // aparecem na checagem seguinte, sem o "atualizar duas vezes".
+        // O cache de 6h só vale enquanto ele ainda oferece algo.
+        if (!$has_newer && (time() - $fetched_at) > 900) {
+            $cached = false;
+        }
         if ($cached === false) {
-            $cached = $this->fetch_latest_release();
+            $fresh = $this->fetch_best_release();
+            $cached = is_array($fresh) ? $fresh : array();
+            $cached['fetched_at'] = time(); // falha de rede vira backoff de 15 min
             set_transient(self::UPDATE_TRANSIENT, $cached, self::UPDATE_INTERVAL);
         }
-        if (!$cached || empty($cached['version'])) return $transient;
+        if (empty($cached['version'])) return $transient;
 
         if (version_compare($cached['version'], $current, '>')) {
             $transient->response[$plugin_basename] = (object) array(
@@ -86,7 +138,7 @@ class AdSpirit_Quickwins {
         if (empty($args->slug) || $args->slug !== 'adspirit-connector') return $result;
 
         $cached = get_transient(self::UPDATE_TRANSIENT);
-        if (!$cached) $cached = $this->fetch_latest_release();
+        if (!$cached) $cached = $this->fetch_best_release();
         if (!$cached) return $result;
 
         return (object) array(
@@ -104,6 +156,51 @@ class AdSpirit_Quickwins {
             ),
             'icons' => $this->icon_urls(),
             'download_link' => $cached['zip'],
+        );
+    }
+
+    /**
+     * Connector 3.0 — fonte dupla de update. Consulta o manifest hospedado
+     * no CRM E o GitHub, e oferece A MAIOR versão das duas. Por quê max e
+     * não prioridade: manifest defasado nunca mascara release novo do
+     * GitHub, e GitHub fora do ar/rate-limited nunca trava a frota. Quando
+     * o repo virar privado, o manifest vira a única fonte viva — e o ritual
+     * de release passa a exigir sync do zip+manifest no CRM.
+     */
+    private function fetch_best_release() {
+        $github = $this->fetch_latest_release();
+        $crm    = $this->fetch_crm_manifest();
+        if (!is_array($github)) return $crm;
+        if (!is_array($crm)) return $github;
+        return version_compare((string) $crm['version'], (string) $github['version'], '>') ? $crm : $github;
+    }
+
+    /**
+     * Manifest de update servido pelo próprio CRM ({endpoint}/downloads/
+     * manifest.json). Formato: {version, package, url, changelog}. Retorna
+     * o mesmo shape do fetch_latest_release() ou null (fail-soft).
+     */
+    private function fetch_crm_manifest() {
+        $core = AdSpirit_Settings::get_core();
+        if (empty($core['endpoint_url'])) return null;
+        $url = rtrim((string) $core['endpoint_url'], '/') . '/downloads/manifest.json';
+        $resp = wp_remote_get($url, array(
+            'timeout' => 8,
+            'headers' => array('User-Agent' => 'AdSpirit-Connector/' . ADSPIRIT_CONNECTOR_VERSION),
+        ));
+        if (is_wp_error($resp)) return null;
+        if ((int) wp_remote_retrieve_response_code($resp) !== 200) return null;
+        $data = json_decode((string) wp_remote_retrieve_body($resp), true);
+        if (!is_array($data) || empty($data['version']) || empty($data['package'])) return null;
+        return array(
+            'version' => ltrim((string) $data['version'], 'v'),
+            'url'     => (string) ($data['url'] ?? $core['endpoint_url']),
+            'zip'     => (string) $data['package'],
+            'body'    => (string) ($data['changelog'] ?? ''),
+            // v2.30: checksum do zip (opcional no manifest). Com ele, o
+            // download é verificado antes de instalar — vital com auto-update
+            // na frota. Sem o campo, comportamento idêntico ao de sempre.
+            'sha256'  => strtolower(trim((string) ($data['sha256'] ?? ''))),
         );
     }
 
@@ -136,6 +233,34 @@ class AdSpirit_Quickwins {
             'zip' => $zip ?: ((string) ($data['zipball_url'] ?? '')),
             'body' => (string) ($data['body'] ?? ''),
         );
+    }
+
+    /**
+     * upgrader_pre_download: se o pacote é o NOSSO zip e temos sha256 do
+     * manifest, baixa e confere o hash. Retorno false = WP baixa normal
+     * (qualquer outro plugin, ou manifest sem checksum — fail-open).
+     */
+    public function verify_package_checksum($reply, $package, $upgrader = null, $hook_extra = null) {
+        if ($reply !== false) return $reply; // outro filtro já resolveu
+        if (!is_string($package) || $package === '') return $reply;
+        $cached = get_transient(self::UPDATE_TRANSIENT);
+        if (!is_array($cached) || empty($cached['sha256']) || empty($cached['zip'])) return $reply;
+        if ($package !== $cached['zip']) return $reply;
+
+        if (!function_exists('download_url')) {
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+        }
+        $file = download_url($package, 300);
+        if (is_wp_error($file)) return $file;
+        $hash = strtolower((string) hash_file('sha256', $file));
+        if ($hash !== $cached['sha256']) {
+            @unlink($file);
+            return new WP_Error('adspirit_checksum_mismatch', sprintf(
+                'AdSpirit Connector: checksum do pacote não confere (esperado %s…, veio %s…). Update abortado — a versão instalada segue intacta.',
+                substr($cached['sha256'], 0, 12), substr($hash, 0, 12)
+            ));
+        }
+        return $file;
     }
 
     // ========== 1b. FORCE UPDATE CHECK ==========
@@ -223,7 +348,7 @@ class AdSpirit_Quickwins {
 
     public function run_health_check() {
         // Só alerta se cron diário SEM lead nas últimas 24h, em dia útil.
-        $now_day = (int) date('N'); // 1=segunda, 7=domingo
+        $now_day = (int) wp_date('N'); // 1=segunda, 7=domingo — fuso do SITE (B11)
         if ($now_day >= 6) return; // pula fim de semana
 
         $log = get_option(AdSpirit_Cf7_Handler::LOG_KEY, array());

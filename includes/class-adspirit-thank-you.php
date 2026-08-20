@@ -67,6 +67,15 @@ class AdSpirit_Thank_You {
         $value = is_numeric($atts['value']) ? (float) $atts['value'] : null;
         $currency = sanitize_text_field((string) $atts['currency']);
 
+        // v2.30 — dedup×cache (lição PYS): página de obrigado CACHEADA é
+        // duplamente ruim — o disparo server-side abaixo nem roda (cache hit
+        // não executa PHP) e o event_id fica congelado no HTML, então todos
+        // os visitantes empurram o MESMO id pro pixel e o Meta dedupa
+        // conversões legítimas. DONOTCACHEPAGE é respeitado por WP Rocket,
+        // W3TC, Super Cache e LiteSpeed. Cache de borda (Cloudflare APO etc)
+        // não obedece — aí vale a regra operacional: excluir /obrigado.
+        if (!defined('DONOTCACHEPAGE')) define('DONOTCACHEPAGE', true);
+
         // Event ID determinístico — dedup F5 do mesmo user na mesma página/dia
         // e dedup com pixel browser-side (Meta dedupa por event_id+event_name).
         $event_id = self::build_event_id($event_name);
@@ -142,9 +151,11 @@ class AdSpirit_Thank_You {
     }
 
     private static function build_event_id($event_name) {
-        // session id usa _fbp/adspirit_vid se disponíveis, senão hash de IP+UA.
+        // session id usa _fbp > _dosvi (cookie real do pixel do CRM) >
+        // adspirit_vid (legado), senão hash de IP+UA.
         $sid = '';
         if (!empty($_COOKIE['_fbp'])) $sid = (string) $_COOKIE['_fbp'];
+        elseif (!empty($_COOKIE['_dosvi'])) $sid = (string) $_COOKIE['_dosvi'];
         elseif (!empty($_COOKIE['adspirit_vid'])) $sid = (string) $_COOKIE['adspirit_vid'];
         else {
             $ip = isset($_SERVER['REMOTE_ADDR']) ? (string) $_SERVER['REMOTE_ADDR'] : '';

@@ -34,7 +34,13 @@ class AdSpirit_Pixel_Injector {
         $token = trim((string) ($settings['pixel_token'] ?? ''));
         $base  = trim((string) ($settings['endpoint_url'] ?? ''));
         if (!$token || !$base) return;
-        $src = esc_url($base . '/pixel.js?t=' . urlencode($token));
+        // v2.29 opt-in: servir do próprio domínio (anti ad-blocker) via
+        // proxy com cache — mesmo código, endereço first-party.
+        $firstparty = ($settings['pixel_firstparty'] ?? '0') === '1'
+            && class_exists('AdSpirit_Pixel_Proxy');
+        $src = $firstparty
+            ? esc_url(AdSpirit_Pixel_Proxy::local_src())
+            : esc_url($base . '/pixel.js?t=' . urlencode($token));
         echo "\n<!-- AdSpirit Connector pixel -->\n";
         echo '<script src="' . $src . '" async></script>' . "\n";
     }

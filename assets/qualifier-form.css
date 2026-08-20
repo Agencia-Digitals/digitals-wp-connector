@@ -144,7 +144,14 @@
   inset: 0;
   z-index: 999999;
   display: flex;
-  align-items: center;
+  /* NÃO usar align-items: center aqui. Quando o step é mais alto que a
+     tela (etapa com muitas opções num celular), o centramento por
+     align-items empurra o topo do card PRA FORA do container e o
+     overflow-y não alcança — a pergunta some e não tem como rolar até
+     ela. O card fica preso, o visitante desiste. Centrar por
+     `margin: auto` no filho tem o mesmo efeito visual quando cabe e
+     degrada pra topo-alinhado quando não cabe (incidente 2026-08-14,
+     form da Zatz com 9 opções no iPhone). */
   justify-content: center;
   padding: 64px 24px 80px;
   overflow-y: auto;
@@ -158,6 +165,14 @@
   -webkit-font-smoothing: antialiased;
 }
 
+/* iOS: `position: fixed; inset: 0` mede a viewport GRANDE (barra do Safari
+   escondida), então com a barra à vista o rodapé do form fica atrás dela —
+   o último botão/opção some. 100dvh acompanha a área realmente visível.
+   Em @supports pra não afetar navegador antigo, que segue com inset: 0. */
+@supports (height: 100dvh) {
+  .adspirit-qf-main { height: 100dvh; }
+}
+
 /* Stage: empilha o step que sai e o que entra na MESMA célula do grid.
    SEM clip aqui — senão o card parece dentro de uma caixa cortada durante
    o deslize. Ele desliza livre pro lado e some no fade; o clip anti-scrollbar
@@ -167,6 +182,9 @@
   width: 100%;
   max-width: 640px;
   display: grid;
+  /* Centra na vertical sem prender o topo quando o conteúdo passa da tela
+     (ver comentário em .adspirit-qf-main). */
+  margin: auto;
 }
 .adspirit-qf-stage > .adspirit-qf-step { grid-area: 1 / 1; }
 
@@ -502,4 +520,135 @@ textarea.adspirit-qf-input { min-height: 130px; resize: vertical; line-height: 1
   .adspirit-qf-btn-back { flex: 0 0 auto; padding: 13px 16px; }
   /* Inputs com fonte ≥16px evitam o zoom automático do iOS no focus. */
   .adspirit-qf-input { font-size: 16px; padding: 16px 18px; }
+}
+
+/* ============================================================
+   2026-08-15 — paridade com o wizard do CRM (padrão Typeform):
+   progresso no topo + nav FIXA no canto inferior direito.
+   ============================================================ */
+
+/* Barra de progresso — topo da viewport (overlay/inline). */
+.adspirit-qf-progress {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  z-index: 1000001;
+  background: rgba(255, 255, 255, 0.10);
+}
+.adspirit-qf-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: #F2F2F2;
+  transition: width 480ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+/* No embed a barra pertence ao card, não à viewport. */
+.adspirit-qf-embed { position: relative; }
+.adspirit-qf-embed .adspirit-qf-progress {
+  position: absolute;
+  border-radius: 3px 3px 0 0;
+}
+
+/* Setinhas fixas no canto inferior direito (híbrido Typeform): navegação
+   SECUNDÁRIA — o botão principal continua inline, abaixo do campo. */
+.adspirit-qf-footer {
+  position: fixed;
+  right: 24px;
+  bottom: max(20px, env(safe-area-inset-bottom));
+  z-index: 1000001;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(8px);
+}
+.adspirit-qf-footer[hidden] { display: none; }
+.adspirit-qf-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 36px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #F2F2F2;
+  cursor: pointer;
+}
+.adspirit-qf-arrow:hover { background: rgba(255, 255, 255, 0.12); }
+.adspirit-qf-arrow:disabled { opacity: 0.35; cursor: default; }
+.adspirit-qf-arrow:disabled:hover { background: transparent; }
+.adspirit-qf-arrow svg { width: 18px; height: 18px; }
+.adspirit-qf-arrow:focus-visible { outline: 2px solid #F2F2F2; outline-offset: 2px; }
+/* Conteúdo nunca fica atrás das setas. */
+.adspirit-qf-main { padding-bottom: 96px; }
+/* No embed, as setas ancoram no card (não na viewport). */
+.adspirit-qf-embed .adspirit-qf-footer {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+}
+.adspirit-qf-embed { padding-bottom: 80px; }
+
+@media (max-width: 640px) {
+  /* Mobile: a nav inline já é bloco full-width perto do polegar; as setas
+     seriam redundância em tela apertada (e brigam com o teclado). */
+  .adspirit-qf-footer { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .adspirit-qf-progress-fill { transition: none !important; }
+}
+
+/* ---------- Resultado do quiz (Central de Forms · Fase 2) ----------
+   O resultado renderizado É o entregável do subscriber. Herda a
+   tipografia do qualifier (título/sub) e acrescenta a lista de
+   recomendações + o CTA que é a ponte pra virar lead. */
+.adspirit-qf-result {
+  max-width: 620px;
+}
+.adspirit-qf-result-list {
+  list-style: none;
+  margin: 0 0 32px;
+  padding: 0;
+  display: grid;
+  gap: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.adspirit-qf-result-list li {
+  background: rgba(255, 255, 255, 0.04);
+  padding: 14px 18px;
+  font-size: 15px;
+  font-weight: 300;
+  line-height: 1.5;
+  color: rgba(242, 242, 242, 0.86);
+}
+.adspirit-qf-result-cta {
+  display: inline-block;
+  background-color: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  text-decoration: none;
+  padding: 14px 34px;
+  border-radius: 4px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1.6;
+  transition: background-color 0.4s ease;
+}
+.adspirit-qf-result-cta:hover { background-color: rgba(255, 255, 255, 0.28); }
+.adspirit-qf-result-cta:focus-visible { outline: 2px solid #F2F2F2; outline-offset: 3px; }
+.adspirit-qf-result-note {
+  font-size: 13px;
+  font-weight: 300;
+  color: rgba(242, 242, 242, 0.48);
+  margin: 20px 0 0;
+}
+@media (max-width: 520px) {
+  .adspirit-qf-result-cta { display: block; text-align: center; }
 }

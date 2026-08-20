@@ -88,7 +88,47 @@ class AdSpirit_Menu {
             'submissions'  => 'Submissões recentes',
             'logs'         => 'Logs',
         );
-        return apply_filters('adspirit_connector_tabs', $tabs);
+        $tabs = apply_filters('adspirit_connector_tabs', $tabs);
+        // UX 3.0 (regra do Pedro 08-18): rótulo é pelo que a pessoa FAZ,
+        // nunca pelo nome do módulo. Override central — os módulos seguem
+        // registrando como sempre; a exibição (nav, submenu do WP, títulos)
+        // usa o rótulo leigo. Slug/handler/URL não mudam.
+        $meta = self::tab_meta();
+        foreach ($tabs as $slug => $label) {
+            if (isset($meta[$slug]['label'])) $tabs[$slug] = $meta[$slug]['label'];
+        }
+        return $tabs;
+    }
+
+    /**
+     * Rótulos leigos + descrição de uma linha por tab (tooltip da nav e
+     * legenda da tab ativa). Fonte única da linguagem do painel.
+     */
+    public static function tab_meta() {
+        return apply_filters('adspirit_connector_tab_meta', array(
+            'overview'     => array('label' => 'Visão geral',           'desc' => 'Status da conexão, checklist e os números dos últimos dias.'),
+            'setup'        => array('label' => 'Primeiros passos',      'desc' => 'Checklist guiado pra deixar tudo configurado.'),
+            'submissions'  => array('label' => 'Leads enviados',        'desc' => 'Todo lead capturado no site, com status de entrega ao AdSpirit, quarentena de spam e reenvio.'),
+            'formularios'  => array('label' => 'Formulários',           'desc' => 'Todos os formulários do site num lugar só — crie, edite, visualize e configure cada um.'),
+            'qualifier'    => array('label' => 'Form de avaliação',     'desc' => 'Configurações deste formulário: perguntas, qualificação e importação de roteiro.'),
+            'builder'      => array('label' => 'Editar formulário',     'desc' => 'Campos, finalidade e regras deste formulário.'),
+            'forms'        => array('label' => 'Mapear campos',         'desc' => 'Como cada campo deste formulário chega no AdSpirit.'),
+            'cf7-scope'    => array('label' => 'Contact Form 7',        'desc' => 'Escolha quais formulários do CF7 enviam leads.'),
+            'antispam'     => array('label' => 'Anti-spam',             'desc' => 'Bloqueio automático de bots; o que for barrado fica em quarentena revisável.'),
+            'turnstile'    => array('label' => 'Verificação Cloudflare','desc' => 'Camada anti-bot invisível (opcional).'),
+            'capi-meta'    => array('label' => 'Conversões Meta',       'desc' => 'Envia leads e eventos direto pros anúncios do Facebook/Instagram.'),
+            'ga4'          => array('label' => 'Conversões Google',     'desc' => 'Envia leads e eventos pro Google Analytics 4.'),
+            'behavioral'   => array('label' => 'Comportamento no site', 'desc' => 'Rolagem, cliques e engajamento anexados a cada lead.'),
+            'clarity'      => array('label' => 'Gravações (Clarity)',   'desc' => 'Mapas de calor e gravações de sessão da Microsoft.'),
+            'cross-domain' => array('label' => 'Rastreio entre sites',  'desc' => 'Mantém a jornada quando o visitante troca de domínio.'),
+            'ab-tests'     => array('label' => 'Testes A/B',            'desc' => 'Compare versões de formulário e veja qual converte mais.'),
+            'lgpd'         => array('label' => 'Aviso de cookies',      'desc' => 'Banner de consentimento exibido no site.'),
+            'webhook-out'  => array('label' => 'Webhooks de saída',     'desc' => 'Manda cada lead também pra outros sistemas (n8n, Zapier…).'),
+            'customerio'   => array('label' => 'Customer.io',           'desc' => 'Envia leads pra sua conta Customer.io.'),
+            'mailchimp'    => array('label' => 'Mailchimp',             'desc' => 'Inscreve leads numa lista do Mailchimp.'),
+            'connection'   => array('label' => 'Conexão com o AdSpirit','desc' => 'Endereço, marca e chave de acesso — o coração do plugin.'),
+            'logs'         => array('label' => 'Diagnóstico',           'desc' => 'Registros de envio, bloqueios e erros — pra suporte sem SSH.'),
+        ));
     }
 
     /**
@@ -98,13 +138,69 @@ class AdSpirit_Menu {
      * grupo caem num grupo "Mais" automático (nada some).
      */
     public static function tab_groups() {
+        // UX 3.0 — grupos por TAREFA do usuário, não por módulo:
+        // "Leads enviados" abre o grupo de leads (é o que se olha todo dia);
+        // builder e cf7-scope, que caíam no "Mais", ganham casa; Testes A/B
+        // e Aviso de cookies moram em "Medir campanhas" (são de medição/
+        // consentimento, não de integração/captura).
+        // Reestruturação 08-18 (Pedro): navegação pelo USO —
+        // Início (ver como está) · Receber leads (formulários, form-first)
+        // · Tracking (medição + conversões com suas configs) · Config.
+        // avançadas (integrações, anti-spam, sistema). As telas de edição
+        // (qualifier/builder/mapear) saem da nav: são DETALHE de um form,
+        // alcançadas pelo hub Formulários — a lógica é escolher o form e
+        // configurar DENTRO dele.
         return apply_filters('adspirit_connector_tab_groups', array(
-            'geral'       => array('label' => 'Geral',       'tabs' => array('overview', 'setup', 'connection')),
-            'captura'     => array('label' => 'Captura',     'tabs' => array('qualifier', 'forms', 'antispam', 'turnstile', 'lgpd')),
-            'tracking'    => array('label' => 'Tracking',    'tabs' => array('capi-meta', 'ga4', 'cross-domain', 'behavioral', 'clarity')),
-            'integracoes' => array('label' => 'Integrações', 'tabs' => array('customerio', 'mailchimp', 'webhook-out', 'ab-tests')),
-            'sistema'     => array('label' => 'Sistema',     'tabs' => array('submissions', 'logs')),
+            'inicio'   => array('label' => 'Início',                  'tabs' => array('overview', 'setup', 'connection')),
+            'leads'    => array('label' => 'Receber leads',           'tabs' => array('formularios', 'submissions', 'ab-tests')),
+            'tracking' => array('label' => 'Tracking',                'tabs' => array('capi-meta', 'ga4', 'behavioral', 'clarity', 'cross-domain')),
+            'avancado' => array('label' => 'Configurações avançadas', 'tabs' => array('cf7-scope', 'antispam', 'turnstile', 'webhook-out', 'customerio', 'mailchimp', 'lgpd', 'logs')),
         ));
+    }
+
+    /**
+     * Tabs que existem mas NÃO aparecem na navegação — são telas de
+     * detalhe de um formulário (a porta é o hub Formulários). Deep link
+     * continua funcionando; só a nav e o fallback "Mais" as escondem.
+     */
+    public static function hidden_tabs() {
+        return apply_filters('adspirit_connector_hidden_tabs', array('qualifier', 'builder', 'forms'));
+    }
+
+    /**
+     * Saúde por grupo — o ponto de status na navegação responde "tá tudo
+     * ok?" antes de qualquer clique. Sinais BARATOS (options + 1 COUNT) e
+     * fail-soft: 'ok' (verde) · 'warn' (âmbar) · 'off' (sem ponto).
+     */
+    public static function group_health() {
+        return AdSpirit_Safe_Hook::try_run(function () {
+            $core = class_exists('AdSpirit_Settings') ? AdSpirit_Settings::get_core() : array();
+            $connected = !empty($core['brand_slug']) && !empty($core['secret']);
+
+            $unsent = (class_exists('AdSpirit_Lead_Store') && $connected)
+                ? AdSpirit_Lead_Store::count_unsent() : 0;
+
+            $capi = get_option('adspirit_connector_capi_meta', array());
+            $ga4  = get_option('adspirit_connector_ga4', array());
+            $measuring = (!empty($core['pixel_enabled']) && $core['pixel_enabled'] === '1')
+                || !empty($capi['pixel_id']) || !empty($ga4['measurement_id']);
+
+            $wh = get_option('adspirit_connector_webhook_out', array());
+            $cio = get_option('adspirit_connector_customerio', array());
+            $mc = get_option('adspirit_connector_mailchimp', array());
+            $integrating = !empty($wh['urls']) || !empty($wh['url'])
+                || !empty($cio['enabled']) || !empty($mc['enabled']);
+
+            $safe = class_exists('AdSpirit_Safe_Bootstrap') && AdSpirit_Safe_Bootstrap::is_safe_mode();
+            $auth_err = (bool) get_option('adspirit_connector_crm_auth_error');
+
+            return array(
+                'inicio'   => array('state' => $connected ? 'ok' : 'warn', 'hint' => $connected ? 'Conectado ao AdSpirit' : 'Falta conectar ao AdSpirit'),
+                'leads'    => array('state' => !$connected ? 'off' : ($unsent > 0 ? 'warn' : 'ok'), 'hint' => $unsent > 0 ? $unsent . ' lead(s) aguardando entrega' : 'Leads fluindo normalmente'),
+                'tracking' => array('state' => $measuring ? 'ok' : 'off', 'hint' => $measuring ? 'Medição ativa' : 'Nenhuma medição configurada'),
+                'avancado' => array('state' => ($safe || $auth_err) ? 'warn' : ($integrating ? 'ok' : 'off'), 'hint' => $safe ? 'Modo de segurança ativo' : ($auth_err ? 'Chave rejeitada pelo AdSpirit' : ($integrating ? 'Integrações ativas' : 'Tudo quieto'))),
+            );
+        }, array(), 'menu_group_health');
     }
 
     /**
@@ -124,9 +220,10 @@ class AdSpirit_Menu {
             }
             if ($sub) $out[$gkey] = array('label' => $g['label'], 'tabs' => $sub);
         }
+        $hidden = self::hidden_tabs();
         $orphans = array();
         foreach ($tabs as $slug => $label) {
-            if (empty($seen[$slug])) $orphans[$slug] = $label;
+            if (empty($seen[$slug]) && !in_array($slug, $hidden, true)) $orphans[$slug] = $label;
         }
         if ($orphans) $out['mais'] = array('label' => 'Mais', 'tabs' => $orphans);
         return $out;
@@ -155,12 +252,18 @@ class AdSpirit_Menu {
     public function print_menu_icon_css() {
         $mask = self::mark_data_uri();
         $sel = '#toplevel_page_' . self::PAGE_SLUG . ' .wp-menu-image';
+        // Mask no PRÓPRIO div do ícone (36×34): centrado pelos dois eixos
+        // sem depender do ::before — o core aplica padding:7px 0 no ::before
+        // dos ícones de menu e deslocava a caixa (bug das v2.22-2.24).
+        // @supports: navegador sem mask cai no background-image do WP
+        // (glifo escuro, mas presente) em vez de um quadrado pintado.
         echo '<style id="adspirit-menu-icon">'
-            . $sel . '{background-image:none!important;}'
-            . $sel . '::before{content:"";display:block;width:20px;height:20px;margin:7px auto 0;'
-            . 'background-color:currentColor;'
-            . '-webkit-mask:url(\'' . $mask . '\') no-repeat center/20px 20px;'
-            . 'mask:url(\'' . $mask . '\') no-repeat center/20px 20px;}'
+            . '@supports ((-webkit-mask-image: url("")) or (mask-image: url(""))) {'
+            . $sel . '{background-image:none!important;background-color:currentColor;'
+            . '-webkit-mask:url(\'' . $mask . '\') no-repeat center/22px auto;'
+            . 'mask:url(\'' . $mask . '\') no-repeat center/22px auto;}'
+            . $sel . '::before{display:none!important;}'
+            . '}'
             . '</style>';
     }
 
@@ -179,8 +282,11 @@ class AdSpirit_Menu {
             3 // logo abaixo do Painel (Dashboard=2), acima de Posts(5)
         );
 
-        // Submenus = um por tab pra deep linking
+        // Submenus = um por tab pra deep linking (telas de detalhe de form
+        // ficam fora — a porta delas é o hub Formulários)
+        $hidden = self::hidden_tabs();
         foreach (self::tabs() as $slug => $label) {
+            if (in_array($slug, $hidden, true)) continue;
             add_submenu_page(
                 self::PAGE_SLUG,
                 $label,
@@ -199,607 +305,13 @@ class AdSpirit_Menu {
         if (strpos((string) $hook, self::PAGE_SLUG) === false) return;
         // Design system do AdSpirit dentro do wp-admin. Tudo escopado em
         // .adspirit-app pra não vazar pra outros plugins.
-        $css = '
-/* ============================================================
-   AdSpirit Connector — design system (mirror do CRM)
-   ============================================================ */
-.adspirit-app {
-  --as-accent: #00B7B7;
-  --as-accent-soft: #E6F7F7;
-  --as-accent-hover: #009999;
-  --as-ink: #0F1419;
-  --as-ink-soft: #3A4550;
-  --as-ink-faint: #8A95A0;
-  --as-line: #E5EAEE;
-  --as-bg: #FFFFFF;
-  --as-bg-card: #F8FAFC;
-  --as-bg-subtle: #F3F6F9;
-  --as-bg-warning: #FFF8E1;
-  --as-bg-danger: #FFF0F0;
-  --as-bg-success: #DCFCE7;
-  --as-warning: #B07900;
-  --as-danger: #C73838;
-  --as-success: #15803D;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-  color: var(--as-ink);
-  font-size: 13.5px;
-  line-height: 1.55;
-  max-width: 1100px;
-  margin-right: 20px;
-  padding: 8px 0 32px;
-}
-.adspirit-app * { box-sizing: border-box; }
-
-/* ---------- Header (cinematic/premium typography) ---------- */
-/* Inspiração: login AdSpirit / stripe.com/login / rauno.me — wordmark
-   thin (weight 200) com letter-spacing negativo apertado, ® minúsculo
-   superscript em accent, sense of calm + premium. */
-.adspirit-app .as-header { margin: 8px 0 24px; }
-.adspirit-app .as-kicker {
-  display: inline-block;
-  font-size: 10px;
-  letter-spacing: 0.28em;
-  text-transform: uppercase;
-  color: var(--as-accent);
-  font-weight: 600;
-  margin-bottom: 14px;
-}
-.adspirit-app h1.as-title {
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Helvetica Neue", Arial, sans-serif;
-  font-size: 44px;
-  font-weight: 200;
-  letter-spacing: -0.045em;
-  color: var(--as-ink);
-  margin: 0;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  line-height: 1.05;
-}
-.adspirit-app h1.as-title .wordmark {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 14px;
-}
-.adspirit-app h1.as-title .brand { font-weight: 300; }
-.adspirit-app h1.as-title .reg {
-  font-size: 14px;
-  font-weight: 400;
-  color: var(--as-accent);
-  vertical-align: super;
-  margin-left: 2px;
-  letter-spacing: 0;
-}
-.adspirit-app h1.as-title .product { font-weight: 200; color: var(--as-ink-soft); }
-.adspirit-app .as-version {
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  background: var(--as-bg-subtle);
-  color: var(--as-ink-faint);
-  border: 1px solid var(--as-line);
-  padding: 4px 9px;
-  border-radius: 3px;
-  font-family: ui-monospace, "SF Mono", Monaco, Consolas, monospace;
-  align-self: center;
-}
-.adspirit-app .as-lede {
-  font-size: 14px;
-  color: var(--as-ink-faint);
-  margin: 12px 0 0;
-  max-width: 720px;
-  font-weight: 300;
-  letter-spacing: -0.005em;
-}
-
-/* ---------- Header bar (título + ações no topo) ---------- */
-.adspirit-app .as-header-bar {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 20px;
-  flex-wrap: wrap;
-}
-.adspirit-app .as-header-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  align-items: center;
-  padding-top: 8px;
-}
-.adspirit-app .as-header-actions form { margin: 0; padding: 0; }
-
-/* ---------- Grupos de tabs (nível 1) — segmented pill ---------- */
-.adspirit-app .as-groups {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  background: var(--as-bg-subtle);
-  border: 1px solid var(--as-line);
-  border-radius: 10px;
-  padding: 4px;
-  margin: 22px 0 16px;
-}
-.adspirit-app .as-groups a {
-  padding: 7px 16px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--as-ink-soft);
-  text-decoration: none;
-  border-radius: 7px;
-  white-space: nowrap;
-  transition: background 0.12s, color 0.12s;
-}
-.adspirit-app .as-groups a:hover { color: var(--as-ink); }
-.adspirit-app .as-groups a:focus { outline: none; box-shadow: none; }
-.adspirit-app .as-groups a.active {
-  background: var(--as-bg);
-  color: var(--as-accent);
-  box-shadow: 0 1px 2px rgba(15,20,25,0.08);
-}
-
-/* ---------- Nav tabs (replace wp-admin nav-tab-wrapper) ---------- */
-.adspirit-app .as-tabs {
-  display: flex;
-  gap: 0;
-  border-bottom: 1px solid var(--as-line);
-  margin: 18px 0 24px;
-  flex-wrap: wrap;
-}
-/* sub-tabs (nível 2) — encostadas no grupo acima */
-.adspirit-app .as-subtabs { margin-top: 0; margin-bottom: 22px; }
-.adspirit-app .as-tabs a {
-  padding: 10px 16px;
-  font-size: 13px;
-  color: var(--as-ink-soft);
-  text-decoration: none;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  font-weight: 500;
-  transition: color 0.12s, border-color 0.12s;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-}
-.adspirit-app .as-tabs a:hover { color: var(--as-ink); }
-.adspirit-app .as-tabs a:focus { outline: none; box-shadow: none; }
-.adspirit-app .as-tabs a.active {
-  color: var(--as-accent);
-  border-bottom-color: var(--as-accent);
-  font-weight: 600;
-}
-
-/* ---------- Section title (outside cards) ---------- */
-.adspirit-app h2.as-section {
-  font-size: 18px;
-  font-weight: 600;
-  letter-spacing: -0.015em;
-  color: var(--as-ink);
-  margin: 28px 0 12px;
-  padding: 0;
-  border: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.adspirit-app h2.as-section .as-kicker-inline {
-  font-size: 10px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--as-accent);
-  font-weight: 700;
-  background: var(--as-accent-soft);
-  padding: 3px 7px;
-  border-radius: 3px;
-}
-.adspirit-app .as-section-help {
-  font-size: 12.5px;
-  color: var(--as-ink-faint);
-  margin: -8px 0 14px;
-  max-width: 720px;
-}
-
-/* ---------- Cards ---------- */
-.adspirit-app .as-card {
-  border: 1px solid var(--as-line);
-  border-radius: 10px;
-  background: var(--as-bg);
-  margin: 0 0 16px;
-  overflow: hidden;
-}
-.adspirit-app .as-card-header {
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--as-line);
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  background: linear-gradient(180deg, #FCFDFE 0%, var(--as-bg) 100%);
-}
-.adspirit-app .as-card-header h3 {
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--as-ink);
-  margin: 0;
-  padding: 0;
-}
-.adspirit-app .as-card-header .as-card-sub {
-  font-size: 11.5px;
-  color: var(--as-ink-faint);
-  margin-top: 2px;
-}
-.adspirit-app .as-card-body { padding: 18px; }
-.adspirit-app .as-card-body.tight { padding: 12px 18px; }
-
-/* ---------- Buttons ---------- */
-.adspirit-app .button,
-.adspirit-app .button-secondary,
-.adspirit-app input[type="submit"].button {
-  font-family: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
-  padding: 7px 13px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background 0.12s, border-color 0.12s, color 0.12s;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  line-height: 1.2;
-  height: auto;
-  min-height: 0;
-  background: var(--as-bg);
-  border: 1px solid var(--as-line);
-  color: var(--as-ink-soft);
-  text-shadow: none;
-  box-shadow: none;
-  vertical-align: middle;
-}
-.adspirit-app .button:hover,
-.adspirit-app .button-secondary:hover {
-  background: var(--as-bg-subtle);
-  border-color: var(--as-ink-faint);
-  color: var(--as-ink);
-}
-.adspirit-app .button.button-primary,
-.adspirit-app .button-primary,
-.adspirit-app input[type="submit"].button-primary {
-  background: var(--as-accent-soft);
-  border-color: var(--as-accent);
-  color: var(--as-accent);
-}
-.adspirit-app .button.button-primary:hover,
-.adspirit-app .button-primary:hover,
-.adspirit-app input[type="submit"].button-primary:hover {
-  background: var(--as-accent);
-  border-color: var(--as-accent);
-  color: white;
-}
-.adspirit-app .button.button-danger {
-  background: var(--as-bg-danger);
-  border-color: var(--as-danger);
-  color: var(--as-danger);
-}
-.adspirit-app .button.button-danger:hover {
-  background: var(--as-danger);
-  color: white;
-}
-.adspirit-app .button:focus { outline: none; box-shadow: 0 0 0 3px rgba(0,183,183,0.25); }
-
-/* ---------- Inputs ---------- */
-.adspirit-app input[type="text"],
-.adspirit-app input[type="url"],
-.adspirit-app input[type="password"],
-.adspirit-app input[type="email"],
-.adspirit-app input[type="number"],
-.adspirit-app textarea,
-.adspirit-app select {
-  font-family: inherit;
-  font-size: 13px;
-  padding: 7px 11px;
-  border: 1px solid var(--as-line);
-  border-radius: 6px;
-  background: var(--as-bg);
-  color: var(--as-ink);
-  box-shadow: none;
-  transition: border-color 0.12s, box-shadow 0.12s;
-  min-height: 0;
-  line-height: 1.4;
-}
-.adspirit-app input:focus,
-.adspirit-app textarea:focus,
-.adspirit-app select:focus {
-  outline: none;
-  border-color: var(--as-accent);
-  box-shadow: 0 0 0 3px rgba(0,183,183,0.18);
-}
-.adspirit-app input[type="checkbox"],
-.adspirit-app input[type="radio"] {
-  accent-color: var(--as-accent);
-  margin-right: 6px;
-}
-.adspirit-app textarea { padding: 10px 12px; line-height: 1.5; }
-.adspirit-app input.regular-text, .adspirit-app input.large-text { width: 100%; max-width: 480px; }
-.adspirit-app textarea.large-text { width: 100%; max-width: 720px; }
-
-/* ---------- form-table override ---------- */
-.adspirit-app .form-table { margin: 0; border-collapse: collapse; }
-.adspirit-app .form-table th {
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--as-ink);
-  padding: 14px 16px 14px 0;
-  width: 240px;
-  vertical-align: top;
-}
-.adspirit-app .form-table td {
-  padding: 12px 0;
-  vertical-align: top;
-}
-.adspirit-app .form-table p.description {
-  font-size: 12px;
-  color: var(--as-ink-faint);
-  margin: 6px 0 0;
-  line-height: 1.5;
-}
-.adspirit-app .form-table label { font-size: 13px; color: var(--as-ink-soft); }
-.adspirit-app .form-table tr { border-bottom: 1px solid var(--as-line); }
-.adspirit-app .form-table tr:last-child { border-bottom: 0; }
-
-/* ---------- Badges (outlined per design system) ---------- */
-.adspirit-app .as-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: 3px 8px;
-  border-radius: 3px;
-  border: 1px solid;
-  white-space: nowrap;
-  vertical-align: middle;
-}
-.adspirit-app .as-badge.ok { background: var(--as-bg-success); color: var(--as-success); border-color: var(--as-success); }
-.adspirit-app .as-badge.warn { background: var(--as-bg-warning); color: var(--as-warning); border-color: var(--as-warning); }
-.adspirit-app .as-badge.danger { background: var(--as-bg-danger); color: var(--as-danger); border-color: var(--as-danger); }
-.adspirit-app .as-badge.accent { background: var(--as-accent-soft); color: var(--as-accent); border-color: var(--as-accent); }
-.adspirit-app .as-badge.muted { background: var(--as-bg-subtle); color: var(--as-ink-soft); border-color: var(--as-line); }
-
-/* ---------- Code/mono ---------- */
-.adspirit-app code {
-  font-family: ui-monospace, "SF Mono", Monaco, Consolas, monospace;
-  font-size: 11.5px;
-  background: var(--as-bg-subtle);
-  color: var(--as-ink);
-  padding: 1px 6px;
-  border-radius: 3px;
-  border: 1px solid var(--as-line);
-}
-.adspirit-app pre {
-  font-family: ui-monospace, "SF Mono", Monaco, Consolas, monospace;
-  font-size: 12px;
-  background: var(--as-bg-subtle);
-  color: var(--as-ink);
-  padding: 12px 14px;
-  border-radius: 6px;
-  border: 1px solid var(--as-line);
-  line-height: 1.55;
-  overflow-x: auto;
-  max-width: 900px;
-}
-
-/* ---------- Notices (replace wp-admin .notice) ---------- */
-.adspirit-app .as-notice {
-  border-left: 3px solid;
-  padding: 12px 16px;
-  border-radius: 0 6px 6px 0;
-  background: var(--as-bg-subtle);
-  margin: 0 0 16px;
-}
-.adspirit-app .as-notice.info { border-left-color: var(--as-accent); background: var(--as-accent-soft); }
-.adspirit-app .as-notice.info .as-notice-kicker { color: var(--as-accent); }
-.adspirit-app .as-notice.warn { border-left-color: var(--as-warning); background: var(--as-bg-warning); }
-.adspirit-app .as-notice.warn .as-notice-kicker { color: var(--as-warning); }
-.adspirit-app .as-notice.danger { border-left-color: var(--as-danger); background: var(--as-bg-danger); }
-.adspirit-app .as-notice.danger .as-notice-kicker { color: var(--as-danger); }
-.adspirit-app .as-notice .as-notice-kicker {
-  font-size: 10px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  font-weight: 700;
-  margin-bottom: 4px;
-}
-.adspirit-app .as-notice .as-notice-title { font-weight: 600; color: var(--as-ink); margin: 0 0 4px; font-size: 13.5px; }
-.adspirit-app .as-notice p { margin: 4px 0; font-size: 12.5px; color: var(--as-ink-soft); }
-.adspirit-app .as-notice p:last-child { margin-bottom: 0; }
-
-/* ---------- Metric grid ---------- */
-.adspirit-app .as-metric-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 10px;
-  margin: 0 0 18px;
-}
-.adspirit-app .as-metric {
-  background: var(--as-bg);
-  border: 1px solid var(--as-line);
-  border-radius: 8px;
-  padding: 14px 16px;
-}
-.adspirit-app .as-metric .label {
-  font-size: 10px;
-  color: var(--as-ink-faint);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-weight: 700;
-}
-.adspirit-app .as-metric .value {
-  font-size: 26px;
-  font-weight: 600;
-  color: var(--as-ink);
-  margin-top: 4px;
-  letter-spacing: -0.02em;
-  line-height: 1.1;
-  font-family: ui-monospace, "SF Mono", Monaco, Consolas, monospace;
-}
-.adspirit-app .as-metric .value.text { font-family: inherit; font-size: 16px; }
-.adspirit-app .as-metric .value.danger { color: var(--as-danger); }
-.adspirit-app .as-metric .value.warn { color: var(--as-warning); }
-.adspirit-app .as-metric .sub { font-size: 11.5px; color: var(--as-ink-faint); margin-top: 3px; }
-
-/* ---------- Checklist ---------- */
-.adspirit-app .as-checklist {
-  list-style: none;
-  margin: 0 0 16px;
-  padding: 0;
-}
-.adspirit-app .as-checklist li {
-  padding: 14px 16px;
-  border: 1px solid var(--as-line);
-  border-radius: 8px;
-  margin-bottom: 8px;
-  display: flex;
-  gap: 12px;
-  background: var(--as-bg);
-}
-.adspirit-app .as-checklist .icon {
-  flex-shrink: 0;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-top: 1px;
-}
-.adspirit-app .as-checklist .icon.done {
-  background: var(--as-accent-soft);
-  color: var(--as-accent);
-  border: 1.5px solid var(--as-accent);
-}
-.adspirit-app .as-checklist .icon.todo {
-  background: var(--as-bg-subtle);
-  color: var(--as-ink-faint);
-  border: 1.5px dashed var(--as-ink-faint);
-}
-.adspirit-app .as-checklist .icon.fail {
-  background: var(--as-bg-danger);
-  color: var(--as-danger);
-  border: 1.5px solid var(--as-danger);
-}
-.adspirit-app .as-checklist .body { flex: 1; min-width: 0; }
-.adspirit-app .as-checklist .title { font-weight: 600; color: var(--as-ink); font-size: 13.5px; }
-.adspirit-app .as-checklist .desc { font-size: 12.5px; color: var(--as-ink-soft); margin-top: 3px; line-height: 1.5; }
-.adspirit-app .as-checklist .cta { margin-top: 10px; }
-
-/* ---------- Tables ---------- */
-.adspirit-app table.widefat,
-.adspirit-app table.as-table {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  background: var(--as-bg);
-  border: 1px solid var(--as-line);
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: none;
-}
-.adspirit-app table.widefat thead,
-.adspirit-app table.as-table thead {
-  background: var(--as-bg-subtle);
-}
-.adspirit-app table.widefat th,
-.adspirit-app table.as-table th {
-  text-align: left;
-  font-size: 10.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--as-ink-faint);
-  padding: 10px 14px;
-  font-weight: 700;
-  border-bottom: 1px solid var(--as-line);
-}
-.adspirit-app table.widefat td,
-.adspirit-app table.as-table td {
-  padding: 11px 14px;
-  border-top: 1px solid var(--as-line);
-  font-size: 12.5px;
-  color: var(--as-ink);
-  vertical-align: top;
-}
-.adspirit-app table.widefat tbody tr:first-child td,
-.adspirit-app table.as-table tbody tr:first-child td { border-top: 0; }
-.adspirit-app table.widefat.striped tbody tr:nth-child(even) { background: rgba(228,234,240,0.20); }
-
-/* ---------- Form scaffolding ---------- */
-.adspirit-app .as-field { margin-bottom: 14px; }
-.adspirit-app .as-field-label {
-  display: block;
-  font-size: 10.5px;
-  font-weight: 700;
-  color: var(--as-ink-faint);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin-bottom: 6px;
-}
-.adspirit-app .as-field-help {
-  font-size: 11.5px;
-  color: var(--as-ink-faint);
-  margin: 5px 0 0;
-  line-height: 1.5;
-}
-
-/* ---------- Details (collapsible) ---------- */
-.adspirit-app details {
-  border: 1px solid var(--as-line);
-  border-radius: 8px;
-  padding: 12px 16px;
-  background: var(--as-bg-card);
-  margin: 12px 0;
-}
-.adspirit-app summary {
-  cursor: pointer;
-  font-weight: 600;
-  font-size: 12.5px;
-  color: var(--as-ink);
-}
-
-/* ---------- Misc wp-admin overrides ---------- */
-.adspirit-app .wrap { padding: 0; }
-.adspirit-app .notice {
-  padding: 12px 16px;
-  margin: 0 0 16px;
-  border-radius: 0 6px 6px 0;
-  border-left-width: 3px;
-  background: var(--as-bg-subtle);
-}
-.adspirit-app .notice-info { border-left-color: var(--as-accent); background: var(--as-accent-soft); }
-.adspirit-app .notice-warning { border-left-color: var(--as-warning); background: var(--as-bg-warning); }
-.adspirit-app .notice-error { border-left-color: var(--as-danger); background: var(--as-bg-danger); }
-.adspirit-app .notice-success { border-left-color: var(--as-success); background: var(--as-bg-success); }
-.adspirit-app .description { color: var(--as-ink-faint); font-size: 12px; }
-.adspirit-app .submit { padding: 16px 0 0; margin: 16px 0 0; border-top: 1px solid var(--as-line); }
-
-/* ---------- Test result box ---------- */
-.adspirit-app .as-test-result { margin-top: 12px; max-width: 720px; }
-
-/* ---------- Field mapping grid ---------- */
-.adspirit-app .as-field-map-row { padding: 10px 0; border-bottom: 1px solid var(--as-line); }
-.adspirit-app .as-field-map-row:last-child { border-bottom: 0; }
-
-/* ---------- Spacers ---------- */
-.adspirit-app hr.as-hr { border: 0; border-top: 1px solid var(--as-line); margin: 24px 0; }
-';
-        wp_register_style('adspirit-connector-inline', false);
-        wp_enqueue_style('adspirit-connector-inline');
-        wp_add_inline_style('adspirit-connector-inline', $css);
+        $version = defined('ADSPIRIT_CONNECTOR_VERSION') ? ADSPIRIT_CONNECTOR_VERSION : '2.30.0';
+        wp_enqueue_style(
+            'adspirit-connector-admin',
+            ADSPIRIT_CONNECTOR_URL . 'assets/admin.css',
+            array(),
+            $version
+        );
     }
 
     public function render_page() {
@@ -847,12 +359,19 @@ class AdSpirit_Menu {
 
             <?php settings_errors(); ?>
 
-            <?php // Nível 1 — grupos de temas ?>
+            <?php // Nível 1 — grupos por tarefa, com ponto de saúde (a nav
+                  // responde "tá tudo ok?" antes de qualquer clique). ?>
+            <?php $health = self::group_health(); ?>
             <nav class="as-groups">
                 <?php foreach ($grouped as $gkey => $g):
-                    $first_slug = array_key_first($g['tabs']); ?>
+                    $first_slug = array_key_first($g['tabs']);
+                    $h = isset($health[$gkey]) ? $health[$gkey] : null; ?>
                     <a href="<?php echo esc_url(admin_url('admin.php?page=' . self::PAGE_SLUG . '&tab=' . $first_slug)); ?>"
-                       class="<?php echo $current_group === $gkey ? 'active' : ''; ?>">
+                       class="<?php echo $current_group === $gkey ? 'active' : ''; ?>"
+                       <?php if ($h && !empty($h['hint'])): ?>title="<?php echo esc_attr($h['hint']); ?>"<?php endif; ?>>
+                        <?php if ($h && $h['state'] !== 'off'): ?>
+                            <span class="as-dot <?php echo esc_attr($h['state']); ?>" aria-hidden="true"></span>
+                        <?php endif; ?>
                         <?php echo esc_html($g['label']); ?>
                     </a>
                 <?php endforeach; ?>
@@ -860,15 +379,21 @@ class AdSpirit_Menu {
 
             <?php // Nível 2 — sub-tabs do grupo atual (só se o grupo tem mais de 1) ?>
             <?php $sub = isset($grouped[$current_group]['tabs']) ? $grouped[$current_group]['tabs'] : array(); ?>
+            <?php $meta = self::tab_meta(); ?>
             <?php if (count($sub) > 1): ?>
             <nav class="as-tabs as-subtabs">
                 <?php foreach ($sub as $slug => $label): ?>
                     <a href="<?php echo esc_url(admin_url('admin.php?page=' . self::PAGE_SLUG . '&tab=' . $slug)); ?>"
-                       class="<?php echo $current_tab === $slug ? 'active' : ''; ?>">
+                       class="<?php echo $current_tab === $slug ? 'active' : ''; ?>"
+                       <?php if (!empty($meta[$slug]['desc'])): ?>title="<?php echo esc_attr($meta[$slug]['desc']); ?>"<?php endif; ?>>
                         <?php echo esc_html($label); ?>
                     </a>
                 <?php endforeach; ?>
             </nav>
+            <?php endif; ?>
+            <?php // Legenda da tab ativa — a pessoa sempre sabe onde está e pra quê serve. ?>
+            <?php if (!empty($meta[$current_tab]['desc'])): ?>
+                <p class="as-tab-desc"><?php echo esc_html($meta[$current_tab]['desc']); ?></p>
             <?php endif; ?>
 
             <?php
