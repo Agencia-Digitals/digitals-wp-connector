@@ -105,6 +105,7 @@ adspirit_connector_safe_require('includes/class-adspirit-generic-collector.php')
 adspirit_connector_safe_require('includes/class-adspirit-lead-identity.php');
 adspirit_connector_safe_require('includes/class-adspirit-central-forms.php');
 adspirit_connector_safe_require('includes/class-adspirit-forms-hub.php');
+adspirit_connector_safe_require('includes/class-adspirit-thankyou-setup.php');
 // v2.28 widget de leads no dashboard do WP (presença diária + deep-link CRM)
 adspirit_connector_safe_require('includes/class-adspirit-dashboard-widget.php');
 // v2.29 eventos automáticos nomeados (tel/email/whatsapp/download → dataLayer)
@@ -173,6 +174,7 @@ function adspirit_connector_init() {
     if (class_exists('AdSpirit_Generic_Collector')) AdSpirit_Generic_Collector::instance();
     if (class_exists('AdSpirit_Lead_Identity')) AdSpirit_Lead_Identity::instance();
     if (class_exists('AdSpirit_Forms_Hub')) AdSpirit_Forms_Hub::instance();
+    if (class_exists('AdSpirit_ThankYou_Setup')) AdSpirit_ThankYou_Setup::instance();
     // v2.28 widget de leads no dashboard
     if (class_exists('AdSpirit_Dashboard_Widget')) AdSpirit_Dashboard_Widget::instance();
     // v2.29 eventos automáticos nomeados
