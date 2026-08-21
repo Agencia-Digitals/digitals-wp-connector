@@ -224,7 +224,13 @@ class Digitals_Studio_Oxygen {
 
         wp_register_ability('digitals-studio/inventory', [
             'category' => 'digitals-studio',
-            'meta' => ['show_in_rest' => true, 'mcp' => ['public' => true]],
+            'meta' => [
+                // `public` é o que a rota do core (wp-abilities/v1) filtra;
+                // `mcp.public` é o que o adaptador de MCP olha. Precisa dos
+                // dois, senão a operação existe no PHP e some da API.
+                'public' => true, 'show_in_rest' => true, 'mcp' => ['public' => true],
+                'annotations' => ['readonly' => true, 'destructive' => false, 'idempotent' => true],
+            ],
             'label' => 'Inventário de conversão Oxygen classic',
             'description' => 'Lista posts com dados do Oxygen classic (_ct_builder_*), com histograma de tipos de elemento e status de conversão. Somente leitura.',
             'input_schema' => ['type' => 'object', 'properties' => [
@@ -236,7 +242,13 @@ class Digitals_Studio_Oxygen {
 
         wp_register_ability('digitals-studio/inspect-post', [
             'category' => 'digitals-studio',
-            'meta' => ['show_in_rest' => true, 'mcp' => ['public' => true]],
+            'meta' => [
+                // `public` é o que a rota do core (wp-abilities/v1) filtra;
+                // `mcp.public` é o que o adaptador de MCP olha. Precisa dos
+                // dois, senão a operação existe no PHP e some da API.
+                'public' => true, 'show_in_rest' => true, 'mcp' => ['public' => true],
+                'annotations' => ['readonly' => true, 'destructive' => false, 'idempotent' => true],
+            ],
             'label' => 'Inspecionar post legado',
             'description' => 'Mostra a árvore legada resumida de um post: elementos, dinâmicos, reutilizáveis, classes que ainda não resolvem para seletores do Oxygen 6. Somente leitura.',
             'input_schema' => ['type' => 'object', 'required' => ['post_id'], 'properties' => [
@@ -248,7 +260,13 @@ class Digitals_Studio_Oxygen {
 
         wp_register_ability('digitals-studio/convert-post', [
             'category' => 'digitals-studio',
-            'meta' => ['show_in_rest' => true, 'mcp' => ['public' => true]],
+            'meta' => [
+                // `public` é o que a rota do core (wp-abilities/v1) filtra;
+                // `mcp.public` é o que o adaptador de MCP olha. Precisa dos
+                // dois, senão a operação existe no PHP e some da API.
+                'public' => true, 'show_in_rest' => true, 'mcp' => ['public' => true],
+                'annotations' => ['readonly' => false, 'destructive' => false, 'idempotent' => false],
+            ],
             'label' => 'Converter post para Oxygen 6',
             'description' => 'Converte a árvore _ct_builder_json de src_post_id para _oxygen_data em dst_post_id (padrão: o mesmo post). dry_run=true (padrão) só devolve o relatório. Nunca altera os dados legados. Ao gravar, roda automaticamente o pós-fix (contrato do editor + caches).',
             'input_schema' => ['type' => 'object', 'required' => ['post_id'], 'properties' => [
@@ -263,7 +281,13 @@ class Digitals_Studio_Oxygen {
 
         wp_register_ability('digitals-studio/rollback-post', [
             'category' => 'digitals-studio',
-            'meta' => ['show_in_rest' => true, 'mcp' => ['public' => true]],
+            'meta' => [
+                // `public` é o que a rota do core (wp-abilities/v1) filtra;
+                // `mcp.public` é o que o adaptador de MCP olha. Precisa dos
+                // dois, senão a operação existe no PHP e some da API.
+                'public' => true, 'show_in_rest' => true, 'mcp' => ['public' => true],
+                'annotations' => ['readonly' => false, 'destructive' => false, 'idempotent' => false],
+            ],
             'label' => 'Reverter conversão',
             'description' => 'Remove a árvore Oxygen 6 gravada por este conversor (só quando o marcador de backup existe). Os dados legados ct_* nunca foram tocados.',
             'input_schema' => ['type' => 'object', 'required' => ['post_id'], 'properties' => [
@@ -275,7 +299,13 @@ class Digitals_Studio_Oxygen {
 
         wp_register_ability('digitals-studio/post-fix', [
             'category' => 'digitals-studio',
-            'meta' => ['show_in_rest' => true, 'mcp' => ['public' => true]],
+            'meta' => [
+                // `public` é o que a rota do core (wp-abilities/v1) filtra;
+                // `mcp.public` é o que o adaptador de MCP olha. Precisa dos
+                // dois, senão a operação existe no PHP e some da API.
+                'public' => true, 'show_in_rest' => true, 'mcp' => ['public' => true],
+                'annotations' => ['readonly' => false, 'destructive' => false, 'idempotent' => false],
+            ],
             'label' => 'Pós-correção global (contrato do editor)',
             'description' => 'Audita e corrige o banco de seletores (objetos vazios -> conteúdo inerte; unidades inválidas -> custom), carimba status:exported em árvores convertidas sem ele, limpa os caches de CSS do Oxygen e o object cache. Rodar depois de qualquer escrita manual.',
             'input_schema' => ['type' => 'object', 'properties' => []],
@@ -285,7 +315,13 @@ class Digitals_Studio_Oxygen {
 
         wp_register_ability('digitals-studio/bootstrap', [
             'category' => 'digitals-studio',
-            'meta' => ['show_in_rest' => true, 'mcp' => ['public' => true]],
+            'meta' => [
+                // `public` é o que a rota do core (wp-abilities/v1) filtra;
+                // `mcp.public` é o que o adaptador de MCP olha. Precisa dos
+                // dois, senão a operação existe no PHP e some da API.
+                'public' => true, 'show_in_rest' => true, 'mcp' => ['public' => true],
+                'annotations' => ['readonly' => false, 'destructive' => false, 'idempotent' => false],
+            ],
             'label' => 'Bootstrap de utilitários',
             'description' => 'Registra os seletores utilitários que o conversor usa (agd-hidden, agd-inner-full, slot de vídeo, neutralizador de AOS no canvas do builder, largura de wrappers de fragmento). Idempotente.',
             'input_schema' => ['type' => 'object', 'properties' => []],
@@ -295,7 +331,13 @@ class Digitals_Studio_Oxygen {
 
         wp_register_ability('digitals-studio/set-settings', [
             'category' => 'digitals-studio',
-            'meta' => ['show_in_rest' => true, 'mcp' => ['public' => true]],
+            'meta' => [
+                // `public` é o que a rota do core (wp-abilities/v1) filtra;
+                // `mcp.public` é o que o adaptador de MCP olha. Precisa dos
+                // dois, senão a operação existe no PHP e some da API.
+                'public' => true, 'show_in_rest' => true, 'mcp' => ['public' => true],
+                'annotations' => ['readonly' => false, 'destructive' => false, 'idempotent' => false],
+            ],
             'label' => 'Configurar conversor',
             'description' => 'Define origin_url (site classic de origem pra baixar CSS/fragmentos), assets_dir e purge_litespeed. Config mora no DB, nunca em env.',
             'input_schema' => ['type' => 'object', 'properties' => [
@@ -309,7 +351,13 @@ class Digitals_Studio_Oxygen {
 
         wp_register_ability('digitals-studio/audit-site', [
             'category' => 'digitals-studio',
-            'meta' => ['show_in_rest' => true, 'mcp' => ['public' => true]],
+            'meta' => [
+                // `public` é o que a rota do core (wp-abilities/v1) filtra;
+                // `mcp.public` é o que o adaptador de MCP olha. Precisa dos
+                // dois, senão a operação existe no PHP e some da API.
+                'public' => true, 'show_in_rest' => true, 'mcp' => ['public' => true],
+                'annotations' => ['readonly' => true, 'destructive' => false, 'idempotent' => true],
+            ],
             'label' => 'Vistoria de site Oxygen classic',
             'description' => 'Retrato completo de um site ainda no Oxygen classic: o que existe, o que o conversor traduz sozinho, o que precisa de mão e o tamanho do trabalho. Somente leitura — NÃO exige Oxygen 6 instalado, serve para avaliar um site antes de migrar.',
             'input_schema' => ['type' => 'object', 'properties' => [
@@ -321,7 +369,13 @@ class Digitals_Studio_Oxygen {
 
         wp_register_ability('digitals-studio/import-global-css', [
             'category' => 'digitals-studio',
-            'meta' => ['show_in_rest' => true, 'mcp' => ['public' => true]],
+            'meta' => [
+                // `public` é o que a rota do core (wp-abilities/v1) filtra;
+                // `mcp.public` é o que o adaptador de MCP olha. Precisa dos
+                // dois, senão a operação existe no PHP e some da API.
+                'public' => true, 'show_in_rest' => true, 'mcp' => ['public' => true],
+                'annotations' => ['readonly' => false, 'destructive' => false, 'idempotent' => false],
+            ],
             'label' => 'Importar CSS global da origem',
             'description' => 'Baixa os stylesheets que o site de origem carrega (escala tipográfica, colunas, defaults, largura de página), localiza as URLs e passa a enfileirá-los aqui. Sem isso a conversão sai desproporcional.',
             'input_schema' => ['type' => 'object', 'properties' => [
@@ -333,7 +387,13 @@ class Digitals_Studio_Oxygen {
 
         wp_register_ability('digitals-studio/upgrade-repeaters', [
             'category' => 'digitals-studio',
-            'meta' => ['show_in_rest' => true, 'mcp' => ['public' => true]],
+            'meta' => [
+                // `public` é o que a rota do core (wp-abilities/v1) filtra;
+                // `mcp.public` é o que o adaptador de MCP olha. Precisa dos
+                // dois, senão a operação existe no PHP e some da API.
+                'public' => true, 'show_in_rest' => true, 'mcp' => ['public' => true],
+                'annotations' => ['readonly' => false, 'destructive' => false, 'idempotent' => false],
+            ],
             'label' => 'Trocar listagens congeladas por loop nativo',
             'description' => 'Em um post já convertido, substitui os repetidores que ficaram como HTML congelado pelo elemento de loop nativo (com Componente de item e a consulta do classic). Preserva todo o resto da página.',
             'input_schema' => ['type' => 'object', 'required' => ['post_id', 'source_post_id'], 'properties' => [
@@ -347,7 +407,13 @@ class Digitals_Studio_Oxygen {
 
         wp_register_ability('digitals-studio/render-diagnose', [
             'category' => 'digitals-studio',
-            'meta' => ['show_in_rest' => true, 'mcp' => ['public' => true]],
+            'meta' => [
+                // `public` é o que a rota do core (wp-abilities/v1) filtra;
+                // `mcp.public` é o que o adaptador de MCP olha. Precisa dos
+                // dois, senão a operação existe no PHP e some da API.
+                'public' => true, 'show_in_rest' => true, 'mcp' => ['public' => true],
+                'annotations' => ['readonly' => true, 'destructive' => false, 'idempotent' => true],
+            ],
             'label' => 'Diagnóstico de render',
             'description' => 'Explica por que uma página pode não renderizar ou não abrir no builder: meta da árvore, status:exported, template aplicável (templates "everywhere" vazios sequestram!), seletores inválidos. Somente leitura.',
             'input_schema' => ['type' => 'object', 'required' => ['post_id'], 'properties' => [
