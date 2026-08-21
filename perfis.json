@@ -1,0 +1,30 @@
+{
+  "_leia_me": "Perfis de empacotamento do connector. 'estudio' roda nos nossos subdomínios e pode tudo, inclusive automação por IA. 'cliente' vai para o domínio do cliente e carrega só o essencial de operação — os módulos de fora NEM ENTRAM no pacote, não ficam desligados por flag. Ajustar aqui muda o que o build.sh gera.",
+
+  "sempre": [
+    "safe-hook", "safe-bootstrap", "crash-tracker", "settings", "menu", "connect",
+    "status", "logs", "health-checker", "quickwins", "telemetry"
+  ],
+
+  "cliente": {
+    "_por_que": "site do cliente: captar lead, medir, entregar e-mail e manter o site saudável. Nada de builder, automação ou ferramenta de desenvolvimento.",
+    "modulos": [
+      "form", "form-adapters", "forms-hub", "central-forms", "cf7-handler",
+      "field-mapping", "field-mapping-sync", "anti-spam", "turnstile",
+      "lead-identity", "lead-store", "lead-score", "generic-collector",
+      "pixel-injector", "pixel-proxy", "capi-meta", "ga4", "clarity",
+      "auto-events", "behavioral", "cross-domain", "ab-test",
+      "lgpd-popup", "thank-you", "thankyou-setup", "submissions-log",
+      "mail-log", "dashboard-widget", "setup-wizard", "magic-install",
+      "integrations", "mailchimp", "customerio", "whatsapp", "form-qualifier"
+    ]
+  },
+
+  "estudio": {
+    "_por_que": "nossos subdomínios: tudo do cliente MAIS as ferramentas de construção e a automação por IA.",
+    "modulos_extras": [
+      "devtools"
+    ],
+    "permite_automacao_total": true
+  }
+}
