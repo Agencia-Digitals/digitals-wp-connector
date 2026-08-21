@@ -34,6 +34,9 @@ class AdSpirit_Pixel_Conflito {
 
     private static $instance = null;
 
+    /** Trecho que a última varredura apontou como a cópia colada à mão. */
+    private $trecho_pra_desligar = null;
+
     public static function instance() {
         if (null === self::$instance) self::$instance = new self();
         return self::$instance;
@@ -47,6 +50,10 @@ class AdSpirit_Pixel_Conflito {
         add_action(
             'adspirit_connector_save_connection',
             AdSpirit_Safe_Hook::action(array($this, 'scan_manual'), 'pixel_conflito_save')
+        );
+        add_action(
+            'adspirit_connector_save_connection',
+            AdSpirit_Safe_Hook::action(array($this, 'desligar_trecho'), 'pixel_conflito_desligar')
         );
         add_action(
             'adspirit_connector_render_tab_connection',
@@ -124,6 +131,11 @@ class AdSpirit_Pixel_Conflito {
         global $wpdb;
         $achados = array();
 
+        $core = class_exists('AdSpirit_Settings') ? AdSpirit_Settings::get_core() : array();
+        $nosso_token = trim((string) ($core['pixel_token'] ?? ''));
+        $nosso_endpoint = trim((string) ($core['endpoint_url'] ?? ''));
+        $nosso_endpoint = $nosso_endpoint ? parse_url($nosso_endpoint, PHP_URL_HOST) : '';
+
         $tabelas = array(
             $wpdb->prefix . 'snippets' => array('Code Snippets', 'name', 'code', 'active'),
             $wpdb->prefix . 'wpcode'   => array('WPCode', 'title', 'code', 'status'),
@@ -136,7 +148,7 @@ class AdSpirit_Pixel_Conflito {
             if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $tabela)) !== $tabela) continue;
 
             $linhas = $wpdb->get_results(
-                "SELECT `{$col_nome}` AS nome, `{$col_ativo}` AS ativo, `{$col_codigo}` AS codigo
+                "SELECT `id`, `{$col_nome}` AS nome, `{$col_ativo}` AS ativo, `{$col_codigo}` AS codigo
                    FROM `{$tabela}`",
                 ARRAY_A
             );
@@ -149,11 +161,28 @@ class AdSpirit_Pixel_Conflito {
                     && strpos($codigo, 'facebook.com/tr') === false) {
                     continue;
                 }
+                // Aponta pro mesmo lugar que o connector apontaria? Um trecho
+                // com o nosso endpoint E o nosso token é equivalente ao que
+                // emitiríamos — aí faz sentido ceder. Com host ou token
+                // diferente, ele está alimentando outro lugar (ou lugar
+                // nenhum), e ceder cegaria a marca.
+                $mesmo_destino = false;
+                if (strpos($codigo, 'pixel.js') !== false) {
+                    $mesmo_destino = $nosso_token
+                        && $nosso_endpoint
+                        && strpos($codigo, $nosso_token) !== false
+                        && strpos($codigo, $nosso_endpoint) !== false;
+                }
+
                 $achados[] = array(
                     'origem' => $rotulo,
+                    'tabela' => $tabela,
+                    'id' => isset($l['id']) ? (int) $l['id'] : 0,
+                    'coluna_ativo' => $col_ativo,
                     'nome' => (string) $l['nome'],
                     'ativo' => (bool) $l['ativo'],
                     'nosso' => strpos($codigo, 'pixel.js') !== false,
+                    'mesmo_destino' => $mesmo_destino,
                 );
             }
         }
@@ -230,11 +259,16 @@ class AdSpirit_Pixel_Conflito {
         // Onde o trecho colado à mão mora, quando dá pra saber.
         $snippets = $this->snippets_com_pixel();
         $onde_esta = '';
+        $destino_diferente = false;
+        $trecho_pra_desligar = null;
         foreach ($snippets as $sn) {
             if (!$sn['ativo'] || !$sn['nosso']) continue;
             $onde_esta = sprintf('%s, no trecho "%s"', $sn['origem'], $sn['nome']);
+            $destino_diferente = empty($sn['mesmo_destino']);
+            $trecho_pra_desligar = $sn;
             break;
         }
+        $this->trecho_pra_desligar = $trecho_pra_desligar;
 
         // 1. Pixel do AdSpirit colado fora do connector.
         //
@@ -248,7 +282,9 @@ class AdSpirit_Pixel_Conflito {
                     ? sprintf('O pixel do AdSpirit aparece %d vezes na home: %d pelo connector e %d colada à mão. Cada visita conta em dobro.', $total_pixel, $assinadas, $de_fora)
                     : sprintf('Há %d pixel(s) do AdSpirit colado(s) fora do connector nesta página.', $de_fora),
                 'acao' => $onde_esta
-                    ? 'Está em ' . $onde_esta . '. Desative ou apague de lá — enquanto a cópia existir, o connector não injeta a dele, e o site fica medindo pelo trecho antigo.'
+                    ? ($destino_diferente
+                        ? 'Está em ' . $onde_esta . ', e aponta pra um destino que não é o atual — provavelmente sobrou de uma configuração antiga. O connector continua injetando a dele pra não deixar a marca sem medição, mas apague essa aí: enquanto existir, cada visita conta duas vezes.'
+                        : 'Está em ' . $onde_esta . '. Desative ou apague de lá — enquanto a cópia existir, o connector não injeta a dele, pra não contar em dobro.')
                     : 'Procure no tema, num bloco de código do builder ou num plugin de headers. Enquanto a cópia de fora existir, o connector para de injetar a dele — melhor não medir do que medir em dobro.',
             );
         }
@@ -380,6 +416,7 @@ class AdSpirit_Pixel_Conflito {
             'gtm' => $gtm_id,
             'plugins' => $plugins,
             'snippets' => $snippets,
+            'trecho_pra_desligar' => $trecho_pra_desligar,
             'alertas' => $alertas,
         );
         update_option(self::OPTION_RELATORIO, $relatorio, false);
@@ -401,12 +438,67 @@ class AdSpirit_Pixel_Conflito {
      */
     public function evitar_duplicata($deve) {
         $r = self::relatorio();
-        return empty($r['pixel_de_fora']) ? $deve : false;
+        if (empty($r['pixel_de_fora'])) return $deve;
+
+        // Ceder só faz sentido quando a cópia de fora aponta pro MESMO destino
+        // que a nossa apontaria — aí ela é equivalente e duplicar seria contar
+        // duas vezes. Quando o destino é outro (host antigo, token que não
+        // existe mais), ceder deixa a marca sendo medida por uma tag morta.
+        // Achado no dev em 2026-08-21: era exatamente esse o caso.
+        foreach ((array) ($r['snippets'] ?? array()) as $sn) {
+            if (!empty($sn['ativo']) && !empty($sn['nosso']) && empty($sn['mesmo_destino'])) {
+                return $deve; // a de fora não serve; a nossa continua
+            }
+        }
+        return false;
     }
 
     // ─────────────────────────────────────────────────────────
     // Interface
     // ─────────────────────────────────────────────────────────
+
+    /**
+     * Desliga o trecho que a varredura identificou. Só age sobre a linha que o
+     * próprio relatório apontou — não aceita id vindo do formulário — pra que
+     * um POST forjado não consiga desativar qualquer coisa do site.
+     */
+    public function desligar_trecho($post) {
+        if (empty($post['desligar_trecho'])) return;
+        if (!current_user_can('manage_options')) return;
+
+        $r = self::relatorio();
+        $alvo = isset($r['trecho_pra_desligar']) ? $r['trecho_pra_desligar'] : null;
+        if (!is_array($alvo) || empty($alvo['id']) || empty($alvo['tabela'])) {
+            add_settings_error('adspirit_connector_pixel_conflito', 'sem_alvo',
+                'Não há trecho identificado pra desligar. Rode a verificação primeiro.', 'error');
+            return;
+        }
+
+        global $wpdb;
+        $ok = $wpdb->update(
+            $alvo['tabela'],
+            array($alvo['coluna_ativo'] => 0),
+            array('id' => (int) $alvo['id']),
+            array('%d'),
+            array('%d')
+        );
+
+        if ($ok === false) {
+            add_settings_error('adspirit_connector_pixel_conflito', 'falhou',
+                'Não consegui desligar o trecho. Desative pelo painel do ' . esc_html($alvo['origem']) . '.', 'error');
+            return;
+        }
+
+        wp_cache_flush();
+        // Purga o cache de página, senão a home continua servindo a versão com
+        // as duas tags e a próxima varredura acusa problema que já não existe.
+        if (function_exists('do_action')) do_action('litespeed_purge_all');
+        $this->verificar();
+
+        add_settings_error('adspirit_connector_pixel_conflito', 'desligado',
+            sprintf('Trecho "%s" desativado. O connector voltou a cuidar do pixel.', esc_html($alvo['nome'])),
+            'updated');
+    }
 
     public function scan_manual($post) {
         if (empty($post['scan_pixel'])) return;
@@ -451,6 +543,18 @@ class AdSpirit_Pixel_Conflito {
             echo '<p><strong>' . esc_html($a['texto']) . '</strong><br>';
             echo '<span class="as-field-help">' . esc_html($a['acao']) . '</span></p>';
             echo '</div>';
+        }
+
+        $alvo = isset($r['trecho_pra_desligar']) ? $r['trecho_pra_desligar'] : null;
+        if (is_array($alvo) && !empty($alvo['id'])) {
+            AdSpirit_Menu::form_open('connection');
+            echo '<input type="hidden" name="desligar_trecho" value="1">';
+            echo '<p class="submit" style="margin-top:0;">';
+            echo '<button type="submit" class="button button-primary">Desligar o trecho "'
+                . esc_html($alvo['nome']) . '"</button>';
+            echo '<span class="as-field-help" style="margin-left:10px;">Desativa em '
+                . esc_html($alvo['origem']) . ' e devolve o pixel ao connector. Dá pra religar lá se precisar.</span>';
+            echo '</p></form>';
         }
 
         AdSpirit_Menu::form_open('connection');
