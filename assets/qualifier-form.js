@@ -785,9 +785,19 @@
       // collector (desde 2.13.1 sempre injetado — legítimo interesse; se um
       // dia voltar a ser gated, os campos só vão vazios, nada quebra).
       var t = window.__adspirit_t || {};
+      // Re-leitura do visitor/session no submit. O snapshot do collector é
+      // tirado no load e o pixel.js do CRM grava `_dosvi` milissegundos
+      // DEPOIS — quem preenche o form na primeira visita saía com
+      // visitor_id vazio e o lead nascia sem jornada (achado 2026-08-20:
+      // pixel registrou o page_view e o referrer 30s antes do submit, e o
+      // lead entrou "sem origem"). O caminho do CF7 normal já refaz essa
+      // leitura (telemetry.js); o do qualifier/parcial não fazia.
+      var vid = t.visitor_id || qfReadCookie('_dosvi') || qfReadCookie('adspirit_vid') || '';
+      var sid = t.session_id || qfReadCookie('_dossi') || qfReadCookie('adspirit_sid') || '';
       ['visitor_id', 'session_id', 'fbp', 'fbc', 'ga', 'gid', 'gcl_au',
        'locale', 'timezone', 'color_scheme', 'screen', 'viewport', 'connection_type'].forEach(function (name) {
-        fd.append('_adspirit_t_' + name, String(t[name] || ''));
+        var v = name === 'visitor_id' ? vid : name === 'session_id' ? sid : t[name];
+        fd.append('_adspirit_t_' + name, String(v || ''));
       });
       fd.append('_adspirit_t_time_on_page_ms', String(t.start_ts ? (Date.now() - t.start_ts) : 0));
       fd.append('_adspirit_t_time_in_form_ms', String(t.form_focus_ts ? (Date.now() - t.form_focus_ts) : 0));
