@@ -111,6 +111,32 @@ class AdSpirit_Pixel_Conflito {
     }
 
     /**
+     * Lê o pixel que os plugins conhecidos têm guardado. Saber o ID muda o
+     * aviso de "pode estar injetando algo" para "está injetando exatamente o
+     * mesmo pixel que você" — que é a diferença entre uma nota e um erro.
+     */
+    private function pixels_configurados_em_plugins() {
+        $achados = array();
+
+        // PixelYourSite (grátis e pro compartilham a option).
+        $pys = get_option('pys_facebook', array());
+        if (is_array($pys) && !empty($pys['pixel_id'])) {
+            $id = is_array($pys['pixel_id']) ? reset($pys['pixel_id']) : $pys['pixel_id'];
+            if ($id) $achados['PixelYourSite'] = (string) $id;
+        }
+
+        // Plugin oficial da Meta.
+        $fb = get_option('facebook_config', array());
+        if (is_array($fb) && !empty($fb['pixel_id'])) {
+            $achados['Meta Pixel (plugin oficial)'] = (string) $fb['pixel_id'];
+        }
+        $fbwc = get_option('wc_facebook_pixel_id', '');
+        if ($fbwc) $achados['Facebook for WooCommerce'] = (string) $fbwc;
+
+        return $achados;
+    }
+
+    /**
      * Roda o exame e guarda o resultado. Retorna o relatório.
      */
     public function verificar() {
@@ -148,8 +174,13 @@ class AdSpirit_Pixel_Conflito {
         $nosso_pixel = isset($capi['pixel_id']) ? trim((string) $capi['pixel_id']) : '';
 
         $alertas = array();
+        $no_estudio = defined('ADSPIRIT_PERFIL') && ADSPIRIT_PERFIL === 'estudio';
 
         // 1. Pixel do AdSpirit colado fora do connector.
+        //
+        // Este é o caso que vai aparecer em escala quando o connector chegar
+        // nos sites antigos: o pixel já estava colado à mão (ou por plugin) e
+        // ninguém percebe que o connector passou a colar de novo.
         if ($de_fora > 0) {
             $alertas[] = array(
                 'nivel' => 'erro',
@@ -160,8 +191,9 @@ class AdSpirit_Pixel_Conflito {
             );
         }
 
-        // 2. Mesmo com uma só, se o connector está desligado a página fica sem.
-        if ($de_fora === 0 && $assinadas === 0 && $total_pixel === 0) {
+        // 2. Ligado nas configurações, mas ausente da página. No estúdio isso é
+        //    esperado: o site ainda não foi aprovado, não é hora de medir.
+        if (!$no_estudio && $total_pixel === 0) {
             $core = class_exists('AdSpirit_Settings') ? AdSpirit_Settings::get_core() : array();
             if (($core['pixel_enabled'] ?? '0') === '1') {
                 $alertas[] = array(
@@ -172,31 +204,62 @@ class AdSpirit_Pixel_Conflito {
             }
         }
 
-        // 3. Pixel da Meta que não é o nosso.
-        foreach ($na_pagina as $id) {
-            if ($nosso_pixel && $id === $nosso_pixel) continue;
-            $alertas[] = array(
-                'nivel' => $nosso_pixel ? 'erro' : 'aviso',
-                'texto' => $nosso_pixel
-                    ? sprintf('A página dispara o pixel %s, mas o AdSpirit envia as conversões pro pixel %s.', $id, $nosso_pixel)
-                    : sprintf('Há um pixel da Meta (%s) na página que não veio do AdSpirit.', $id),
-                'acao' => $nosso_pixel
-                    ? 'Navegador reportando pra um pixel e servidor pra outro não deduplica: os dois contam pela metade. Acerte para que os dois usem o mesmo.'
-                    : 'Se esse é o pixel da marca, cadastre o mesmo ID no AdSpirit pra que as conversões do servidor cheguem no lugar certo.',
-            );
+        // 3. O pixel que o AdSpirit usa no CAPI está repetido na página.
+        //
+        // Só conta duplicata do NOSSO. Pixel de terceiro na mesma página é
+        // comum e legítimo (parceiro, agência anterior, co-marketing) e não é
+        // assunto do AdSpirit — reportar como erro seria alarme falso.
+        $vezes_nosso = 0;
+        foreach (array_merge($m1[1], $m2[1]) as $id) {
+            if ($nosso_pixel && $id === $nosso_pixel) $vezes_nosso++;
         }
-
-        // 4. Mesmo pixel repetido no HTML.
-        $repetidos = array_diff_assoc($m1[1], array_unique($m1[1]));
-        foreach (array_unique($repetidos) as $id) {
+        // O <noscript> legítimo repete o mesmo id do script: 2 ocorrências é o
+        // normal de UMA instalação. Duplicata de verdade começa em 3.
+        if ($nosso_pixel && $vezes_nosso > 2) {
             $alertas[] = array(
                 'nivel' => 'erro',
-                'texto' => sprintf('O pixel %s é iniciado mais de uma vez no HTML da home.', $id),
-                'acao' => 'Duas fontes estão colando o mesmo pixel. Deixe uma só.',
+                'texto' => sprintf('O pixel %s, que é o que o AdSpirit usa, aparece %d vezes na página.', $nosso_pixel, $vezes_nosso),
+                'acao' => 'Duas fontes estão colando o mesmo pixel — provavelmente o connector e um plugin ou tag que já existia. Deixe uma só.',
             );
         }
 
-        // 5. Tag Manager — fonte que não dá pra inspecionar daqui.
+        // 4. O CAPI mira num pixel que não está na página.
+        //
+        // Aqui sim há dano: o servidor reporta pra um pixel que o navegador não
+        // alimenta, então não há evento de browser pra parear e a deduplicação
+        // não acontece.
+        if ($nosso_pixel && $vezes_nosso === 0) {
+            $alertas[] = array(
+                'nivel' => $tem_gtm ? 'aviso' : 'erro',
+                'texto' => sprintf('O AdSpirit envia conversões pro pixel %s, que não apareceu na página.', $nosso_pixel),
+                'acao' => $tem_gtm
+                    ? 'Pode ser que o Tag Manager injete esse pixel — daqui não dá pra ver. Confirme no Tag Assistant; se o contêiner usa outro pixel, acerte para que os dois lados usem o mesmo.'
+                    : 'Sem evento de navegador no mesmo pixel não há o que parear, e o servidor conta sozinho. Coloque o mesmo pixel na página, ou corrija o ID no AdSpirit.',
+            );
+        }
+
+        // 5. Outros pixels na página — informação, não problema.
+        $terceiros = array();
+        foreach ($na_pagina as $id) {
+            if ($nosso_pixel && $id === $nosso_pixel) continue;
+            $terceiros[] = $id;
+        }
+        $terceiros = array_values(array_unique($terceiros));
+        if ($terceiros) {
+            $alertas[] = array(
+                'nivel' => 'nota',
+                'texto' => sprintf(
+                    'Há %s na página que o AdSpirit não gerencia: %s.',
+                    count($terceiros) === 1 ? 'outro pixel da Meta' : 'outros pixels da Meta',
+                    implode(', ', $terceiros)
+                ),
+                'acao' => $nosso_pixel
+                    ? 'Normal quando existe pixel de parceiro ou de agência anterior. Só vira problema se algum deles for, na verdade, o pixel oficial da marca — aí é ele que devia estar cadastrado aqui.'
+                    : 'Se um destes é o pixel oficial da marca, cadastre o mesmo ID no AdSpirit pra que as conversões do servidor cheguem no lugar certo.',
+            );
+        }
+
+        // 6. Tag Manager — fonte que não dá pra inspecionar daqui.
         if ($tem_gtm) {
             $alertas[] = array(
                 'nivel' => 'nota',
@@ -205,9 +268,23 @@ class AdSpirit_Pixel_Conflito {
             );
         }
 
-        // 6. Plugins que costumam injetar.
+        // 7. Plugins que injetam pixel — com o ID quando dá pra ler.
         $plugins = $this->plugins_suspeitos();
-        if ($plugins) {
+        $pixels_de_plugin = $this->pixels_configurados_em_plugins();
+        if ($pixels_de_plugin) {
+            foreach ($pixels_de_plugin as $origem => $id) {
+                $mesmo = $nosso_pixel && $id === $nosso_pixel;
+                $alertas[] = array(
+                    'nivel' => $mesmo ? 'erro' : 'nota',
+                    'texto' => $mesmo
+                        ? sprintf('%s está configurado com o pixel %s — o mesmo que o AdSpirit usa.', $origem, $id)
+                        : sprintf('%s está configurado com o pixel %s.', $origem, $id),
+                    'acao' => $mesmo
+                        ? 'Os dois vão injetar o mesmo pixel e cada visita conta em dobro. Escolha quem cuida: desligue a injeção nesse plugin ou no AdSpirit.'
+                        : 'Pixel diferente do que o AdSpirit usa. Só confira se é proposital.',
+                );
+            }
+        } elseif ($plugins) {
             $alertas[] = array(
                 'nivel' => 'nota',
                 'texto' => 'Plugins ativos que também podem injetar medição: ' . implode(', ', $plugins) . '.',
