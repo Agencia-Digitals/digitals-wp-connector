@@ -31,6 +31,10 @@ class AdSpirit_Pixel_Injector {
     public function inject() {
         $settings = AdSpirit_Settings::get_core();
         if (empty($settings['pixel_enabled']) || $settings['pixel_enabled'] !== '1') return;
+        // AdSpirit_Pixel_Conflito segura a injeção quando a última varredura
+        // viu o nosso script já presente por outra fonte — melhor não medir do
+        // que medir em dobro.
+        if (!apply_filters('adspirit_pixel_injector_deve_injetar', true)) return;
         $token = trim((string) ($settings['pixel_token'] ?? ''));
         $base  = trim((string) ($settings['endpoint_url'] ?? ''));
         if (!$token || !$base) return;
