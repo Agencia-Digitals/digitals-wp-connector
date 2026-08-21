@@ -111,6 +111,57 @@ class AdSpirit_Pixel_Conflito {
     }
 
     /**
+     * Procura o pixel dentro dos "gerenciadores de código" — Code Snippets e
+     * WPCode. É onde o pixel mais costuma estar colado à mão, e é o lugar que
+     * ninguém lembra de olhar: não é o tema, não é um plugin de pixel, é um
+     * trecho solto que alguém salvou há dois anos.
+     *
+     * Dizer o NOME do trecho é o que transforma o alerta em coisa acionável:
+     * "está no snippet DigitalsOS Tag" resolve em trinta segundos; "procure no
+     * site" vira meia hora de caçada.
+     */
+    private function snippets_com_pixel() {
+        global $wpdb;
+        $achados = array();
+
+        $tabelas = array(
+            $wpdb->prefix . 'snippets' => array('Code Snippets', 'name', 'code', 'active'),
+            $wpdb->prefix . 'wpcode'   => array('WPCode', 'title', 'code', 'status'),
+        );
+
+        foreach ($tabelas as $tabela => $cols) {
+            list($rotulo, $col_nome, $col_codigo, $col_ativo) = $cols;
+            // Nome de tabela não vem de input do usuário — sai do prefixo do
+            // próprio WordPress — mas confirma que existe antes de consultar.
+            if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $tabela)) !== $tabela) continue;
+
+            $linhas = $wpdb->get_results(
+                "SELECT `{$col_nome}` AS nome, `{$col_ativo}` AS ativo, `{$col_codigo}` AS codigo
+                   FROM `{$tabela}`",
+                ARRAY_A
+            );
+            if (!$linhas) continue;
+
+            foreach ($linhas as $l) {
+                $codigo = (string) $l['codigo'];
+                if (strpos($codigo, 'pixel.js') === false
+                    && !preg_match("/fbq\s*\(\s*['\"]init/", $codigo)
+                    && strpos($codigo, 'facebook.com/tr') === false) {
+                    continue;
+                }
+                $achados[] = array(
+                    'origem' => $rotulo,
+                    'nome' => (string) $l['nome'],
+                    'ativo' => (bool) $l['ativo'],
+                    'nosso' => strpos($codigo, 'pixel.js') !== false,
+                );
+            }
+        }
+
+        return $achados;
+    }
+
+    /**
      * Lê o pixel que os plugins conhecidos têm guardado. Saber o ID muda o
      * aviso de "pode estar injetando algo" para "está injetando exatamente o
      * mesmo pixel que você" — que é a diferença entre uma nota e um erro.
@@ -176,6 +227,15 @@ class AdSpirit_Pixel_Conflito {
         $alertas = array();
         $no_estudio = defined('ADSPIRIT_PERFIL') && ADSPIRIT_PERFIL === 'estudio';
 
+        // Onde o trecho colado à mão mora, quando dá pra saber.
+        $snippets = $this->snippets_com_pixel();
+        $onde_esta = '';
+        foreach ($snippets as $sn) {
+            if (!$sn['ativo'] || !$sn['nosso']) continue;
+            $onde_esta = sprintf('%s, no trecho "%s"', $sn['origem'], $sn['nome']);
+            break;
+        }
+
         // 1. Pixel do AdSpirit colado fora do connector.
         //
         // Este é o caso que vai aparecer em escala quando o connector chegar
@@ -187,7 +247,9 @@ class AdSpirit_Pixel_Conflito {
                 'texto' => $assinadas > 0
                     ? sprintf('O pixel do AdSpirit aparece %d vezes na home: %d pelo connector e %d colada à mão. Cada visita conta em dobro.', $total_pixel, $assinadas, $de_fora)
                     : sprintf('Há %d pixel(s) do AdSpirit colado(s) fora do connector nesta página.', $de_fora),
-                'acao' => 'Procure no tema, num bloco de código do builder ou num plugin de headers. Enquanto a cópia de fora existir, o connector para de injetar a dele — melhor não medir do que medir em dobro.',
+                'acao' => $onde_esta
+                    ? 'Está em ' . $onde_esta . '. Desative ou apague de lá — enquanto a cópia existir, o connector não injeta a dele, e o site fica medindo pelo trecho antigo.'
+                    : 'Procure no tema, num bloco de código do builder ou num plugin de headers. Enquanto a cópia de fora existir, o connector para de injetar a dele — melhor não medir do que medir em dobro.',
             );
         }
 
@@ -259,6 +321,21 @@ class AdSpirit_Pixel_Conflito {
             );
         }
 
+        // 5b. Trechos de código soltos que injetam medição.
+        foreach ($snippets as $sn) {
+            if ($sn['nosso']) continue; // já coberto pelo alerta 1
+            $alertas[] = array(
+                'nivel' => $sn['ativo'] ? 'aviso' : 'nota',
+                'texto' => sprintf(
+                    '%s: o trecho "%s"%s injeta medição.',
+                    $sn['origem'], $sn['nome'], $sn['ativo'] ? '' : ' (desativado)'
+                ),
+                'acao' => $sn['ativo']
+                    ? 'Confira se ele não está colando o mesmo pixel que o AdSpirit usa. Trecho solto é o esconderijo mais comum de pixel esquecido.'
+                    : 'Está desativado, então não dispara. Só não se esqueça dele se alguém religar.',
+            );
+        }
+
         // 6. Tag Manager — fonte que não dá pra inspecionar daqui.
         if ($tem_gtm) {
             $alertas[] = array(
@@ -302,6 +379,7 @@ class AdSpirit_Pixel_Conflito {
             'pixel_de_fora' => (int) $de_fora,
             'gtm' => $gtm_id,
             'plugins' => $plugins,
+            'snippets' => $snippets,
             'alertas' => $alertas,
         );
         update_option(self::OPTION_RELATORIO, $relatorio, false);
