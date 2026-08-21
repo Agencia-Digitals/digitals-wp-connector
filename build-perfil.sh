@@ -42,10 +42,15 @@ for m in $MODULOS; do
   if [ -f "$origem" ]; then cp "$origem" "$ALVO/includes/"; else FALTANDO="$FALTANDO $m"; fi
 done
 
-# Ferramentas de construção. Vão no pacote de estúdio; no do cliente nem
-# entram. (Mesmo indo junto, elas só acordam num domínio nosso — o gate de
-# verdade é AdSpirit_Ambiente. Deixar de fora aqui é cinto e suspensório.)
-if [ "$PERFIL" = "estudio" ] && [ -d includes/estudio ]; then
+# Ferramentas de manutenção e construção: vão nos DOIS pacotes.
+#
+# Antes ficavam de fora do pacote do cliente. Mas sem o código no site do
+# cliente não dá pra corrigir nada lá pelo agente — que é justamente o que a
+# gente precisa poder fazer. O que protege o site do cliente é a tranca de
+# quem chama (pessoa da Digitals com permissão de administrar), não a
+# ausência do arquivo. A aba do painel continua só aparecendo em endereço
+# nosso.
+if [ -d includes/estudio ]; then
   mkdir -p "$ALVO/includes/estudio"
   cp includes/estudio/*.php "$ALVO/includes/estudio/" 2>/dev/null || true
 fi

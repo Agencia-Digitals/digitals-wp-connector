@@ -81,6 +81,67 @@ class AdSpirit_Ambiente {
      * aba a mais, "Studio", com as ferramentas de construção.
      */
 
+    // ─────────────────────────────────────────────────────────
+    // Quem pode operar o site pelo agente
+    // ─────────────────────────────────────────────────────────
+
+    /**
+     * Domínios de e-mail que identificam gente da Digitals.
+     *
+     * Fica no código (com escotilha em wp-config), NÃO numa opção do banco:
+     * opção no banco é editável por qualquer admin do site — inclusive do
+     * cliente —, e aí a tranca abriria por dentro.
+     */
+    private static function dominios_da_digitals() {
+        $lista = array('agenciadigitals.com.br', 'digitals.com.br');
+        if (defined('ADSPIRIT_DOMINIOS_EQUIPE') && ADSPIRIT_DOMINIOS_EQUIPE) {
+            $extra = array_filter(array_map('trim', explode(',', (string) ADSPIRIT_DOMINIOS_EQUIPE)));
+            $lista = array_merge($lista, $extra);
+        }
+        return $lista;
+    }
+
+    /**
+     * Esta pessoa é da Digitals?
+     *
+     * É a tranca das operações por agente. Ser administrador do site não
+     * basta: no site do cliente o próprio cliente é administrador, e as
+     * ferramentas de manutenção não são pra ele.
+     *
+     * Honestidade sobre o alcance: quem administra o próprio WordPress pode
+     * trocar o e-mail de um usuário e passar por aqui. Isso não é furo, é o
+     * limite do que dá pra garantir de dentro do site — quem é dono do site já
+     * pode tudo nele de qualquer forma. O que esta tranca resolve é o que
+     * acontece de verdade no dia a dia: impedir que alguém do lado do cliente
+     * dispare sem querer uma ferramenta nossa, e deixar registrado quem
+     * disparou o quê.
+     */
+    public static function e_pessoa_da_digitals($user_id = null) {
+        $user = $user_id ? get_userdata($user_id) : wp_get_current_user();
+        if (!$user || empty($user->user_email)) return false;
+
+        $email = strtolower(trim($user->user_email));
+        $arroba = strrpos($email, '@');
+        if ($arroba === false) return false;
+        $dominio = substr($email, $arroba + 1);
+
+        foreach (self::dominios_da_digitals() as $d) {
+            $d = strtolower(trim((string) $d));
+            if ($d === '') continue;
+            if ($dominio === $d) return true;
+            if (substr($dominio, -strlen('.' . $d)) === '.' . $d) return true;
+        }
+        return false;
+    }
+
+    /**
+     * A tranca completa das operações por agente: precisa ser da Digitals E
+     * poder administrar o site. Uma coisa sem a outra não abre.
+     */
+    public static function pode_operar_pelo_agente() {
+        return self::e_pessoa_da_digitals() && current_user_can('manage_options');
+    }
+
     /** Uma frase pra tela dizer em que modo está. */
     public static function descricao() {
         return self::e_estudio()

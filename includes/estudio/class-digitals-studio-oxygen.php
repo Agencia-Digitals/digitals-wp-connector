@@ -220,7 +220,15 @@ class Digitals_Studio_Oxygen {
 
     public function register_abilities() {
         if (!function_exists('wp_register_ability')) { return; }
-        $perm = function () { return current_user_can('manage_options'); };
+        // Ser administrador do site não basta: no site do cliente o próprio
+        // cliente é administrador. A tranca é ser da Digitals E poder
+        // administrar. Sem a classe de ambiente, cai no critério antigo.
+        $perm = function () {
+            if (class_exists('AdSpirit_Ambiente')) {
+                return AdSpirit_Ambiente::pode_operar_pelo_agente();
+            }
+            return current_user_can('manage_options');
+        };
 
         wp_register_ability('digitals-studio/inventory', [
             'category' => 'digitals-studio',
