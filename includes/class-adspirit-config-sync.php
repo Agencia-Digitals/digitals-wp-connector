@@ -32,6 +32,8 @@ class AdSpirit_Config_Sync {
     const OPTION_SYNC_AT = 'adspirit_connector_config_sync_at';
     const OPTION_SYNC_ERR = 'adspirit_connector_config_sync_error';
     const OPTION_GERIDOS = 'adspirit_connector_config_geridos';
+    const OPTION_MODO = 'adspirit_connector_config_modo';
+    const OPTION_COMPARACAO = 'adspirit_connector_config_comparacao';
     const CRON = 'adspirit_connector_config_sync';
 
     private static $instance = null;
@@ -44,6 +46,35 @@ class AdSpirit_Config_Sync {
     /** Desligar devolve o controle dos campos pro wp-admin do site. */
     public static function ativo() {
         return (bool) apply_filters('adspirit_config_sync_ativo', true);
+    }
+
+    /**
+     * 'observando' = olha e relata, não escreve nada.
+     * 'aplicando'  = o AdSpirit manda nos campos que ele conhece.
+     *
+     * O padrão é decidido UMA vez, na primeira execução, pelo estado do site:
+     * site que já tinha medição configurada entra observando, porque ali há o
+     * que perder e alguém precisa olhar antes. Site novo, sem nada, entra
+     * aplicando — não há risco de apagar o que não existe.
+     *
+     * É essa escolha que torna seguro atualizar o plugin em site antigo: a
+     * atualização não muda medição nenhuma até um humano aprovar.
+     */
+    public static function modo() {
+        $m = get_option(self::OPTION_MODO, '');
+        if ($m === 'observando' || $m === 'aplicando') return $m;
+        return 'observando'; // sem decisão gravada, o seguro é olhar
+    }
+
+    private function definir_modo_inicial() {
+        if (get_option(self::OPTION_MODO, '') !== '') return;
+        $site = $this->estado_do_site();
+        $tem_algo = false;
+        foreach ($site as $campo => $v) {
+            if ($campo === 'pixel_token') continue; // o token vem do connect, não conta
+            if ($v !== '') { $tem_algo = true; break; }
+        }
+        update_option(self::OPTION_MODO, $tem_algo ? 'observando' : 'aplicando', false);
     }
 
     private function __construct() {
@@ -61,6 +92,14 @@ class AdSpirit_Config_Sync {
         add_action(
             'adspirit_connector_save_connection',
             AdSpirit_Safe_Hook::action(array($this, 'sync_manual'), 'config_sync_save')
+        );
+        add_action(
+            'adspirit_connector_save_connection',
+            AdSpirit_Safe_Hook::action(array($this, 'assumir'), 'config_sync_assumir')
+        );
+        add_action(
+            'adspirit_connector_save_connection',
+            AdSpirit_Safe_Hook::action(array($this, 'observar'), 'config_sync_observar')
         );
         add_action(
             'adspirit_connector_render_tab_connection',
@@ -136,6 +175,19 @@ class AdSpirit_Config_Sync {
             return false;
         }
 
+        $this->definir_modo_inicial();
+        $comparacao = $this->comparar($dados['tracking']);
+        update_option(self::OPTION_COMPARACAO, $comparacao, false);
+
+        if (self::modo() !== 'aplicando') {
+            // Observando: registra o que aconteceria e sai sem tocar em nada.
+            // Não grava o carimbo — assim, quando alguém aprovar, a próxima
+            // busca traz a config inteira em vez de um 304.
+            update_option(self::OPTION_SYNC_AT, time(), false);
+            update_option(self::OPTION_SYNC_ERR, '', false);
+            return 'observando';
+        }
+
         $geridos = $this->aplicar($dados['tracking']);
 
         update_option(self::OPTION_CARIMBO, sanitize_text_field((string) ($dados['config_updated_at'] ?? '')), false);
@@ -147,30 +199,112 @@ class AdSpirit_Config_Sync {
     }
 
     /**
+     * O que o site tem hoje, campo a campo, no vocabulário do AdSpirit.
+     */
+    private function estado_do_site() {
+        $core = AdSpirit_Settings::get_core();
+        $capi = AdSpirit_Settings::get_capi_meta();
+        $ga4 = AdSpirit_Settings::get_ga4();
+        $clarity = class_exists('AdSpirit_Clarity') ? AdSpirit_Clarity::get_settings() : array();
+        return array(
+            'pixel_token' => trim((string) ($core['pixel_token'] ?? '')),
+            'meta_pixel' => trim((string) ($capi['pixel_id'] ?? '')),
+            'ga4' => trim((string) ($ga4['measurement_id'] ?? '')),
+            'clarity' => trim((string) ($clarity['project_id'] ?? '')),
+        );
+    }
+
+    /** Os mesmos campos, como o AdSpirit os conhece. */
+    private function estado_do_adspirit($t) {
+        return array(
+            'pixel_token' => trim((string) ($t['pixel_token'] ?? '')),
+            'meta_pixel' => trim((string) ($t['meta']['pixel_id'] ?? '')),
+            'ga4' => trim((string) ($t['ga4']['measurement_id'] ?? '')),
+            'clarity' => trim((string) ($t['clarity']['project_id'] ?? '')),
+        );
+    }
+
+    private static function rotulo($campo) {
+        $r = array(
+            'pixel_token' => 'Pixel do AdSpirit',
+            'meta_pixel' => 'Pixel da Meta',
+            'ga4' => 'Google Analytics 4',
+            'clarity' => 'Microsoft Clarity',
+        );
+        return isset($r[$campo]) ? $r[$campo] : $campo;
+    }
+
+    /**
+     * Compara os dois lados e diz o que aconteceria. É o que a tela mostra em
+     * modo observação, e é o que decide o que pode ser escrito em modo ativo.
+     *
+     * Três situações que importam:
+     *   igual     — nada a fazer.
+     *   adotar    — o site tem, o AdSpirit não. O valor do site é a verdade e
+     *               precisa subir; NUNCA apagamos o que já funciona.
+     *   trocar    — os dois têm, e são diferentes. Só aí o AdSpirit manda.
+     *   preencher — o AdSpirit tem, o site não. Escrita segura.
+     */
+    private function comparar($t) {
+        $site = $this->estado_do_site();
+        $crm = $this->estado_do_adspirit($t);
+        $linhas = array();
+        foreach ($site as $campo => $valor_site) {
+            $valor_crm = isset($crm[$campo]) ? $crm[$campo] : '';
+            if ($valor_site === $valor_crm) {
+                $situacao = 'igual';
+            } elseif ($valor_site !== '' && $valor_crm === '') {
+                $situacao = 'adotar';
+            } elseif ($valor_site === '' && $valor_crm !== '') {
+                $situacao = 'preencher';
+            } else {
+                $situacao = 'trocar';
+            }
+            $linhas[] = array(
+                'campo' => $campo,
+                'rotulo' => self::rotulo($campo),
+                'no_site' => $valor_site,
+                'no_adspirit' => $valor_crm,
+                'situacao' => $situacao,
+            );
+        }
+        return $linhas;
+    }
+
+    /**
      * Escreve nas mesmas options que as telas do plugin já usam — assim os
      * módulos de medição não precisam saber que a config veio de fora.
      *
-     * Campo vazio no AdSpirit desliga o módulo em vez de deixar rodando com
-     * um ID antigo que ninguém lembra de onde veio.
+     * REGRA DURA: campo vazio no AdSpirit NUNCA apaga valor que existe no
+     * site. Vazio ali significa "o AdSpirit não cuida disso", não "desligue".
+     * Sem essa regra, instalar o connector num site que já media apagaria a
+     * medição dele em silêncio — o pior tipo de erro, porque nada quebra e
+     * ninguém percebe até o relatório do mês vir vazio.
      */
     private function aplicar($t) {
         $geridos = array();
+        $comparacao = $this->comparar($t);
+        $por_campo = array();
+        foreach ($comparacao as $l) $por_campo[$l['campo']] = $l;
+
+        $pode_escrever = function ($campo) use ($por_campo) {
+            $s = isset($por_campo[$campo]) ? $por_campo[$campo]['situacao'] : 'igual';
+            return $s === 'preencher' || $s === 'trocar';
+        };
 
         // Pixel próprio (first-party) — token e liga/desliga.
-        $token = isset($t['pixel_token']) ? sanitize_text_field((string) $t['pixel_token']) : '';
-        if ($token !== '') {
+        if ($pode_escrever('pixel_token')) {
             AdSpirit_Settings::update_core(array(
-                'pixel_token'   => $token,
+                'pixel_token'   => $por_campo['pixel_token']['no_adspirit'],
                 'pixel_enabled' => !empty($t['pixel_ativo']) ? '1' : '0',
             ));
             $geridos[] = 'pixel';
         }
 
         // Meta — pixel do navegador e CAPI usam o mesmo ID.
-        if (isset($t['meta']) && is_array($t['meta'])) {
-            $pixel_id = sanitize_text_field((string) ($t['meta']['pixel_id'] ?? ''));
+        if ($pode_escrever('meta_pixel')) {
             AdSpirit_Settings::update_capi_meta(array(
-                'pixel_id'     => $pixel_id,
+                'pixel_id'     => $por_campo['meta_pixel']['no_adspirit'],
                 'access_token' => (string) ($t['meta']['access_token'] ?? ''),
                 'enabled'      => !empty($t['meta']['capi_ativo']) ? '1' : '0',
             ));
@@ -178,40 +312,41 @@ class AdSpirit_Config_Sync {
         }
 
         // GA4.
-        if (isset($t['ga4']) && is_array($t['ga4'])) {
+        if ($pode_escrever('ga4')) {
             AdSpirit_Settings::update_ga4(array(
-                'measurement_id' => sanitize_text_field((string) ($t['ga4']['measurement_id'] ?? '')),
+                'measurement_id' => $por_campo['ga4']['no_adspirit'],
                 'api_secret'     => (string) ($t['ga4']['api_secret'] ?? ''),
                 'enabled'        => !empty($t['ga4']['capi_ativo']) ? '1' : '0',
             ));
             $geridos[] = 'ga4';
         }
 
-        // Clarity — o próprio módulo recusa Project ID fora do formato, então
-        // só liga quando o valor passa na validação dele.
-        if (isset($t['clarity']) && is_array($t['clarity']) && class_exists('AdSpirit_Clarity')) {
-            $projeto = sanitize_text_field((string) ($t['clarity']['project_id'] ?? ''));
-            $valido = $projeto !== '' && AdSpirit_Clarity::is_valid_project_id($projeto);
+        // Clarity — o próprio módulo recusa Project ID fora do formato.
+        if ($pode_escrever('clarity') && class_exists('AdSpirit_Clarity')) {
+            $projeto = $por_campo['clarity']['no_adspirit'];
             AdSpirit_Clarity::update_settings(array(
                 'project_id' => $projeto,
-                'enabled'    => $valido ? '1' : '0',
+                'enabled'    => AdSpirit_Clarity::is_valid_project_id($projeto) ? '1' : '0',
             ));
             $geridos[] = 'clarity';
         }
 
         // Domínios da jornada — o AdSpirit já sabe quais são; o site só
-        // precisa saber pra carimbar o visitante na travessia.
+        // precisa saber pra carimbar o visitante na travessia. Lista vazia
+        // também não apaga o que já existe.
         if (isset($t['dominios_vinculados']) && is_array($t['dominios_vinculados'])) {
             $limpos = array();
             foreach ($t['dominios_vinculados'] as $d) {
                 $d = sanitize_text_field((string) $d);
                 if ($d !== '') $limpos[] = $d;
             }
-            AdSpirit_Settings::update_cross_domain(array(
-                'domains' => implode("\n", $limpos),
-                'enabled' => $limpos ? '1' : '0',
-            ));
-            $geridos[] = 'cross_domain';
+            if ($limpos) {
+                AdSpirit_Settings::update_cross_domain(array(
+                    'domains' => implode("\n", $limpos),
+                    'enabled' => '1',
+                ));
+                $geridos[] = 'cross_domain';
+            }
         }
 
         return $geridos;
@@ -230,6 +365,20 @@ class AdSpirit_Config_Sync {
 
     public static function sync_at() { return (int) get_option(self::OPTION_SYNC_AT, 0); }
 
+    public static function comparacao() {
+        $c = get_option(self::OPTION_COMPARACAO, array());
+        return is_array($c) ? $c : array();
+    }
+
+    /** Campos que o site tem e o AdSpirit não — precisam subir. */
+    public static function para_adotar() {
+        $r = array();
+        foreach (self::comparacao() as $l) {
+            if (($l['situacao'] ?? '') === 'adotar') $r[] = $l;
+        }
+        return $r;
+    }
+
     public static function erro() {
         $v = get_option(self::OPTION_SYNC_ERR, '');
         return is_string($v) ? $v : '';
@@ -238,6 +387,28 @@ class AdSpirit_Config_Sync {
     // ─────────────────────────────────────────────────────────
     // Interface
     // ─────────────────────────────────────────────────────────
+
+    /** Sai da observação e deixa o AdSpirit assumir. Decisão explícita. */
+    public function assumir($post) {
+        if (empty($post['assumir_config'])) return;
+        if (!current_user_can('manage_options')) return;
+        update_option(self::OPTION_MODO, 'aplicando', false);
+        delete_option(self::OPTION_CARIMBO); // força trazer tudo, não um 304
+        $r = $this->buscar(true);
+        add_settings_error('adspirit_connector_config', 'assumiu',
+            $r ? 'O AdSpirit passou a cuidar da medição deste site.'
+               : 'Mudei pro modo ativo, mas a busca falhou: ' . esc_html(self::erro()),
+            $r ? 'updated' : 'error');
+    }
+
+    /** Volta a só observar. Nada do que já foi escrito é desfeito. */
+    public function observar($post) {
+        if (empty($post['observar_config'])) return;
+        if (!current_user_can('manage_options')) return;
+        update_option(self::OPTION_MODO, 'observando', false);
+        add_settings_error('adspirit_connector_config', 'observando',
+            'Voltou pro modo observação. O que já foi escrito continua como está.', 'updated');
+    }
 
     public function sync_manual($post) {
         if (empty($post['sync_config'])) return;
@@ -281,6 +452,50 @@ class AdSpirit_Config_Sync {
 
         if ($erro) {
             echo '<div class="as-notice danger"><p><strong>Última tentativa falhou:</strong> ' . esc_html($erro) . '</p></div>';
+        }
+
+        $modo = self::modo();
+        $comparacao = self::comparacao();
+
+        if ($modo === 'observando') {
+            echo '<div class="as-notice warning"><p><strong>Modo observação.</strong> '
+               . 'Nada neste site foi alterado. A tabela abaixo mostra o que aconteceria '
+               . 'se o AdSpirit assumisse — confira antes de decidir.</p></div>';
+        }
+
+        if ($comparacao) {
+            echo '<table class="widefat striped" style="margin-bottom:12px"><thead><tr>'
+               . '<th>Campo</th><th>Neste site</th><th>No AdSpirit</th><th>O que acontece</th>'
+               . '</tr></thead><tbody>';
+            foreach ($comparacao as $l) {
+                $explica = array(
+                    'igual' => 'Nada muda.',
+                    'adotar' => 'O site tem, o AdSpirit não. Fica como está — cadastre esse valor no AdSpirit.',
+                    'preencher' => 'O AdSpirit preenche o que falta aqui.',
+                    'trocar' => 'Valores diferentes. O do AdSpirit passa a valer.',
+                );
+                $sit = $l['situacao'];
+                echo '<tr><td><strong>' . esc_html($l['rotulo']) . '</strong></td>'
+                   . '<td><code>' . esc_html($l['no_site'] !== '' ? $l['no_site'] : '—') . '</code></td>'
+                   . '<td><code>' . esc_html($l['no_adspirit'] !== '' ? $l['no_adspirit'] : '—') . '</code></td>'
+                   . '<td>' . esc_html(isset($explica[$sit]) ? $explica[$sit] : $sit) . '</td></tr>';
+            }
+            echo '</tbody></table>';
+        }
+
+        AdSpirit_Menu::form_open('connection');
+        if ($modo === 'observando') {
+            echo '<input type="hidden" name="assumir_config" value="1">';
+            echo '<p class="submit" style="margin-top:0;">'
+               . '<button type="submit" class="button button-primary">Deixar o AdSpirit assumir</button>'
+               . '<span class="as-field-help" style="margin-left:10px;">Só depois disso o plugin escreve algo. '
+               . 'Valor que só existe aqui nunca é apagado.</span></p></form>';
+        } else {
+            echo '<input type="hidden" name="observar_config" value="1">';
+            echo '<p class="submit" style="margin-top:0;">'
+               . '<button type="submit" class="button">Voltar a só observar</button>'
+               . '<span class="as-field-help" style="margin-left:10px;">Para de escrever. '
+               . 'O que já foi escrito continua como está.</span></p></form>';
         }
 
         AdSpirit_Menu::form_open('connection');

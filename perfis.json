@@ -1,5 +1,5 @@
 {
-  "_leia_me": "Perfis de empacotamento do connector. 'estudio' roda nos nossos subdomínios e pode tudo, inclusive automação por IA. 'cliente' vai para o domínio do cliente e carrega só o essencial de operação — os módulos de fora NEM ENTRAM no pacote, não ficam desligados por flag. Ajustar aqui muda o que o build.sh gera.",
+  "_leia_me": "Perfis de empacotamento do connector. A partir da v2.40 o que separa estúdio de cliente é o DOMÍNIO em que o site roda (AdSpirit_Ambiente), não o pacote: o mesmo zip serve os dois, e as ferramentas de construção simplesmente não acordam fora de um endereço nosso. Os perfis continuam aqui pra quem quiser um pacote realmente enxuto pro cliente.",
   "sempre": [
     "safe-hook",
     "safe-bootstrap",
@@ -16,6 +16,7 @@
   "cliente": {
     "_por_que": "site do cliente: captar lead, medir, entregar e-mail e manter o site saudável. Nada de builder, automação ou ferramenta de desenvolvimento.",
     "modulos": [
+      "ambiente",
       "form",
       "form-adapters",
       "forms-hub",
@@ -57,7 +58,7 @@
     ]
   },
   "estudio": {
-    "_por_que": "nossos subdomínios: tudo do cliente MAIS as ferramentas de construção e a automação por IA.",
+    "_por_que": "nossos subdomínios: tudo do cliente MAIS construção e automação. Na prática o gate é o domínio; este perfil só existe pra empacotar um zip completo.",
     "modulos_extras": [
       "devtools"
     ],

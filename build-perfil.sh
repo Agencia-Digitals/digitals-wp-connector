@@ -42,6 +42,14 @@ for m in $MODULOS; do
   if [ -f "$origem" ]; then cp "$origem" "$ALVO/includes/"; else FALTANDO="$FALTANDO $m"; fi
 done
 
+# Ferramentas de construção. Vão no pacote de estúdio; no do cliente nem
+# entram. (Mesmo indo junto, elas só acordam num domínio nosso — o gate de
+# verdade é AdSpirit_Ambiente. Deixar de fora aqui é cinto e suspensório.)
+if [ "$PERFIL" = "estudio" ] && [ -d includes/estudio ]; then
+  mkdir -p "$ALVO/includes/estudio"
+  cp includes/estudio/*.php "$ALVO/includes/estudio/" 2>/dev/null || true
+fi
+
 # marca o perfil dentro do pacote, pro plugin saber onde está rodando
 printf "<?php\n// gerado por build-perfil.sh — não editar\nif (!defined('ADSPIRIT_PERFIL')) define('ADSPIRIT_PERFIL', '%s');\n" "$PERFIL" > "$ALVO/includes/perfil.php"
 
