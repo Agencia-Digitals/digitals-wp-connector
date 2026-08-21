@@ -415,7 +415,7 @@ class AdSpirit_Menu {
             if (is_array($gh) && ($gh['state'] ?? '') === 'warn' && !empty($gh['hint'])) :
                 $fix_url = ''; $fix_label = '';
                 if ($current_group === 'inicio') {
-                    $fix_url = admin_url('admin.php?page=' . self::PAGE_SLUG . '&tab=submissions&sl_status=pending');
+                    $fix_url = admin_url('admin.php?page=' . self::PAGE_SLUG . '&tab=submissions&sl_status=problemas');
                     $fix_label = 'Ver os leads pendentes';
                 } elseif ($current_group === 'conexao') {
                     $fix_url = admin_url('admin.php?page=' . self::PAGE_SLUG . '&tab=connection');

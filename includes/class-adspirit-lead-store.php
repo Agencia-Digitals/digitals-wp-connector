@@ -585,7 +585,16 @@ class AdSpirit_Lead_Store {
             $args  = array();
 
             if (!empty($filters['source'])) { $where[] = 'source = %s'; $args[] = (string) $filters['source']; }
-            if (!empty($filters['status'])) { $where[] = 'status = %s'; $args[] = (string) $filters['status']; }
+            if (!empty($filters['status'])) {
+                // "problemas" = tudo que não chegou ao CRM e ainda incomoda
+                // (o resolvido manualmente sai do radar de propósito).
+                if ($filters['status'] === 'problemas') {
+                    $where[] = "status IN ('pending','failed')";
+                } else {
+                    $where[] = 'status = %s';
+                    $args[] = (string) $filters['status'];
+                }
+            }
             if (!empty($filters['search'])) {
                 $like = '%' . $wpdb->esc_like((string) $filters['search']) . '%';
                 $where[] = '(name LIKE %s OR email LIKE %s OR phone LIKE %s OR company LIKE %s)';
@@ -608,7 +617,16 @@ class AdSpirit_Lead_Store {
             $where = array('1=1');
             $args  = array();
             if (!empty($filters['source'])) { $where[] = 'source = %s'; $args[] = (string) $filters['source']; }
-            if (!empty($filters['status'])) { $where[] = 'status = %s'; $args[] = (string) $filters['status']; }
+            if (!empty($filters['status'])) {
+                // "problemas" = tudo que não chegou ao CRM e ainda incomoda
+                // (o resolvido manualmente sai do radar de propósito).
+                if ($filters['status'] === 'problemas') {
+                    $where[] = "status IN ('pending','failed')";
+                } else {
+                    $where[] = 'status = %s';
+                    $args[] = (string) $filters['status'];
+                }
+            }
             if (!empty($filters['search'])) {
                 $like = '%' . $wpdb->esc_like((string) $filters['search']) . '%';
                 $where[] = '(name LIKE %s OR email LIKE %s OR phone LIKE %s OR company LIKE %s)';
@@ -641,6 +659,9 @@ class AdSpirit_Lead_Store {
             global $wpdb;
             $table = self::table_name();
             return (int) $wpdb->get_var($wpdb->prepare(
+                // 'resolved' fica de fora de propósito: é o "marcar como
+                // resolvido" — o lead foi tratado por fora e não deve mais
+                // acender o aviso.
                 "SELECT COUNT(*) FROM {$table} WHERE status IN ('pending','failed') AND source <> %s",
                 'qualifier_partial'
             ));
@@ -708,6 +729,34 @@ class AdSpirit_Lead_Store {
             exit;
         }
 
+        // "Marcar como resolvido" (Pedro 08-20): o aviso precisa ter saída.
+        // Lead tratado por fora (ligaram pra pessoa, era teste, duplicado)
+        // sai do radar sem sumir do histórico — status 'resolved' fica fora
+        // do contador que acende o ponto âmbar, mas a linha continua lá,
+        // filtrável por "Resolvido manualmente".
+        if (!empty($_POST['resolve'])) {
+            $n = 0;
+            foreach ($ids as $id) {
+                $row = self::get($id);
+                if (!$row || !in_array((string) ($row['status'] ?? ''), array('pending', 'failed'), true)) continue;
+                self::set_status($id, 'resolved');
+                $n++;
+            }
+            wp_safe_redirect(add_query_arg(array('resend' => 'resolved', 'r_ok' => $n), $back));
+            exit;
+        }
+        if (!empty($_POST['unresolve'])) {
+            $n = 0;
+            foreach ($ids as $id) {
+                $row = self::get($id);
+                if (!$row || (string) ($row['status'] ?? '') !== 'resolved') continue;
+                self::set_status($id, 'pending');
+                $n++;
+            }
+            wp_safe_redirect(add_query_arg(array('resend' => 'reopened', 'r_ok' => $n), $back));
+            exit;
+        }
+
         $ok = 0;
         $fail = 0;
         foreach ($ids as $id) {
@@ -722,6 +771,20 @@ class AdSpirit_Lead_Store {
 
         wp_safe_redirect(add_query_arg(array('resend' => 'bulk', 'r_ok' => $ok, 'r_fail' => $fail), $back));
         exit;
+    }
+
+    /** Troca o status de uma linha (usado por resolver/reabrir). */
+    public static function set_status($id, $status) {
+        if (!self::available()) return false;
+        return AdSpirit_Safe_Hook::try_run(function () use ($id, $status) {
+            global $wpdb;
+            $wpdb->update(
+                self::table_name(),
+                array('status' => (string) $status, 'updated_at' => current_time('mysql', true)),
+                array('id' => (int) $id)
+            );
+            return true;
+        }, false, 'lead_store_set_status');
     }
 
     /**
@@ -792,6 +855,12 @@ class AdSpirit_Lead_Store {
         $unsent = self::count_unsent();
 
         $notice = isset($_GET['resend']) ? sanitize_key((string) $_GET['resend']) : '';
+        $n_ok = isset($_GET['r_ok']) ? (int) $_GET['r_ok'] : 0;
+        if ($notice === 'resolved') {
+            echo '<div class="as-notice"><p>' . (int) $n_ok . ' lead(s) marcados como resolvidos — saíram do aviso de pendentes e continuam no histórico.</p></div>';
+        } elseif ($notice === 'reopened') {
+            echo '<div class="as-notice"><p>' . (int) $n_ok . ' lead(s) reabertos — voltam a contar como pendentes.</p></div>';
+        }
         ?>
         <div class="as-card">
             <h2 class="as-section"><span class="as-kicker-inline">Diagnóstico</span>Submissões (registro durável)</h2>
@@ -849,9 +918,11 @@ class AdSpirit_Lead_Store {
                 </select>
                 <select name="sl_status">
                     <option value="">Todos status</option>
+                    <option value="problemas" <?php selected($filters['status'], 'problemas'); ?>>Só problemas (pendente + falhou)</option>
                     <option value="sent" <?php selected($filters['status'], 'sent'); ?>>Enviado</option>
                     <option value="pending" <?php selected($filters['status'], 'pending'); ?>>Pendente</option>
                     <option value="failed" <?php selected($filters['status'], 'failed'); ?>>Falhou</option>
+                    <option value="resolved" <?php selected($filters['status'], 'resolved'); ?>>Resolvido manualmente</option>
                     <option value="spam" <?php selected($filters['status'], 'spam'); ?>>Spam (quarentena)</option>
                 </select>
                 <button type="submit" class="button">Filtrar</button>
@@ -868,8 +939,14 @@ class AdSpirit_Lead_Store {
                 <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                 <input type="hidden" name="action" value="adspirit_resend_bulk">
                 <?php wp_nonce_field('adspirit_resend_bulk'); ?>
-                <p style="margin:0 0 8px;">
+                <p style="margin:0 0 8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
                     <button type="submit" class="button" title="Reenvia os leads marcados (máx. 20 por vez), reusando o ID original — o CRM não duplica">Reenviar selecionados</button>
+                    <?php if ($filters['status'] === 'resolved') : ?>
+                        <button type="submit" name="unresolve" value="1" class="button" title="Volta a contar como pendente">Reabrir selecionados</button>
+                    <?php else : ?>
+                        <button type="submit" name="resolve" value="1" class="button" title="Tira do aviso de pendentes sem apagar do histórico — pra lead já tratado por fora, teste ou duplicado">Marcar como resolvido</button>
+                    <?php endif; ?>
+                    <a class="button-link" href="<?php echo esc_url(add_query_arg(array('page' => AdSpirit_Menu::PAGE_SLUG, 'tab' => 'submissions', 'sl_status' => 'problemas'), admin_url('admin.php'))); ?>">Ver só os problemas</a>
                 </p>
                 <table class="wp-list-table widefat striped">
                     <thead>
@@ -891,8 +968,12 @@ class AdSpirit_Lead_Store {
                         $when = $ts ? human_time_diff($ts, time()) . ' atrás' : '—';
                         $when_title = $ts ? get_date_from_gmt((string) $r['created_at'], 'Y-m-d H:i') : '';
                         $status = (string) ($r['status'] ?? 'pending');
-                        $badge = array('sent' => 'ok', 'pending' => 'warn', 'failed' => 'danger', 'spam' => 'muted');
+                        $badge = array('sent' => 'ok', 'pending' => 'warn', 'failed' => 'danger', 'spam' => 'muted', 'resolved' => 'muted');
                         $status_cls = $badge[$status] ?? 'muted';
+                        $status_label = array(
+                            'sent' => 'entregue', 'pending' => 'pendente', 'failed' => 'falhou',
+                            'spam' => 'spam', 'resolved' => 'resolvido',
+                        );
                         // Spam reenviável de propósito: falso positivo sai da
                         // quarentena pelo mesmo botão ("não era spam").
                         $can_resend = in_array($status, array('pending', 'failed', 'spam'), true);
@@ -926,7 +1007,7 @@ class AdSpirit_Lead_Store {
                                 <?php if (!empty($r['company'])) : ?><br><small style="opacity:.7;"><?php echo esc_html((string) $r['company']); ?></small><?php endif; ?>
                             </td>
                             <td>
-                                <span class="as-badge <?php echo esc_attr($status_cls); ?>"><?php echo esc_html($status); ?></span>
+                                <span class="as-badge <?php echo esc_attr($status_cls); ?>"><?php echo esc_html($status_label[$status] ?? $status); ?></span>
                                 <?php $att = (int) ($r['attempts'] ?? 0); ?>
                                 <?php if ($att > 1) : ?>
                                     <br><small style="opacity:.7;"><?php echo (int) $att; ?> tentativas</small>
