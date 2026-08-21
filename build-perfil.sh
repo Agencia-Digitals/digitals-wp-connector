@@ -46,7 +46,8 @@ done
 printf "<?php\n// gerado por build-perfil.sh — não editar\nif (!defined('ADSPIRIT_PERFIL')) define('ADSPIRIT_PERFIL', '%s');\n" "$PERFIL" > "$ALVO/includes/perfil.php"
 
 ( cd "$DIST" && zip -qr "$SLUG-$PERFIL-v$VERSION.zip" "$SLUG" )
-INCLUIDOS=$(ls "$ALVO/includes" | wc -l | tr -d ' ')
+# perfil.php é gerado pelo build — não conta como módulo.
+INCLUIDOS=$(ls "$ALVO/includes"/*.php | grep -v '/perfil\.php$' | wc -l | tr -d ' ')
 TOTAL=$(ls includes/*.php | wc -l | tr -d ' ')
 rm -rf "$ALVO"
 
