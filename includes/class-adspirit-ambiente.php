@@ -74,10 +74,12 @@ class AdSpirit_Ambiente {
         return defined('ADSPIRIT_FORCAR_ESTUDIO') && ADSPIRIT_FORCAR_ESTUDIO;
     }
 
-    /** Nome que o plugin usa na interface, conforme onde está. */
-    public static function nome_do_plugin() {
-        return self::e_estudio() ? 'Digitals Studio' : 'AdSpirit Connector';
-    }
+    /**
+     * O plugin se chama AdSpirit Connector em todo lugar — trocar o nome pelo
+     * endereço confundiria mais do que ajudaria (mesmo plugin, mesmo update,
+     * mesma tela de suporte). O que muda é que num endereço nosso aparece uma
+     * aba a mais, "Studio", com as ferramentas de construção.
+     */
 
     /** Uma frase pra tela dizer em que modo está. */
     public static function descricao() {

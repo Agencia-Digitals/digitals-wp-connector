@@ -3,7 +3,7 @@
  * Plugin Name:       AdSpirit Connector
  * Plugin URI:        https://crm.agenciadigitals.com.br
  * Description:       Conecta o site WordPress ao CRM AdSpirit (Digitals). CF7 real-time, anti-spam, field mapping, CAPI Meta, GA4 server-side, cross-domain decoration. Configurado via wp-admin.
- * Version:           2.41.0
+ * Version:           2.42.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Tested up to:      6.7
@@ -19,7 +19,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('ADSPIRIT_CONNECTOR_VERSION', '2.41.0');
+define('ADSPIRIT_CONNECTOR_VERSION', '2.42.0');
 define('ADSPIRIT_CONNECTOR_FILE', __FILE__);
 define('ADSPIRIT_CONNECTOR_DIR', plugin_dir_path(__FILE__));
 define('ADSPIRIT_CONNECTOR_URL', plugin_dir_url(__FILE__));
@@ -179,6 +179,8 @@ function adspirit_connector_init() {
     if (class_exists('AdSpirit_Ambiente') && AdSpirit_Ambiente::e_estudio()) {
         adspirit_connector_safe_require('includes/estudio/class-digitals-studio-oxygen.php');
         if (class_exists('Digitals_Studio_Oxygen')) new Digitals_Studio_Oxygen();
+        adspirit_connector_safe_require('includes/estudio/class-digitals-studio-aba.php');
+        if (class_exists('Digitals_Studio_Aba')) Digitals_Studio_Aba::instance();
     }
     // v2.2 adapters
     if (class_exists('AdSpirit_Behavioral')) AdSpirit_Behavioral::instance();

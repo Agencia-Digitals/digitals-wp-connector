@@ -182,7 +182,7 @@ class Digitals_Studio_Oxygen {
     /** A Abilities API exige categoria registrada; sem ela o registro falha em silêncio. */
     public function register_category() {
         if (function_exists('wp_register_ability_category')) {
-            wp_register_ability_category('oxygen-migrator', [
+            wp_register_ability_category('digitals-studio', [
                 'label' => 'Oxygen Migrator',
                 'description' => 'Conversão Oxygen classic -> Oxygen 6 e manutenção do contrato do editor.',
             ]);
@@ -223,7 +223,7 @@ class Digitals_Studio_Oxygen {
         $perm = function () { return current_user_can('manage_options'); };
 
         wp_register_ability('digitals-studio/inventory', [
-            'category' => 'oxygen-migrator',
+            'category' => 'digitals-studio',
             'meta' => ['show_in_rest' => true, 'mcp' => ['public' => true]],
             'label' => 'Inventário de conversão Oxygen classic',
             'description' => 'Lista posts com dados do Oxygen classic (_ct_builder_*), com histograma de tipos de elemento e status de conversão. Somente leitura.',
@@ -235,7 +235,7 @@ class Digitals_Studio_Oxygen {
         ]);
 
         wp_register_ability('digitals-studio/inspect-post', [
-            'category' => 'oxygen-migrator',
+            'category' => 'digitals-studio',
             'meta' => ['show_in_rest' => true, 'mcp' => ['public' => true]],
             'label' => 'Inspecionar post legado',
             'description' => 'Mostra a árvore legada resumida de um post: elementos, dinâmicos, reutilizáveis, classes que ainda não resolvem para seletores do Oxygen 6. Somente leitura.',
@@ -247,7 +247,7 @@ class Digitals_Studio_Oxygen {
         ]);
 
         wp_register_ability('digitals-studio/convert-post', [
-            'category' => 'oxygen-migrator',
+            'category' => 'digitals-studio',
             'meta' => ['show_in_rest' => true, 'mcp' => ['public' => true]],
             'label' => 'Converter post para Oxygen 6',
             'description' => 'Converte a árvore _ct_builder_json de src_post_id para _oxygen_data em dst_post_id (padrão: o mesmo post). dry_run=true (padrão) só devolve o relatório. Nunca altera os dados legados. Ao gravar, roda automaticamente o pós-fix (contrato do editor + caches).',
@@ -262,7 +262,7 @@ class Digitals_Studio_Oxygen {
         ]);
 
         wp_register_ability('digitals-studio/rollback-post', [
-            'category' => 'oxygen-migrator',
+            'category' => 'digitals-studio',
             'meta' => ['show_in_rest' => true, 'mcp' => ['public' => true]],
             'label' => 'Reverter conversão',
             'description' => 'Remove a árvore Oxygen 6 gravada por este conversor (só quando o marcador de backup existe). Os dados legados ct_* nunca foram tocados.',
@@ -274,7 +274,7 @@ class Digitals_Studio_Oxygen {
         ]);
 
         wp_register_ability('digitals-studio/post-fix', [
-            'category' => 'oxygen-migrator',
+            'category' => 'digitals-studio',
             'meta' => ['show_in_rest' => true, 'mcp' => ['public' => true]],
             'label' => 'Pós-correção global (contrato do editor)',
             'description' => 'Audita e corrige o banco de seletores (objetos vazios -> conteúdo inerte; unidades inválidas -> custom), carimba status:exported em árvores convertidas sem ele, limpa os caches de CSS do Oxygen e o object cache. Rodar depois de qualquer escrita manual.',
@@ -284,7 +284,7 @@ class Digitals_Studio_Oxygen {
         ]);
 
         wp_register_ability('digitals-studio/bootstrap', [
-            'category' => 'oxygen-migrator',
+            'category' => 'digitals-studio',
             'meta' => ['show_in_rest' => true, 'mcp' => ['public' => true]],
             'label' => 'Bootstrap de utilitários',
             'description' => 'Registra os seletores utilitários que o conversor usa (agd-hidden, agd-inner-full, slot de vídeo, neutralizador de AOS no canvas do builder, largura de wrappers de fragmento). Idempotente.',
@@ -294,7 +294,7 @@ class Digitals_Studio_Oxygen {
         ]);
 
         wp_register_ability('digitals-studio/set-settings', [
-            'category' => 'oxygen-migrator',
+            'category' => 'digitals-studio',
             'meta' => ['show_in_rest' => true, 'mcp' => ['public' => true]],
             'label' => 'Configurar conversor',
             'description' => 'Define origin_url (site classic de origem pra baixar CSS/fragmentos), assets_dir e purge_litespeed. Config mora no DB, nunca em env.',
@@ -308,7 +308,7 @@ class Digitals_Studio_Oxygen {
         ]);
 
         wp_register_ability('digitals-studio/audit-site', [
-            'category' => 'oxygen-migrator',
+            'category' => 'digitals-studio',
             'meta' => ['show_in_rest' => true, 'mcp' => ['public' => true]],
             'label' => 'Vistoria de site Oxygen classic',
             'description' => 'Retrato completo de um site ainda no Oxygen classic: o que existe, o que o conversor traduz sozinho, o que precisa de mão e o tamanho do trabalho. Somente leitura — NÃO exige Oxygen 6 instalado, serve para avaliar um site antes de migrar.',
@@ -320,7 +320,7 @@ class Digitals_Studio_Oxygen {
         ]);
 
         wp_register_ability('digitals-studio/import-global-css', [
-            'category' => 'oxygen-migrator',
+            'category' => 'digitals-studio',
             'meta' => ['show_in_rest' => true, 'mcp' => ['public' => true]],
             'label' => 'Importar CSS global da origem',
             'description' => 'Baixa os stylesheets que o site de origem carrega (escala tipográfica, colunas, defaults, largura de página), localiza as URLs e passa a enfileirá-los aqui. Sem isso a conversão sai desproporcional.',
@@ -332,7 +332,7 @@ class Digitals_Studio_Oxygen {
         ]);
 
         wp_register_ability('digitals-studio/upgrade-repeaters', [
-            'category' => 'oxygen-migrator',
+            'category' => 'digitals-studio',
             'meta' => ['show_in_rest' => true, 'mcp' => ['public' => true]],
             'label' => 'Trocar listagens congeladas por loop nativo',
             'description' => 'Em um post já convertido, substitui os repetidores que ficaram como HTML congelado pelo elemento de loop nativo (com Componente de item e a consulta do classic). Preserva todo o resto da página.',
@@ -346,7 +346,7 @@ class Digitals_Studio_Oxygen {
         ]);
 
         wp_register_ability('digitals-studio/render-diagnose', [
-            'category' => 'oxygen-migrator',
+            'category' => 'digitals-studio',
             'meta' => ['show_in_rest' => true, 'mcp' => ['public' => true]],
             'label' => 'Diagnóstico de render',
             'description' => 'Explica por que uma página pode não renderizar ou não abrir no builder: meta da árvore, status:exported, template aplicável (templates "everywhere" vazios sequestram!), seletores inválidos. Somente leitura.',
