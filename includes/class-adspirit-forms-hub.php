@@ -295,7 +295,7 @@ class AdSpirit_Forms_Hub {
         }
         $unsent = (class_exists('AdSpirit_Lead_Store') && AdSpirit_Lead_Store::available())
             ? AdSpirit_Lead_Store::count_unsent() : 0;
-        $ty = class_exists('AdSpirit_ThankYou_Setup') ? AdSpirit_ThankYou_Setup::confirmed() : null;
+        $tys = class_exists('AdSpirit_ThankYou_Setup') ? AdSpirit_ThankYou_Setup::confirmed_all() : array();
         ?>
         <p class="as-section-help">O que este site tem hoje pra capturar leads.</p>
         <div class="as-metric-grid">
@@ -315,9 +315,17 @@ class AdSpirit_Forms_Hub {
                 <div class="sub">leads na fila de reenvio</div>
             </div>
             <div class="as-metric">
-                <div class="label">Página de obrigado</div>
-                <div class="value text"><?php echo $ty ? esc_html($ty['path']) : 'não definida'; ?></div>
-                <div class="sub"><?php echo $ty ? 'conta como conversão' : 'confirme pra medir conversão'; ?></div>
+                <div class="label">Páginas de conversão</div>
+                <div class="value <?php echo empty($tys) ? '' : ''; ?>"><?php echo empty($tys) ? '—' : count($tys); ?></div>
+                <div class="sub"><?php
+                    if (empty($tys)) { echo 'nenhuma confirmada ainda'; }
+                    else {
+                        $paths = array();
+                        foreach (array_slice($tys, 0, 2) as $t) $paths[] = $t['path'];
+                        echo esc_html(implode(' · ', $paths));
+                        if (count($tys) > 2) echo ' +' . (count($tys) - 2);
+                    }
+                ?></div>
             </div>
         </div>
         <p style="margin-top:14px;">

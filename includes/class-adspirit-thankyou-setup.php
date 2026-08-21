@@ -1,10 +1,14 @@
 <?php
 /**
- * AdSpirit Connector — página de obrigado: sugerir e CONFIRMAR na conexão.
+ * AdSpirit Connector — páginas de conversão: sugerir e CONFIRMAR na conexão.
  *
  * Regra do Pedro (2026-08-20): "essa confirmação da página de obrigado deve
  * ser manual e deve ocorrer na hora que o dev conecta o plugin ao site. o
- * sistema só sugere e o dev confirma."
+ * sistema só sugere e o dev confirma." E (08-20, revisão): são VÁRIAS —
+ * cada funil pode ter a sua, e conversões diferentes significam coisas
+ * diferentes ("virou inscrito" ≠ "virou lead comercial"). Chamamos de
+ * PÁGINA DE CONVERSÃO, não "de obrigado": nem toda conversão é um
+ * agradecimento.
  *
  * Por que aqui e não no CRM: o WordPress SABE quais páginas existem. Detectar
  * pelo conteúdo do site (slug, título, presença de shortcode de obrigado) é
@@ -22,6 +26,9 @@
 if (!defined('ABSPATH')) exit;
 
 class AdSpirit_ThankYou_Setup {
+    // Lista de páginas de conversão confirmadas: [{id, url, path, name}].
+    // (Antes guardava UMA — migrado on-read pra não perder a escolha de quem
+    // já confirmou na 2.31.)
     const OPTION = 'adspirit_thankyou_page';
     const NOTICE_DISMISSED = 'adspirit_thankyou_dismissed';
 
@@ -41,10 +48,23 @@ class AdSpirit_ThankYou_Setup {
             AdSpirit_Safe_Hook::action(array($this, 'maybe_notice'), 'thankyou_notice'));
     }
 
-    /** Página confirmada (array com id/url) ou null. */
-    public static function confirmed() {
+    /** Páginas de conversão confirmadas (lista, possivelmente vazia). */
+    public static function confirmed_all() {
         $v = get_option(self::OPTION, null);
-        return is_array($v) && !empty($v['url']) ? $v : null;
+        if (!is_array($v)) return array();
+        // Formato antigo (uma página só) → normaliza pra lista.
+        if (isset($v['url'])) return array($v);
+        $out = array();
+        foreach ($v as $item) {
+            if (is_array($item) && !empty($item['path'])) $out[] = $item;
+        }
+        return $out;
+    }
+
+    /** Primeira confirmada (compat: a Visão geral mostra a principal). */
+    public static function confirmed() {
+        $all = self::confirmed_all();
+        return $all ? $all[0] : null;
     }
 
     /**
@@ -92,7 +112,7 @@ class AdSpirit_ThankYou_Setup {
     /** Aviso pós-conexão: sugere, mas quem decide é o dev. */
     public function maybe_notice() {
         if (!current_user_can('manage_options')) return;
-        if (self::confirmed()) return;
+        if (self::confirmed_all()) return;
         if (get_option(self::NOTICE_DISMISSED)) return;
         if (!class_exists('AdSpirit_Connect') || !AdSpirit_Connect::is_connected()) return;
         $screen = function_exists('get_current_screen') ? get_current_screen() : null;
@@ -101,28 +121,28 @@ class AdSpirit_ThankYou_Setup {
         $cands = self::candidates();
         ?>
         <div class="notice notice-info" style="padding:12px 14px;">
-            <p style="margin:0 0 6px; font-weight:600;">Qual é a sua página de obrigado?</p>
+            <p style="margin:0 0 6px; font-weight:600;">Quais são as suas páginas de conversão?</p>
             <p style="margin:0 0 10px; color:#50575e;">
-                A visita a ela conta como <strong>conversão</strong> no AdSpirit (não como lead —
-                lead é quando temos os dados da pessoa). Confirme abaixo; nada é enviado sem você escolher.
+                A visita a elas conta como <strong>conversão</strong> no AdSpirit (não como lead —
+                lead é quando temos os dados da pessoa). <strong>Marque quantas quiser</strong>:
+                funis diferentes costumam ter páginas diferentes, e cada uma pode significar uma
+                conversão distinta (inscrito, orçamento, agendamento…). Nada é enviado sem você escolher.
             </p>
             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
                 <input type="hidden" name="action" value="adspirit_save_thankyou">
                 <?php wp_nonce_field('adspirit_thankyou', '_adspirit_ty_nonce'); ?>
                 <?php if (!empty($cands)) : ?>
-                    <select name="page_id" style="max-width:420px;">
-                        <?php foreach ($cands as $c) : ?>
-                            <option value="<?php echo (int) $c['id']; ?>">
-                                <?php echo esc_html($c['title']); ?> — <?php echo esc_html($c['path']); ?>
-                            </option>
+                    <div style="display:flex; flex-direction:column; gap:5px; width:100%; margin-bottom:6px;">
+                        <?php foreach ($cands as $i => $c) : ?>
+                            <label style="display:flex; align-items:center; gap:8px;">
+                                <input type="checkbox" name="page_ids[]" value="<?php echo (int) $c['id']; ?>" <?php checked($i === 0); ?>>
+                                <span><strong><?php echo esc_html($c['title']); ?></strong>
+                                    <code style="font-size:11px; opacity:.75;"><?php echo esc_html($c['path']); ?></code></span>
+                            </label>
                         <?php endforeach; ?>
-                        <option value="0">Outra página (informar endereço)</option>
-                    </select>
-                    <input type="text" name="custom_path" placeholder="/obrigado" style="width:180px;">
-                <?php else : ?>
-                    <input type="text" name="custom_path" placeholder="/obrigado" style="width:220px;" required>
-                    <span style="color:#646970;">Não encontrei nenhuma candidata — informe o endereço.</span>
+                    </div>
                 <?php endif; ?>
+                <input type="text" name="custom_path" placeholder="/outra-pagina (opcional)" style="width:220px;">
                 <button type="submit" class="button button-primary">Confirmar</button>
                 <button type="submit" name="skip" value="1" class="button-link" style="color:#646970;">Agora não</button>
             </form>
@@ -145,33 +165,45 @@ class AdSpirit_ThankYou_Setup {
             exit;
         }
 
-        $page_id = isset($_POST['page_id']) ? (int) $_POST['page_id'] : 0;
-        $custom  = isset($_POST['custom_path']) ? sanitize_text_field((string) $_POST['custom_path']) : '';
+        // VÁRIAS páginas (revisão 08-20): funis diferentes têm páginas
+        // diferentes, e cada uma pode significar uma conversão distinta.
+        $ids    = isset($_POST['page_ids']) && is_array($_POST['page_ids']) ? array_map('intval', $_POST['page_ids']) : array();
+        $custom = isset($_POST['custom_path']) ? sanitize_text_field((string) $_POST['custom_path']) : '';
 
-        $url = '';
-        $path = '';
-        if ($page_id > 0) {
-            $url = (string) get_permalink($page_id);
-            $path = (string) wp_make_link_relative($url);
-        } elseif ($custom !== '') {
-            $path = '/' . ltrim($custom, '/');
-            $url = home_url($path);
+        $chosen = array();
+        foreach ($ids as $pid) {
+            if ($pid <= 0) continue;
+            $url = (string) get_permalink($pid);
+            if ($url === '') continue;
+            $chosen[] = array(
+                'id'   => $pid,
+                'url'  => $url,
+                'path' => (string) wp_make_link_relative($url),
+                'name' => (string) get_the_title($pid),
+            );
         }
-        if ($path === '') {
+        if ($custom !== '') {
+            $path = '/' . ltrim($custom, '/');
+            $chosen[] = array('id' => 0, 'url' => home_url($path), 'path' => $path, 'name' => 'Conversão');
+        }
+        if (empty($chosen)) {
             wp_safe_redirect(add_query_arg('adspirit_ty', 'vazio', $back));
             exit;
         }
 
-        update_option(self::OPTION, array('id' => $page_id, 'url' => $url, 'path' => $path), false);
-        // Manda pro CRM virar conversão medida. Fail-soft: se o CRM estiver
-        // fora ou for antigo, a escolha fica salva aqui e sobe na próxima.
-        $sent = self::push_to_crm($path);
-        wp_safe_redirect(add_query_arg('adspirit_ty', $sent ? 'ok' : 'local', $back));
+        update_option(self::OPTION, $chosen, false);
+        // Manda cada uma pro CRM virar conversão medida. Fail-soft: se o CRM
+        // estiver fora ou for antigo, ficam salvas aqui e sobem na próxima.
+        $sent = 0;
+        foreach ($chosen as $c) {
+            if (self::push_to_crm($c['path'], $c['name'])) $sent++;
+        }
+        wp_safe_redirect(add_query_arg('adspirit_ty', $sent === count($chosen) ? 'ok' : ($sent > 0 ? 'parcial' : 'local'), $back));
         exit;
     }
 
-    /** Envia a página confirmada pro CRM (vira conversion_definition). */
-    public static function push_to_crm($path) {
+    /** Envia UMA página confirmada pro CRM (vira conversion_definition). */
+    public static function push_to_crm($path, $name = '') {
         if (!class_exists('AdSpirit_Settings')) return false;
         $core = AdSpirit_Settings::get_core();
         if (empty($core['endpoint_url']) || empty($core['brand_slug']) || empty($core['secret'])) return false;
@@ -186,6 +218,7 @@ class AdSpirit_ThankYou_Setup {
                 'brand_slug' => (string) $core['brand_slug'],
                 'kind'       => 'thank_you_page',
                 'url_path'   => (string) $path,
+                'name'       => $name !== '' ? (string) $name : 'Conversão',
             )),
         ));
         return !is_wp_error($resp) && (int) wp_remote_retrieve_response_code($resp) === 200;

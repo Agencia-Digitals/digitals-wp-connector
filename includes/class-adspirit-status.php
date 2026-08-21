@@ -199,53 +199,9 @@ class AdSpirit_Status {
         <p style="margin:6px 0 0;"><a href="<?php echo esc_url(admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=submissions')); ?>" class="button-link">Ver todos os leads enviados →</a></p>
         <?php endif; ?>
 
-        <h2 class="as-section"><span class="as-kicker-inline">Formulários</span>O que o site tem hoje</h2>
-        <?php if (empty($forms)): ?>
-            <div class="as-notice warn">
-                <p>Nenhum form CF7 encontrado. Crie um em <code>Contact → Forms</code>.</p>
-            </div>
-        <?php else: ?>
-            <table class="as-table">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Título</th>
-                        <th>Campos</th>
-                        <th>Mapeamento</th>
-                        <th>Ações</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($forms as $form): ?>
-                        <tr>
-                            <td><code><?php echo esc_html($form['id']); ?></code></td>
-                            <td><?php echo esc_html($form['title']); ?></td>
-                            <td><?php echo esc_html(count($form['fields'])); ?> campos</td>
-                            <td>
-                                <?php $match = $form['match']; ?>
-                                <?php if ($match && $match['unmatched_count'] > 0): ?>
-                                    <span class="as-badge danger"><?php echo (int) $match['unmatched_count']; ?> não reconhecido<?php echo $match['unmatched_count'] > 1 ? 's' : ''; ?></span>
-                                    <a href="<?php echo esc_url(admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=forms&form_id=' . $form['id'])); ?>" style="margin-left:6px; font-size:12px;">resolver na aba Forms</a>
-                                <?php elseif ($match && $match['has_explicit_map']): ?>
-                                    <span class="as-badge ok">mapeado (<?php echo (int) $match['matched_count']; ?>/<?php echo (int) $match['total']; ?>)</span>
-                                <?php elseif ($match): ?>
-                                    <span class="as-badge ok">reconhecido automaticamente</span>
-                                <?php elseif ($form['mapped_count'] > 0): ?>
-                                    <span class="as-badge ok"><?php echo esc_html($form['mapped_count']); ?> mapeados</span>
-                                <?php else: ?>
-                                    <span class="as-badge warn">não mapeado</span>
-                                <?php endif; ?>
-                            </td>
-                            <td>
-                                <a href="<?php echo esc_url(admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=forms&form_id=' . $form['id'])); ?>" class="button">
-                                    Mapear campos
-                                </a>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        <?php endif; ?>
+        <?php // "O que o site tem hoje" saiu daqui (Pedro 08-20): mora na
+        // aba Visão geral de Formulários, junto com o que é sobre
+        // formulário. Início é sobre LEADS. ?>
 
         <?php
         // Doutrina: ambiente/proteções são consulta RARA — recolhidos por
