@@ -224,6 +224,8 @@ class AdSpirit_Form {
             }
 
             function validate(stepEl) {
+                // Preview: avança sem preencher (revisão sem gerar dados).
+                if (document.body && document.body.classList.contains('adspirit-preview')) return true;
                 var inputs = stepEl.querySelectorAll('input[required], select[required], textarea[required]');
                 for (var i = 0; i < inputs.length; i++) {
                     if (inputs[i].type === 'checkbox') { if (!inputs[i].checked) { inputs[i].focus(); return false; } continue; }
@@ -310,7 +312,9 @@ class AdSpirit_Form {
     private function render_field($f, $id) {
         $name = esc_attr($f['name']);
         $type = $f['type'] ?? 'text';
-        $req = !empty($f['required']) ? 'required' : '';
+        // Pré-visualização (hub Formulários): sem `required` — preview é pra
+        // CONSTRUIR o form, não pra preencher. O browser bloquearia o avanço.
+        $req = (!empty($f['required']) && !defined('ADSPIRIT_QF_PREVIEW')) ? 'required' : '';
         $ph = isset($f['placeholder']) ? ' placeholder="' . esc_attr($f['placeholder']) . '"' : '';
         if ($type === 'select' && !empty($f['options'])) {
             echo '<select name="' . $name . '" id="' . esc_attr($id) . '" ' . $req . '>';
@@ -569,6 +573,16 @@ class AdSpirit_Form {
                     <td><input type="text" id="ab_success" name="form_success" class="regular-text" style="max-width:480px;" value="<?php echo esc_attr($cur['success_message'] ?? 'Obrigado!'); ?>"></td>
                 </tr>
                 <tr>
+                    <th><label for="ab_status">Situação</label></th>
+                    <td>
+                        <select id="ab_status" name="form_status">
+                            <option value="publicado" <?php selected($cur['status'] ?? 'publicado', 'publicado'); ?>>Publicado — capturando leads</option>
+                            <option value="rascunho" <?php selected($cur['status'] ?? 'publicado', 'rascunho'); ?>>Rascunho — ainda montando</option>
+                        </select>
+                        <p class="description">Rascunho aparece marcado no hub e não deveria estar em página publicada.</p>
+                    </td>
+                </tr>
+                <tr>
                     <th><label for="ab_finalidade">Finalidade</label></th>
                     <td>
                         <select id="ab_finalidade" name="form_finalidade">
@@ -814,6 +828,9 @@ class AdSpirit_Form {
             'success_message' => sanitize_text_field((string) ($post['form_success'] ?? 'Obrigado!')),
             // F0 Connector 3.0: finalidade por form (comercial | nutricao).
             'finalidade'      => (isset($post['form_finalidade']) && $post['form_finalidade'] === 'nutricao') ? 'nutricao' : 'comercial',
+            // Rascunho x publicado (Pedro 08-20): esboço não pode parecer
+            // ativo no hub. Ausência = publicado (não muda o que já existe).
+            'status'          => (isset($post['form_status']) && $post['form_status'] === 'rascunho') ? 'rascunho' : 'publicado',
             'steps'           => array(array('title' => '', 'fields' => $clean)),
         );
         // v2.30: regras condicionais de finalidade (opcional). JSON inválido

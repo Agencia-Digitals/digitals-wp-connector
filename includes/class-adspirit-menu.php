@@ -158,9 +158,11 @@ class AdSpirit_Menu {
         //  · CONEXÃO vira grupo próprio, antes de Tracking — é a porta de
         //    entrada da integração, não um item perdido no Início.
         return apply_filters('adspirit_connector_tab_groups', array(
-            'inicio'      => array('label' => 'Leads',                   'tabs' => array('overview', 'submissions', 'setup')),
+            'inicio'      => array('label' => 'Leads',                   'tabs' => array('overview', 'submissions')),
             'formularios' => array('label' => 'Formulários',             'tabs' => array('formularios', 'forms', 'ab-tests')),
-            'conexao'     => array('label' => 'Conexão com o AdSpirit',  'tabs' => array('connection')),
+            // "Primeiros passos" mora aqui (Pedro 08-20): é sobre conectar,
+            // não sobre leads.
+            'conexao'     => array('label' => 'Conexão com o AdSpirit',  'tabs' => array('connection', 'setup')),
             'tracking'    => array('label' => 'Tracking',                'tabs' => array('capi-meta', 'ga4', 'behavioral', 'clarity', 'cross-domain')),
             'avancado'    => array('label' => 'Configurações avançadas', 'tabs' => array('cf7-scope', 'antispam', 'turnstile', 'webhook-out', 'customerio', 'mailchimp', 'lgpd', 'logs')),
         ));
@@ -402,6 +404,32 @@ class AdSpirit_Menu {
             <?php // Legenda da tab ativa — a pessoa sempre sabe onde está e pra quê serve. ?>
             <?php if (!empty($meta[$current_tab]['desc'])): ?>
                 <p class="as-tab-desc"><?php echo esc_html($meta[$current_tab]['desc']); ?></p>
+            <?php endif; ?>
+
+            <?php
+            // Ponto âmbar no menu tem que DIZER o que é (Pedro 08-20: "a aba
+            // leads tá com uma bolinha laranja, mas eu não consigo ver o que
+            // está errado"). Sinal sem explicação é ruído: aqui ele vira
+            // aviso com o motivo e o caminho da correção.
+            $gh = isset($health[$current_group]) ? $health[$current_group] : null;
+            if (is_array($gh) && ($gh['state'] ?? '') === 'warn' && !empty($gh['hint'])) :
+                $fix_url = ''; $fix_label = '';
+                if ($current_group === 'inicio') {
+                    $fix_url = admin_url('admin.php?page=' . self::PAGE_SLUG . '&tab=submissions&sl_status=pending');
+                    $fix_label = 'Ver os leads pendentes';
+                } elseif ($current_group === 'conexao') {
+                    $fix_url = admin_url('admin.php?page=' . self::PAGE_SLUG . '&tab=connection');
+                    $fix_label = 'Abrir a conexão';
+                }
+            ?>
+                <div class="as-notice warn" style="margin:10px 0 16px;">
+                    <p style="margin:0;">
+                        <strong>Atenção:</strong> <?php echo esc_html($gh['hint']); ?>
+                        <?php if ($fix_url) : ?>
+                            — <a href="<?php echo esc_url($fix_url); ?>"><?php echo esc_html($fix_label); ?></a>
+                        <?php endif; ?>
+                    </p>
+                </div>
             <?php endif; ?>
 
             <?php

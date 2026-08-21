@@ -728,3 +728,16 @@
 }
 .adspirit-app .fh-pill:hover { color: var(--as-ink); }
 .adspirit-app .fh-pill.on { background: var(--as-bg-subtle); border-color: var(--as-line); color: var(--as-ink); font-weight: 600; }
+
+/* Vitrine: botão + e estado rascunho (08-20) */
+.adspirit-app .fh-add {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 6px; min-height: 190px; border: 1px dashed var(--as-line-strong);
+  border-radius: 10px; text-decoration: none; color: var(--as-ink-faint);
+  transition: border-color .15s ease, color .15s ease;
+}
+.adspirit-app .fh-add:hover { border-color: var(--as-accent); color: var(--as-accent); }
+.adspirit-app .fh-add-plus { font-size: 26px; line-height: 1; font-weight: 300; }
+.adspirit-app .fh-add-label { font-size: 12.5px; font-weight: 600; }
+.adspirit-app .fh-card.fh-draft { opacity: .68; border-style: dashed; }
+.adspirit-app .fh-chip.warn { background: var(--as-bg-warning); color: var(--as-warning); font-weight: 600; }
