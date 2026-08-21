@@ -17,6 +17,7 @@
     "_por_que": "site do cliente: captar lead, medir, entregar e-mail e manter o site saudável. Nada de builder, automação ou ferramenta de desenvolvimento.",
     "modulos": [
       "ambiente",
+      "agente",
       "form",
       "form-adapters",
       "forms-hub",

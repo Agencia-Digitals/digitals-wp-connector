@@ -241,7 +241,7 @@ class Digitals_Studio_Oxygen {
             ],
             'label' => 'Inventário de conversão Oxygen classic',
             'description' => 'Lista posts com dados do Oxygen classic (_ct_builder_*), com histograma de tipos de elemento e status de conversão. Somente leitura.',
-            'input_schema' => ['type' => 'object', 'properties' => [
+            'input_schema' => ['type' => 'object', 'default' => new stdClass(), 'properties' => [
                 'post_type' => ['type' => 'string', 'description' => 'Opcional: limitar a um post type (page, post, cases, ct_template...).'],
             ]],
             'execute_callback' => [$this, 'ability_inventory'],
@@ -316,7 +316,7 @@ class Digitals_Studio_Oxygen {
             ],
             'label' => 'Pós-correção global (contrato do editor)',
             'description' => 'Audita e corrige o banco de seletores (objetos vazios -> conteúdo inerte; unidades inválidas -> custom), carimba status:exported em árvores convertidas sem ele, limpa os caches de CSS do Oxygen e o object cache. Rodar depois de qualquer escrita manual.',
-            'input_schema' => ['type' => 'object', 'properties' => []],
+            'input_schema' => ['type' => 'object', 'default' => new stdClass(), 'properties' => []],
             'execute_callback' => [$this, 'ability_post_fix'],
             'permission_callback' => $perm,
         ]);
@@ -332,7 +332,7 @@ class Digitals_Studio_Oxygen {
             ],
             'label' => 'Bootstrap de utilitários',
             'description' => 'Registra os seletores utilitários que o conversor usa (agd-hidden, agd-inner-full, slot de vídeo, neutralizador de AOS no canvas do builder, largura de wrappers de fragmento). Idempotente.',
-            'input_schema' => ['type' => 'object', 'properties' => []],
+            'input_schema' => ['type' => 'object', 'default' => new stdClass(), 'properties' => []],
             'execute_callback' => [$this, 'ability_bootstrap'],
             'permission_callback' => $perm,
         ]);
@@ -348,7 +348,7 @@ class Digitals_Studio_Oxygen {
             ],
             'label' => 'Configurar conversor',
             'description' => 'Define origin_url (site classic de origem pra baixar CSS/fragmentos), assets_dir e purge_litespeed. Config mora no DB, nunca em env.',
-            'input_schema' => ['type' => 'object', 'properties' => [
+            'input_schema' => ['type' => 'object', 'default' => new stdClass(), 'properties' => [
                 'origin_url' => ['type' => 'string'],
                 'assets_dir' => ['type' => 'string'],
                 'purge_litespeed' => ['type' => 'boolean'],
@@ -368,7 +368,7 @@ class Digitals_Studio_Oxygen {
             ],
             'label' => 'Vistoria de site Oxygen classic',
             'description' => 'Retrato completo de um site ainda no Oxygen classic: o que existe, o que o conversor traduz sozinho, o que precisa de mão e o tamanho do trabalho. Somente leitura — NÃO exige Oxygen 6 instalado, serve para avaliar um site antes de migrar.',
-            'input_schema' => ['type' => 'object', 'properties' => [
+            'input_schema' => ['type' => 'object', 'default' => new stdClass(), 'properties' => [
                 'detalhar_paginas' => ['type' => 'boolean', 'default' => false, 'description' => 'Inclui a lista página a página com contagem de elementos.'],
             ]],
             'execute_callback' => [$this, 'ability_audit_site'],
@@ -386,7 +386,7 @@ class Digitals_Studio_Oxygen {
             ],
             'label' => 'Importar CSS global da origem',
             'description' => 'Baixa os stylesheets que o site de origem carrega (escala tipográfica, colunas, defaults, largura de página), localiza as URLs e passa a enfileirá-los aqui. Sem isso a conversão sai desproporcional.',
-            'input_schema' => ['type' => 'object', 'properties' => [
+            'input_schema' => ['type' => 'object', 'default' => new stdClass(), 'properties' => [
                 'urls_extras' => ['type' => 'array', 'items' => ['type' => 'string'], 'description' => 'Caminhos adicionais da origem para varrer (ex.: uma LP específica).'],
             ]],
             'execute_callback' => [$this, 'ability_import_global_css'],

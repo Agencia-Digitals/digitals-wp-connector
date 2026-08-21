@@ -92,6 +92,23 @@ class AdSpirit_Ambiente {
      * opção no banco é editável por qualquer admin do site — inclusive do
      * cliente —, e aí a tranca abriria por dentro.
      */
+    /**
+     * Endereços individuais liberados, fora dos domínios da agência.
+     *
+     * Existe por um motivo concreto: o Pedro opera pelo Gmail dele. Manter
+     * isso como lista explícita e curta é melhor do que afrouxar a regra dos
+     * domínios — cada exceção fica visível e datada em vez de virar uma
+     * brecha genérica.
+     */
+    private static function emails_liberados() {
+        $lista = array('agenciadigitalsmkt@gmail.com');
+        if (defined('ADSPIRIT_EMAILS_EQUIPE') && ADSPIRIT_EMAILS_EQUIPE) {
+            $lista = array_merge($lista, array_filter(array_map('trim',
+                explode(',', (string) ADSPIRIT_EMAILS_EQUIPE))));
+        }
+        return array_map('strtolower', $lista);
+    }
+
     private static function dominios_da_digitals() {
         $lista = array('agenciadigitals.com.br', 'digitals.com.br');
         if (defined('ADSPIRIT_DOMINIOS_EQUIPE') && ADSPIRIT_DOMINIOS_EQUIPE) {
@@ -121,6 +138,9 @@ class AdSpirit_Ambiente {
         if (!$user || empty($user->user_email)) return false;
 
         $email = strtolower(trim($user->user_email));
+
+        if (in_array($email, self::emails_liberados(), true)) return true;
+
         $arroba = strrpos($email, '@');
         if ($arroba === false) return false;
         $dominio = substr($email, $arroba + 1);
