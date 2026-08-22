@@ -247,8 +247,26 @@ class AdSpirit_Pixel_Conflito {
         $assinadas = preg_match_all('/AdSpirit Connector pixel/', $html);
         $de_fora = max(0, $total_pixel - $assinadas);
 
-        $tem_gtm = (bool) preg_match('/googletagmanager\.com\/gtm\.js\?id=(GTM-[A-Z0-9]+)/', $html, $mg);
+        // O contêiner do GTM raramente aparece como URL: o trecho oficial monta
+        // o endereço em JavaScript. Procurar só por `gtm.js?id=` faz a gente
+        // não achar GTM em site que tem — e aí um item coberto pelo Tag Manager
+        // é reportado como "ausente", que é justamente a leitura errada que
+        // esta varredura existe pra evitar. Procura o identificador solto.
+        $tem_gtm = (bool) preg_match('/\b(GTM-[A-Z0-9]{4,})\b/', $html, $mg);
         $gtm_id = $tem_gtm ? $mg[1] : '';
+
+        // O que mais está medindo nesta página, venha de onde vier. A tela de
+        // conexão precisa disso pra dizer "já existe" em vez de "não
+        // configurado" — que era a leitura errada que o painel dava.
+        preg_match_all('/\b(G-[A-Z0-9]{8,})\b/', $html, $mga);
+        preg_match_all("/gtag\s*\(\s*['\"]config['\"]\s*,\s*['\"](G-[A-Z0-9]+)['\"]/", $html, $mgb);
+        $ga4_na_pagina = array_values(array_unique(array_merge($mga[1], $mgb[1])));
+
+        preg_match_all('/clarity\.ms\/tag\/([a-z0-9]+)/', $html, $mc);
+        $clarity_na_pagina = array_values(array_unique($mc[1]));
+
+        preg_match_all('/\b(AW-[0-9]{6,})\b/', $html, $maw);
+        $google_ads_na_pagina = array_values(array_unique($maw[1]));
 
         $capi = class_exists('AdSpirit_Settings') ? AdSpirit_Settings::get_capi_meta() : array();
         $nosso_pixel = isset($capi['pixel_id']) ? trim((string) $capi['pixel_id']) : '';
@@ -414,6 +432,10 @@ class AdSpirit_Pixel_Conflito {
             'pixel_do_connector' => (int) $assinadas,
             'pixel_de_fora' => (int) $de_fora,
             'gtm' => $gtm_id,
+            'ga4_na_pagina' => $ga4_na_pagina,
+            'clarity_na_pagina' => $clarity_na_pagina,
+            'google_ads_na_pagina' => $google_ads_na_pagina,
+            'meta_na_pagina' => $na_pagina,
             'plugins' => $plugins,
             'snippets' => $snippets,
             'trecho_pra_desligar' => $trecho_pra_desligar,

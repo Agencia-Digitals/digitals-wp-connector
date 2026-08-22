@@ -57,7 +57,9 @@
       "form-qualifier",
       "whitelabel",
       "devtools",
-      "medicao"
+      "medicao",
+      "handshake",
+      "conexao-painel"
     ]
   },
   "estudio": {
