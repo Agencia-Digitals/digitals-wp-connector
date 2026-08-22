@@ -40,7 +40,19 @@ class AdSpirit_Deteccao {
                     '/facebook\\.com\\/tr\\?id=(\\d{8,20})/',
                     '/connect\\.facebook\\.net\\/[^\\/]+\\/fbevents\\.js/',
                 ),
-                'plugins' => array('official-facebook-pixel/facebook-pixel.php', 'pixelyoursite/facebook-pixel-master.php'),
+                // O plugin oficial deixa rastro próprio no HTML (facebook_signal.js),
+                // então dá pra dizer QUEM está injetando, não só que existe pixel.
+                'padroes_fonte' => array(
+                    '/plugins\/official-facebook-pixel\//' => 'plugin oficial da Meta',
+                    '/plugins\/pixelyoursite/' => 'PixelYourSite',
+                    '/plugins\/facebook-for-woocommerce/' => 'Facebook for WooCommerce',
+                ),
+                'plugins' => array(
+                    'official-facebook-pixel/facebook-pixel.php',
+                    'facebook-for-woocommerce/facebook-for-woocommerce.php',
+                    'pixelyoursite/facebook-pixel-master.php',
+                    'pixelyoursite-pro/pixelyoursite-pro.php',
+                ),
             ),
             array(
                 'trabalho' => 'google-ads', 'fornecedor' => 'Google Ads', 'marca' => 'google',
@@ -124,11 +136,20 @@ class AdSpirit_Deteccao {
             }
             if (!$achou) continue;
 
+            // Quem injeta, quando dá pra saber. "Pixel da Meta, pelo plugin
+            // oficial" resolve sozinho; "existe um pixel da Meta" manda a
+            // pessoa procurar.
+            $fonte = '';
+            foreach ((array) ($c['padroes_fonte'] ?? array()) as $re => $nome_fonte) {
+                if (preg_match($re, (string) $html)) { $fonte = $nome_fonte; break; }
+            }
+
             $por_trabalho[$c['trabalho']][] = array(
                 'fornecedor' => ($como === 'plugin' && !empty($c['plugin_nome'])) ? $c['plugin_nome'] : $c['fornecedor'],
                 'marca' => $c['marca'],
                 'id' => $id,
                 'como' => $como,
+                'fonte' => $fonte,
             );
         }
         return $por_trabalho;

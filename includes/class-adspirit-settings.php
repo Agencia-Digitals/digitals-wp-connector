@@ -82,6 +82,13 @@ class AdSpirit_Settings {
             'pixel_enabled' => '0',
             // v2.29: servir o pixel do próprio domínio (anti ad-blocker).
             // Sub-opção do pixel; default OFF — opt-in por site.
+            // DESLIGADO e travado até o proxy ser consertado. Medido em
+            // 2026-08-22: com ele ligado, o pixel.js é servido pelo endereço
+            // do site, mas sai SEM o parâmetro `t` — e o script começa com
+            // `if (!token) return;`. Ou seja: carrega e não faz nada. Pior,
+            // ele monta o destino como `origem-do-script + /api/track`, que
+            // no domínio do site não existe. Quem ligou isso parou de medir
+            // sem receber nenhum sinal. Ver AdSpirit_Pixel_Proxy.
             'pixel_firstparty' => '0',
             // Feature 35: preview de lead score no [adspirit_form].
             // Off por default (opt-in) — feature visível só pra brands que
@@ -89,7 +96,7 @@ class AdSpirit_Settings {
             'show_lead_score_preview' => '0',
             // v2.30: coletor genérico (rede de segurança pra form builder
             // desconhecido, padrão HubSpot). Beta, opt-in — nasce desligado.
-            'generic_forms_enabled' => '0',
+            'generic_forms_enabled' => '1',
         );
     }
 

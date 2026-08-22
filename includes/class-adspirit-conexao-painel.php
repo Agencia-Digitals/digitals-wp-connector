@@ -89,7 +89,13 @@ class AdSpirit_Conexao_Painel {
         echo '<p>' . esc_html($dica) . '</p>';
         echo '<div class="as-cards">';
         foreach ($itens as $i) $this->card($i);
-        echo '</div></div>';
+        echo '</div>';
+        foreach ($itens as $i) {
+            if (empty($i['alerta'])) continue;
+            echo '<div class="as-notice warning" style="margin-top:10px"><p><strong>'
+               . esc_html($i['nome']) . ':</strong> ' . esc_html($i['alerta']) . '</p></div>';
+        }
+        echo '</div>';
     }
 
     public function render() {
@@ -121,6 +127,21 @@ class AdSpirit_Conexao_Painel {
             'Nada mede isto neste site hoje.',
             'Nada faltando.'
         );
+
+        $this->faixa(
+            'Não consegui verificar', $g['sem_leitura'],
+            'Não deu pra ler a home deste site — pode ser cache, senha de acesso ou bloqueio. '
+            . 'Enquanto isso, prefiro não afirmar nada sobre estes itens.'
+        );
+
+        // Aviso de opção que promete e não entrega.
+        $core = class_exists('AdSpirit_Settings') ? AdSpirit_Settings::get_core() : array();
+        if (($core['pixel_firstparty'] ?? '0') === '1') {
+            echo '<div class="as-notice warning"><p><strong>Servir o rastreador pelo endereço deste site está ligado, '
+               . 'mas foi neutralizado.</strong> Nessa configuração o rastreador era carregado sem a chave da marca e '
+               . 'parava de reportar — o site ficava sem medição, sem nenhum aviso. Enquanto isso não é corrigido, o '
+               . 'rastreador continua vindo do AdSpirit, que funciona. Você não precisa fazer nada.</p></div>';
+        }
 
         AdSpirit_Menu::card_close();
     }

@@ -40,8 +40,14 @@ class AdSpirit_Pixel_Injector {
         if (!$token || !$base) return;
         // v2.29 opt-in: servir do próprio domínio (anti ad-blocker) via
         // proxy com cache — mesmo código, endereço first-party.
+        // O modo first-party está desativado na marra: servir o script pelo
+        // endereço do site faz ele perder o token e o destino (medido em
+        // 2026-08-22). Melhor servir pelo CRM, que funciona, do que servir
+        // local e não medir. O filtro existe pra quando o proxy for
+        // consertado nos dois lados.
         $firstparty = ($settings['pixel_firstparty'] ?? '0') === '1'
-            && class_exists('AdSpirit_Pixel_Proxy');
+            && class_exists('AdSpirit_Pixel_Proxy')
+            && apply_filters('adspirit_pixel_firstparty_ok', false);
         $src = $firstparty
             ? esc_url(AdSpirit_Pixel_Proxy::local_src())
             : esc_url($base . '/pixel.js?t=' . urlencode($token));

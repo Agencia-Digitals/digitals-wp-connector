@@ -76,6 +76,19 @@ class AdSpirit_Handshake {
     public static function estado() {
         $rel = class_exists('AdSpirit_Pixel_Conflito') ? AdSpirit_Pixel_Conflito::relatorio() : array();
         $html = isset($rel['html_amostra']) ? (string) $rel['html_amostra'] : '';
+
+        // Sem amostra da página não há o que analisar — e a versão anterior,
+        // nesse caso, respondia "ninguém mede isto". Reportar ausência sem
+        // dado é pior que não reportar: o site estava medindo tudo e a tela
+        // dizia que não. Acontecia em todo site que atualizou de uma versão
+        // que ainda não guardava a amostra.
+        //
+        // Então: sem amostra, varre agora. É uma requisição só, uma vez.
+        if ($html === '' && class_exists('AdSpirit_Pixel_Conflito')) {
+            $rel = AdSpirit_Pixel_Conflito::instance()->verificar();
+            $html = isset($rel['html_amostra']) ? (string) $rel['html_amostra'] : '';
+        }
+        $sem_dado = ($html === '');
         $mede = class_exists('AdSpirit_Deteccao') ? AdSpirit_Deteccao::quem_mede($html) : array();
         $nossos = self::nossos();
         $conectado = class_exists('AdSpirit_Connect') && AdSpirit_Connect::is_connected();
@@ -116,22 +129,36 @@ class AdSpirit_Handshake {
             if ($fora) {
                 $f = $fora[0];
                 $outros = count($fora) > 1 ? sprintf(' +%d', count($fora) - 1) : '';
+                $quem = $f['fornecedor'] . ($f['fonte'] ? ', ' . $f['fonte'] : '') . $outros;
+
+                // O caso que mais dói e menos aparece: o navegador reporta pra
+                // um pixel por uma ferramenta, e o AdSpirit reporta pro MESMO
+                // pixel pelo servidor. Se os dois lados não parearem o evento,
+                // cada visita conta duas vezes.
+                $capi = ($chave === 'meta' && class_exists('AdSpirit_Settings'))
+                    ? trim((string) (AdSpirit_Settings::get_capi_meta()['pixel_id'] ?? '')) : '';
+                $mesmo_id = $capi !== '' && $f['id'] !== '' && $capi === $f['id'];
                 $itens[] = array(
                     'chave' => $chave, 'nome' => $nome, 'cat' => $cat, 'oque' => $oque,
                     'marca' => $f['marca'], 'situacao' => 'de_outro',
-                    'fornecedor' => $f['fornecedor'] . $outros,
+                    'fornecedor' => $quem,
                     'id' => $f['id'],
-                    'pe' => $f['fornecedor'] . $outros,
+                    'pe' => $mesmo_id ? 'Também no AdSpirit — conferir' : $quem,
+                    'alerta' => $mesmo_id
+                        ? sprintf('%s injeta o pixel %s no navegador, e o AdSpirit envia conversões pro mesmo pixel pelo servidor. Se os dois não parearem o evento, cada visita conta duas vezes.', $quem, $f['id'])
+                        : '',
                     'pode_substituir' => in_array($chave, array('adspirit', 'meta', 'analytics', 'gravacao'), true),
                 );
                 continue;
             }
             // Gerenciador de tags ausente não é falta — é escolha de arquitetura.
             if ($chave === 'gerenciador') continue;
+            // Sem leitura da página, "ninguém mede" seria chute. Diz que não
+            // conseguiu olhar, que é a verdade.
             $itens[] = array(
                 'chave' => $chave, 'nome' => $nome, 'cat' => $cat, 'oque' => $oque,
-                'marca' => 'vazio', 'situacao' => 'falta',
-                'pe' => 'Ninguém mede isto',
+                'marca' => 'vazio', 'situacao' => $sem_dado ? 'sem_leitura' : 'falta',
+                'pe' => $sem_dado ? 'Não consegui ler a página' : 'Ninguém mede isto',
             );
         }
         return $itens;
@@ -139,7 +166,7 @@ class AdSpirit_Handshake {
 
     /** Agrupado por situação, na ordem em que a tela desenha. */
     public static function por_situacao() {
-        $g = array('nosso' => array(), 'de_outro' => array(), 'falta' => array());
+        $g = array('nosso' => array(), 'de_outro' => array(), 'falta' => array(), 'sem_leitura' => array());
         foreach (self::estado() as $i) {
             $g[$i['situacao']][] = $i;
         }
@@ -148,6 +175,7 @@ class AdSpirit_Handshake {
 
     public static function resumo() {
         $g = self::por_situacao();
-        return array('nosso' => count($g['nosso']), 'de_outro' => count($g['de_outro']), 'falta' => count($g['falta']));
+        return array('nosso' => count($g['nosso']), 'de_outro' => count($g['de_outro']),
+                     'falta' => count($g['falta']), 'sem_leitura' => count($g['sem_leitura']));
     }
 }
