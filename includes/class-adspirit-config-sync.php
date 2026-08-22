@@ -90,19 +90,19 @@ class AdSpirit_Config_Sync {
 
         // Botão manual na tab Conexão.
         add_action(
-            'adspirit_connector_save_connection',
+            'adspirit_connector_save_medicao',
             AdSpirit_Safe_Hook::action(array($this, 'sync_manual'), 'config_sync_save')
         );
         add_action(
-            'adspirit_connector_save_connection',
+            'adspirit_connector_save_medicao',
             AdSpirit_Safe_Hook::action(array($this, 'assumir'), 'config_sync_assumir')
         );
         add_action(
-            'adspirit_connector_save_connection',
+            'adspirit_connector_save_medicao',
             AdSpirit_Safe_Hook::action(array($this, 'observar'), 'config_sync_observar')
         );
         add_action(
-            'adspirit_connector_render_tab_connection',
+            'adspirit_connector_render_tab_medicao',
             AdSpirit_Safe_Hook::action(array($this, 'render_painel'), 'config_sync_render'),
             5
         );
@@ -483,7 +483,7 @@ class AdSpirit_Config_Sync {
             echo '</tbody></table>';
         }
 
-        AdSpirit_Menu::form_open('connection');
+        AdSpirit_Menu::form_open('medicao');
         if ($modo === 'observando') {
             echo '<input type="hidden" name="assumir_config" value="1">';
             echo '<p class="submit" style="margin-top:0;">'
@@ -498,7 +498,7 @@ class AdSpirit_Config_Sync {
                . 'O que já foi escrito continua como está.</span></p></form>';
         }
 
-        AdSpirit_Menu::form_open('connection');
+        AdSpirit_Menu::form_open('medicao');
         ?>
         <input type="hidden" name="sync_config" value="1">
         <p class="submit" style="margin-top:0;">

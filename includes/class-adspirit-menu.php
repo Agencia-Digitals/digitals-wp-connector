@@ -116,6 +116,7 @@ class AdSpirit_Menu {
             'cf7-scope'    => array('label' => 'Contact Form 7',        'desc' => 'Escolha quais formulários do CF7 enviam leads.'),
             'antispam'     => array('label' => 'Anti-spam',             'desc' => 'Bloqueio automático de bots; o que for barrado fica em quarentena revisável.'),
             'turnstile'    => array('label' => 'Verificação Cloudflare','desc' => 'Camada anti-bot invisível (opcional).'),
+            'medicao'      => array('label' => 'Medição do site',       'desc' => 'O que este site mede, quem manda nessa configuração e se há pixel repetido.'),
             'capi-meta'    => array('label' => 'Conversões Meta',       'desc' => 'Envia leads e eventos direto pros anúncios do Facebook/Instagram.'),
             'ga4'          => array('label' => 'Conversões Google',     'desc' => 'Envia leads e eventos pro Google Analytics 4.'),
             'behavioral'   => array('label' => 'Comportamento no site', 'desc' => 'Rolagem, cliques e engajamento anexados a cada lead.'),

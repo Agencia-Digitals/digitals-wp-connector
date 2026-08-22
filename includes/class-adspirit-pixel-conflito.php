@@ -48,15 +48,15 @@ class AdSpirit_Pixel_Conflito {
 
         // Botão manual + painel na tab Conexão.
         add_action(
-            'adspirit_connector_save_connection',
+            'adspirit_connector_save_medicao',
             AdSpirit_Safe_Hook::action(array($this, 'scan_manual'), 'pixel_conflito_save')
         );
         add_action(
-            'adspirit_connector_save_connection',
+            'adspirit_connector_save_medicao',
             AdSpirit_Safe_Hook::action(array($this, 'desligar_trecho'), 'pixel_conflito_desligar')
         );
         add_action(
-            'adspirit_connector_render_tab_connection',
+            'adspirit_connector_render_tab_medicao',
             AdSpirit_Safe_Hook::action(array($this, 'render_painel'), 'pixel_conflito_render'),
             6
         );
@@ -547,7 +547,7 @@ class AdSpirit_Pixel_Conflito {
 
         $alvo = isset($r['trecho_pra_desligar']) ? $r['trecho_pra_desligar'] : null;
         if (is_array($alvo) && !empty($alvo['id'])) {
-            AdSpirit_Menu::form_open('connection');
+            AdSpirit_Menu::form_open('medicao');
             echo '<input type="hidden" name="desligar_trecho" value="1">';
             echo '<p class="submit" style="margin-top:0;">';
             echo '<button type="submit" class="button button-primary">Desligar o trecho "'
@@ -557,7 +557,7 @@ class AdSpirit_Pixel_Conflito {
             echo '</p></form>';
         }
 
-        AdSpirit_Menu::form_open('connection');
+        AdSpirit_Menu::form_open('medicao');
         ?>
         <input type="hidden" name="scan_pixel" value="1">
         <p class="submit" style="margin-top:0;">
