@@ -261,12 +261,45 @@
     });
   }
 
+  // Espelha AdSpirit_Form::autocomplete_token (PHP). Liga o preenchimento
+  // que o browser/iOS já guardou — sem o atributo, o campo nem é oferecido.
+  // Só campo de IDENTIDADE: faturamento, urgência e perfil ficam de fora
+  // de propósito, porque sugerir resposta de qualificação enviesa o lead.
+  var AC_MAP = {
+    'your-name': 'name', 'nome': 'name', 'seu-nome': 'name', 'name': 'name',
+    // O roteiro da Digitals separa nome e sobrenome — tokens próprios,
+    // senão o browser tenta jogar o nome inteiro nos dois campos.
+    'first-name': 'given-name', 'primeiro-nome': 'given-name',
+    'last-name': 'family-name', 'sobrenome': 'family-name',
+    'your-email': 'email', 'email': 'email', 'e-mail': 'email',
+    'telefone': 'tel', 'whatsapp': 'tel', 'celular': 'tel', 'phone': 'tel', 'tel': 'tel',
+    'empresa': 'organization', 'company': 'organization', 'nome-da-empresa': 'organization',
+    'cargo': 'organization-title', 'funcao': 'organization-title',
+    'site-empresa': 'url', 'site': 'url', 'website': 'url',
+    'cidade': 'address-level2', 'estado': 'address-level1', 'uf': 'address-level1',
+    'cep': 'postal-code'
+  };
+
+  function autocompleteFor(key, type) {
+    var k = String(key == null ? '' : key).toLowerCase().trim();
+    // Tira acento quando o browser suporta (chaves canônicas já vêm sem).
+    if (String.prototype.normalize) {
+      try { k = k.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch (e) {}
+    }
+    k = k.replace(/[_\s]+/g, '-');
+    if (Object.prototype.hasOwnProperty.call(AC_MAP, k)) return AC_MAP[k];
+    if (type === 'email' || type === 'tel' || type === 'url') return type;
+    return '';
+  }
+
   function renderInput(f, value) {
     var v = value == null ? '' : value;
+    var acToken = autocompleteFor(f.key, f.type);
+    var ac = acToken ? ' autocomplete="' + escapeHtml(acToken) + '"' : '';
     if (f.type === 'textarea') {
-      return '<textarea class="adspirit-qf-input" data-key="' + escapeHtml(f.key) + '" placeholder="' + escapeHtml(f.placeholder) + '">' + escapeHtml(v) + '</textarea>';
+      return '<textarea class="adspirit-qf-input" data-key="' + escapeHtml(f.key) + '" placeholder="' + escapeHtml(f.placeholder) + '"' + ac + '>' + escapeHtml(v) + '</textarea>';
     }
-    return '<input class="adspirit-qf-input" type="' + escapeHtml(f.type) + '" data-key="' + escapeHtml(f.key) + '" placeholder="' + escapeHtml(f.placeholder) + '" value="' + escapeHtml(v) + '"' + (f === ((STEPS[state.currentStep] || {}).fields || [])[0] ? ' autofocus' : '') + '>';
+    return '<input class="adspirit-qf-input" type="' + escapeHtml(f.type) + '" data-key="' + escapeHtml(f.key) + '" placeholder="' + escapeHtml(f.placeholder) + '" value="' + escapeHtml(v) + '"' + ac + (f === ((STEPS[state.currentStep] || {}).fields || [])[0] ? ' autofocus' : '') + '>';
   }
 
   function renderChoices(step) {

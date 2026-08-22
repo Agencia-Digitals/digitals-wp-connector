@@ -118,6 +118,11 @@ class AdSpirit_Form {
             .adspirit-form .progress span { flex:1; height:4px; border-radius:2px; background:#E5EAEE; }
             .adspirit-form .progress span.done { background:#00B7B7; }
             .adspirit-form .progress span.current { background:#00B7B7; opacity:0.6; }
+            /* Barra contínua: só em form longo (4+ etapas), onde a contagem
+               de segmentos passa a pesar mais do que orienta. */
+            .adspirit-form .progress.bar { display:block; height:4px; border-radius:2px; background:#E5EAEE; overflow:hidden; }
+            .adspirit-form .progress.bar i { display:block; height:100%; border-radius:2px; background:#00B7B7; transition:width .45s cubic-bezier(.4,0,.2,1); }
+            @media (prefers-reduced-motion: reduce) { .adspirit-form .progress.bar i { transition:none; } }
             .adspirit-form .step-title { font-size:11px; font-weight:700; letter-spacing:0.22em; text-transform:uppercase; color:#00B7B7; margin-bottom:4px; }
             .adspirit-form h3 { font-size:22px; font-weight:600; color:#0F1419; margin:0 0 18px; letter-spacing:-0.02em; }
             .adspirit-form .field { margin-bottom:14px; }
@@ -155,15 +160,31 @@ class AdSpirit_Form {
                 background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.12); color:#F4F6F8;
             }
             .adspirit-form.theme-dark-glass .progress span { background: rgba(255,255,255,0.12); }
+            .adspirit-form.theme-dark-glass .progress.bar { background: rgba(255,255,255,0.12); }
             .adspirit-form.theme-dark-glass button.secondary { color:#AAB3BD; border-color: rgba(255,255,255,0.16); }
         </style>
         <form class="adspirit-form theme-<?php echo esc_attr($theme); ?>" data-form-id="<?php echo esc_attr($atts['id']); ?>" id="<?php echo esc_attr($form_uid); ?>">
             <input type="hidden" name="_adspirit_nonce" value="<?php echo esc_attr(wp_create_nonce('adspirit_form_submit')); ?>">
-            <div class="progress">
-                <?php foreach ($steps as $i => $_): ?>
-                    <span class="<?php echo $i === 0 ? 'current' : ''; ?>"></span>
-                <?php endforeach; ?>
-            </div>
+            <?php
+            // Arranque de progresso: a barra já nasce adiantada, pra reduzir
+            // a sensação de caminho longo. Só a partir de 4 etapas — num form
+            // de 2 o caminho não parece longo e os segmentos orientam melhor.
+            // Forms curtos ficam byte a byte como estavam.
+            $long_form = count($steps) >= 4;
+            ?>
+            <?php if ($long_form): ?>
+                <?php // Largura do passo 0 já no HTML: show() só é chamado ao
+                      // restaurar rascunho, então sem isto a barra ficaria
+                      // parada no arranque até o primeiro clique.
+                      $initial_pct = 8 + (1 / max(1, count($steps))) * 92; ?>
+                <div class="progress bar"><i style="width:<?php echo esc_attr(round($initial_pct, 2)); ?>%;"></i></div>
+            <?php else: ?>
+                <div class="progress">
+                    <?php foreach ($steps as $i => $_): ?>
+                        <span class="<?php echo $i === 0 ? 'current' : ''; ?>"></span>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
 
             <?php foreach ($steps as $idx => $step): ?>
                 <div class="step" data-step="<?php echo (int) $idx; ?>" style="<?php echo $idx === 0 ? '' : 'display:none;'; ?>">
@@ -207,16 +228,27 @@ class AdSpirit_Form {
             var formId = form.dataset.formId;
             var steps = form.querySelectorAll('.step');
             var progress = form.querySelectorAll('.progress span');
+            var progressFill = form.querySelector('.progress.bar i');
             var current = 0;
             var stepEnterTimes = [Date.now()];
 
             function show(i) {
                 steps.forEach(function(s, idx) {
                     s.style.display = idx === i ? '' : 'none';
+                    if (!progress[idx]) return; // form longo usa barra, não segmentos
                     progress[idx].classList.remove('current');
                     if (idx < i) progress[idx].classList.add('done');
                     else if (idx === i) progress[idx].classList.add('current');
                 });
+                if (progressFill) {
+                    // Arranque de 8% + linear. Sem a curva pow(0.6) do wizard
+                    // do CRM de propósito: ela foi calibrada pra ~50 passos e
+                    // aqui o form tem 4 a 6, onde ela marcaria 48% no passo 1
+                    // — contradizendo o "Etapa 1 de 4" logo abaixo. O arranque
+                    // sozinho já dá a sensação de avanço sem mentir.
+                    var real = steps.length > 0 ? (i + 1) / steps.length : 1;
+                    progressFill.style.width = (8 + real * 92) + '%';
+                }
                 current = i;
                 stepEnterTimes[i] = Date.now();
                 try { localStorage.setItem('adspirit_form_' + formId + '_step', String(i)); } catch(e) {}
@@ -309,6 +341,63 @@ class AdSpirit_Form {
         return ob_get_clean();
     }
 
+    /**
+     * Smart default de graça: o token `autocomplete` liga o preenchimento
+     * que o browser e o iOS JÁ têm guardado. Sem ele, o campo não é
+     * oferecido — a pessoa digita nome, e-mail e telefone do zero em todo
+     * formulário. É o único "smart default" que não inventa dado nosso.
+     *
+     * Regra dura: só campo de IDENTIDADE (quem é a pessoa). Campo de
+     * JULGAMENTO — faturamento, urgência, perfil, investimento — NUNCA
+     * recebe sugestão: preencher isso sozinho enviesa a qualificação e o
+     * lead é o produto. Nome não reconhecido não ganha atributo nenhum
+     * (comportamento de antes, sem regressão).
+     */
+    public static function autocomplete_token($name, $type = 'text') {
+        $k = strtolower(trim((string) $name));
+        if (function_exists('remove_accents')) $k = remove_accents($k);
+        $k = str_replace(array('_', ' '), '-', $k);
+
+        $map = array(
+            'your-name'    => 'name',
+            'nome'         => 'name',
+            'seu-nome'     => 'name',
+            'name'         => 'name',
+            // Nome e sobrenome separados pedem token próprio — senão o
+            // browser tenta jogar o nome inteiro nos dois campos.
+            'first-name'   => 'given-name',
+            'primeiro-nome'=> 'given-name',
+            'last-name'    => 'family-name',
+            'sobrenome'    => 'family-name',
+            'your-email'   => 'email',
+            'email'        => 'email',
+            'e-mail'       => 'email',
+            'telefone'     => 'tel',
+            'whatsapp'     => 'tel',
+            'celular'      => 'tel',
+            'phone'        => 'tel',
+            'tel'          => 'tel',
+            'empresa'      => 'organization',
+            'company'      => 'organization',
+            'nome-da-empresa' => 'organization',
+            'cargo'        => 'organization-title',
+            'funcao'       => 'organization-title',
+            'site-empresa' => 'url',
+            'site'         => 'url',
+            'website'      => 'url',
+            'cidade'       => 'address-level2',
+            'estado'       => 'address-level1',
+            'uf'           => 'address-level1',
+            'cep'          => 'postal-code',
+        );
+        if (isset($map[$k])) return $map[$k];
+
+        // Fallback pelo tipo do campo — um input type=email é e-mail
+        // independente de como quem montou o form chamou ele.
+        if (in_array($type, array('email', 'tel', 'url'), true)) return $type;
+        return '';
+    }
+
     private function render_field($f, $id) {
         $name = esc_attr($f['name']);
         $type = $f['type'] ?? 'text';
@@ -316,6 +405,8 @@ class AdSpirit_Form {
         // CONSTRUIR o form, não pra preencher. O browser bloquearia o avanço.
         $req = (!empty($f['required']) && !defined('ADSPIRIT_QF_PREVIEW')) ? 'required' : '';
         $ph = isset($f['placeholder']) ? ' placeholder="' . esc_attr($f['placeholder']) . '"' : '';
+        $ac_token = self::autocomplete_token($f['name'] ?? '', $type);
+        $ac = $ac_token !== '' ? ' autocomplete="' . esc_attr($ac_token) . '"' : '';
         if ($type === 'select' && !empty($f['options'])) {
             echo '<select name="' . $name . '" id="' . esc_attr($id) . '" ' . $req . '>';
             echo '<option value="">— selecione —</option>';
@@ -324,12 +415,12 @@ class AdSpirit_Form {
             }
             echo '</select>';
         } elseif ($type === 'textarea') {
-            echo '<textarea name="' . $name . '" id="' . esc_attr($id) . '" rows="4" ' . $req . $ph . '></textarea>';
+            echo '<textarea name="' . $name . '" id="' . esc_attr($id) . '" rows="4" ' . $req . $ph . $ac . '></textarea>';
         } elseif ($type === 'checkbox') {
             echo '<input type="checkbox" name="' . $name . '" id="' . esc_attr($id) . '" value="1" ' . $req . '>';
         } else {
             $itype = in_array($type, array('email', 'tel', 'url'), true) ? $type : 'text';
-            echo '<input type="' . esc_attr($itype) . '" name="' . $name . '" id="' . esc_attr($id) . '" ' . $req . $ph . '>';
+            echo '<input type="' . esc_attr($itype) . '" name="' . $name . '" id="' . esc_attr($id) . '" ' . $req . $ph . $ac . '>';
         }
     }
 
