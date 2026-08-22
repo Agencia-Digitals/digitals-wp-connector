@@ -7,6 +7,36 @@ Connector" (galeria do Pedro). **Regra de ouro: nada destrutivo — mudança
 aditiva atrás de condição; ler PAREDES-MESTRAS antes de mexer; deploy CRM
 antes de release do plugin.**
 
+## Feito (2026-08-22) — conversão: smart default + arranque de progresso
+
+Pedido do Pedro: verificar se usamos Smart Default, Endowed Progress e Ikea
+Effect no motor de wizard e no form nativo. Diagnóstico e o que entrou:
+
+- [x] **`autocomplete` nos campos de identidade** (form nativo + qualifier).
+      Não emitíamos nenhum — o browser e o iOS não ofereciam o preenchimento
+      que já têm guardado. Mapa espelhado em PHP (`autocomplete_token`) e JS
+      (`AC_MAP`), cobrindo canônicos das paredes-mestras
+      (`your-name`/`your-email`/`Telefone`) e os do qualifier
+      (`first_name`/`last_name`/`phone`/`company`). `name` do input não muda.
+- [x] **Barra de progresso com arranque** no form nativo, a partir de 4
+      etapas. Abaixo disso mantém os segmentos, inalterado.
+      Usa arranque + **linear**, não a curva `pow(0.6)` do wizard do CRM:
+      ela foi calibrada pra ~50 passos e marcaria 48% no passo 1 de 4,
+      contradizendo o "Etapa 1 de 4" renderizado logo abaixo.
+
+**Régua registrada — smart default só em campo de IDENTIDADE.** Nome, e-mail,
+telefone, empresa, cargo, cidade. Campo de JULGAMENTO (faturamento,
+investimento, urgência, perfil) **nunca** recebe sugestão nem opção
+pré-selecionada: ganha conversão e perde qualidade de lead, e o lead é o
+produto.
+
+Já existia e foi confirmado: arranque de 8% + `pow(0.6)` no
+`wizard-shell.tsx` do CRM e no `qualifier-form.js` (ambos em produção).
+
+Não feito, por decisão: pré-preencher visitante conhecido pelo cookie do
+`Lead_Identity` (mexe no que preenche o lead; exige "não é você?" por causa
+de computador compartilhado) e Ikea Effect no GrowthMap (Pedro despriorizou).
+
 ## Feito (2026-08-17, branch feat/connector-30-agora + CRM feat/connector-f0-nutricao)
 
 - [x] Dispatcher canônico: todo POST pro CRM via `Lead_Store::dispatch_to_crm`
