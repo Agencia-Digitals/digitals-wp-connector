@@ -34,7 +34,19 @@ class AdSpirit_WhiteLabel {
 
     /** leve | forte | off */
     public static function nivel() {
-        $padrao = (defined('ADSPIRIT_PERFIL') && ADSPIRIT_PERFIL === 'estudio') ? 'leve' : 'forte';
+        // Quem decide é o DOMÍNIO, igual ao resto do plugin.
+        //
+        // Antes isso vinha do perfil do pacote (ADSPIRIT_PERFIL), e aí bastava
+        // alguém instalar o zip de cliente num endereço nosso pra esconder
+        // Ferramentas, Aparência e Comentários do painel — e engolir todos os
+        // avisos de outros plugins — no site da própria agência. O endereço não
+        // se confunde: é o mesmo critério que libera as ferramentas do Studio.
+        $padrao = 'forte';
+        if (class_exists('AdSpirit_Ambiente')) {
+            $padrao = AdSpirit_Ambiente::e_estudio() ? 'leve' : 'forte';
+        } elseif (defined('ADSPIRIT_PERFIL') && ADSPIRIT_PERFIL === 'estudio') {
+            $padrao = 'leve';
+        }
         $nivel = get_option(self::OPTION_NIVEL, $padrao);
         return (string) apply_filters('adspirit_whitelabel_nivel', $nivel);
     }
