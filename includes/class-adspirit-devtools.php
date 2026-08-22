@@ -27,8 +27,18 @@ class AdSpirit_DevTools {
     }
 
     public static function ativo() {
-        // Ligado por padrão; desligar deixa o admin do cliente sem essas ações.
-        return (bool) apply_filters('adspirit_devtools_ativo', get_option(self::OPTION_ATIVO, '1') === '1');
+        // Segue o domínio, igual ao resto do plugin: são ferramentas de quem
+        // CONSTRÓI o site. No painel do cliente, "Duplicar", "Baixar zip" e o
+        // seletor de tipo de conteúdo são ações que ele não deveria precisar
+        // entender — e uma delas move conteúdo de tipo ao salvar.
+        //
+        // Com isso o pacote passa a ser um só: o que separa estúdio de cliente
+        // é o endereço, nunca qual zip alguém instalou.
+        $padrao = '1';
+        if (class_exists('AdSpirit_Ambiente') && !AdSpirit_Ambiente::e_estudio()) {
+            $padrao = '0';
+        }
+        return (bool) apply_filters('adspirit_devtools_ativo', get_option(self::OPTION_ATIVO, $padrao) === '1');
     }
 
     private function __construct() {

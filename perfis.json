@@ -14,7 +14,7 @@
     "telemetry"
   ],
   "cliente": {
-    "_por_que": "site do cliente: captar lead, medir, entregar e-mail e manter o site saudável. Nada de builder, automação ou ferramenta de desenvolvimento.",
+    "_por_que": "site do cliente: captar lead, medir, entregar e-mail e manter o site saudável. A partir da v2.45.2 o pacote é o MESMO nos dois casos — quem separa é o domínio, em tempo de execução. Esta lista sobrevive só pra quem quiser gerar um zip realmente mínimo.",
     "modulos": [
       "ambiente",
       "agente",
@@ -55,7 +55,8 @@
       "customerio",
       "whatsapp",
       "form-qualifier",
-      "whitelabel"
+      "whitelabel",
+      "devtools"
     ]
   },
   "estudio": {
