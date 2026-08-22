@@ -432,6 +432,10 @@ class AdSpirit_Pixel_Conflito {
             'pixel_do_connector' => (int) $assinadas,
             'pixel_de_fora' => (int) $de_fora,
             'gtm' => $gtm_id,
+            // Amostra do HTML pra AdSpirit_Deteccao trabalhar sem baixar a
+            // home de novo. Cortada: só o <head> e o começo do corpo importam,
+            // e guardar a página inteira incharia wp_options.
+            'html_amostra' => mb_substr($html, 0, 220000),
             'ga4_na_pagina' => $ga4_na_pagina,
             'clarity_na_pagina' => $clarity_na_pagina,
             'google_ads_na_pagina' => $google_ads_na_pagina,

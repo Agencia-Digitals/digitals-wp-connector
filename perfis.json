@@ -59,7 +59,8 @@
       "devtools",
       "medicao",
       "handshake",
-      "conexao-painel"
+      "conexao-painel",
+      "deteccao"
     ]
   },
   "estudio": {

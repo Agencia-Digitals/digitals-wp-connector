@@ -43,110 +43,111 @@ class AdSpirit_Handshake {
         ), $extra);
     }
 
+    /** Os trabalhos que a tela mostra, na ordem, com a linguagem de quem usa. */
+    private static function trabalhos() {
+        return array(
+            'adspirit'   => array('Origem dos leads', 'ATRIBUIÇÃO', 'Liga cada visita ao anúncio que a trouxe.'),
+            'meta'       => array('Anúncios da Meta', 'MEDIÇÃO', 'Mede e reporta conversões pro Facebook e Instagram.'),
+            'google-ads' => array('Google Ads', 'MEDIÇÃO', 'Mede e reporta conversões pros anúncios do Google.'),
+            'analytics'  => array('Analytics', 'MEDIÇÃO', 'Sessões, origem de tráfego e comportamento.'),
+            'gravacao'   => array('Gravação de sessão', 'COMPORTAMENTO', 'Mapa de calor e vídeo do que o visitante faz.'),
+            'gerenciador'=> array('Gerenciador de tags', 'INFRAESTRUTURA', 'Onde muitas medições ficam penduradas.'),
+        );
+    }
+
+    /** Quem o AdSpirit governa hoje, por trabalho. */
+    private static function nossos() {
+        $capi = class_exists('AdSpirit_Settings') ? AdSpirit_Settings::get_capi_meta() : array();
+        $ga4  = class_exists('AdSpirit_Settings') ? AdSpirit_Settings::get_ga4() : array();
+        $clr  = class_exists('AdSpirit_Clarity') ? AdSpirit_Clarity::get_settings() : array();
+        $core = class_exists('AdSpirit_Settings') ? AdSpirit_Settings::get_core() : array();
+        return array(
+            'meta' => ($capi['enabled'] ?? '0') === '1' ? trim((string) $capi['pixel_id']) : '',
+            'analytics' => ($ga4['enabled'] ?? '0') === '1' ? trim((string) $ga4['measurement_id']) : '',
+            'gravacao' => ($clr['enabled'] ?? '0') === '1' ? trim((string) $clr['project_id']) : '',
+            'adspirit' => ($core['pixel_enabled'] ?? '0') === '1' ? trim((string) $core['pixel_token']) : '',
+        );
+    }
+
     /**
-     * O estado de cada elo. É o que a aba de Conexão desenha.
+     * O estado de cada elo, já agrupado por situação — que é como a tela
+     * desenha: faixa por estado, cards dentro.
      */
     public static function estado() {
-        $core = class_exists('AdSpirit_Settings') ? AdSpirit_Settings::get_core() : array();
         $rel = class_exists('AdSpirit_Pixel_Conflito') ? AdSpirit_Pixel_Conflito::relatorio() : array();
-        $tem_gtm = !empty($rel['gtm']);
+        $html = isset($rel['html_amostra']) ? (string) $rel['html_amostra'] : '';
+        $mede = class_exists('AdSpirit_Deteccao') ? AdSpirit_Deteccao::quem_mede($html) : array();
+        $nossos = self::nossos();
+        $conectado = class_exists('AdSpirit_Connect') && AdSpirit_Connect::is_connected();
+        $core = class_exists('AdSpirit_Settings') ? AdSpirit_Settings::get_core() : array();
+
         $itens = array();
 
-        // 1. A conexão em si — sem ela, nada mais importa.
-        $conectado = class_exists('AdSpirit_Connect') && AdSpirit_Connect::is_connected();
-        $itens[] = self::item(
-            'conexao', 'Ligação com o AdSpirit',
-            'A chave que autoriza este site a falar com a sua conta.',
-            $conectado ? 'nosso' : 'ausente',
-            $conectado
-                ? sprintf('Conectado à marca %s.', $core['brand_slug'] ?? '—')
-                : 'Este site ainda não foi conectado.'
+        // A ligação e a entrega de leads são o motivo do plugin existir.
+        // Não são "opções" — ou funcionam, ou o plugin não serve pra nada.
+        $itens[] = array(
+            'chave' => 'conexao', 'nome' => 'Ligação com o AdSpirit', 'cat' => 'CONTA',
+            'oque' => 'A chave que autoriza este site a falar com a sua conta.',
+            'marca' => 'adspirit',
+            'situacao' => $conectado ? 'nosso' : 'falta',
+            'pe' => $conectado ? ('Marca ' . ($core['brand_slug'] ?: '—')) : 'Conectar agora',
+        );
+        $itens[] = array(
+            'chave' => 'leads', 'nome' => 'Entrega de leads', 'cat' => 'CONTA',
+            'oque' => 'Todo formulário enviado chega no AdSpirit.',
+            'marca' => 'adspirit',
+            'situacao' => $conectado ? 'nosso' : 'falta',
+            'pe' => $conectado ? 'Ativa' : 'Depende da ligação',
         );
 
-        // 2. Pixel do AdSpirit — é ele que atribui a origem de cada lead.
-        $total = (int) ($rel['pixel_total'] ?? 0);
-        $nosso = (int) ($rel['pixel_do_connector'] ?? 0);
-        $fora  = (int) ($rel['pixel_de_fora'] ?? 0);
-        if ($nosso > 0) {
-            $sit = 'nosso'; $det = 'O connector injeta o pixel nesta página.';
-        } elseif ($fora > 0) {
-            $sit = 'de_outro';
-            $onde = '';
-            foreach ((array) ($rel['snippets'] ?? array()) as $sn) {
-                if (!empty($sn['ativo']) && !empty($sn['nosso'])) {
-                    $onde = sprintf(' Está em %s, no trecho "%s".', $sn['origem'], $sn['nome']); break;
-                }
+        foreach (self::trabalhos() as $chave => $t) {
+            list($nome, $cat, $oque) = $t;
+            $meu = isset($nossos[$chave]) ? $nossos[$chave] : '';
+            $fora = isset($mede[$chave]) ? $mede[$chave] : array();
+
+            if ($meu !== '') {
+                $itens[] = array(
+                    'chave' => $chave, 'nome' => $nome, 'cat' => $cat, 'oque' => $oque,
+                    'marca' => 'adspirit', 'situacao' => 'nosso',
+                    'pe' => 'Pelo AdSpirit',
+                );
+                continue;
             }
-            $det = 'O pixel já está na página, colado fora do connector.' . $onde;
-        } elseif ($total > 0) {
-            $sit = 'de_outro'; $det = 'O pixel está na página, por outra fonte.';
-        } else {
-            $sit = 'ausente'; $det = 'Nenhum pixel do AdSpirit foi encontrado na home.';
+            if ($fora) {
+                $f = $fora[0];
+                $outros = count($fora) > 1 ? sprintf(' +%d', count($fora) - 1) : '';
+                $itens[] = array(
+                    'chave' => $chave, 'nome' => $nome, 'cat' => $cat, 'oque' => $oque,
+                    'marca' => $f['marca'], 'situacao' => 'de_outro',
+                    'fornecedor' => $f['fornecedor'] . $outros,
+                    'id' => $f['id'],
+                    'pe' => $f['fornecedor'] . $outros,
+                    'pode_substituir' => in_array($chave, array('adspirit', 'meta', 'analytics', 'gravacao'), true),
+                );
+                continue;
+            }
+            // Gerenciador de tags ausente não é falta — é escolha de arquitetura.
+            if ($chave === 'gerenciador') continue;
+            $itens[] = array(
+                'chave' => $chave, 'nome' => $nome, 'cat' => $cat, 'oque' => $oque,
+                'marca' => 'vazio', 'situacao' => 'falta',
+                'pe' => 'Ninguém mede isto',
+            );
         }
-        $itens[] = self::item('pixel', 'Pixel do AdSpirit',
-            'Liga cada visita ao anúncio que a trouxe — é o que dá origem ao lead.',
-            $sit, $det, array('pode_substituir' => $sit === 'de_outro' && $fora > 0));
-
-        // 3–5. Ferramentas de medição.
-        $itens[] = self::medicao_item('meta', 'Pixel da Meta',
-            'Mede e reporta conversões pro Facebook e Instagram.',
-            class_exists('AdSpirit_Settings') ? AdSpirit_Settings::get_capi_meta() : array(),
-            'pixel_id', (array) ($rel['meta_na_pagina'] ?? array()), $tem_gtm);
-
-        $itens[] = self::medicao_item('ga4', 'Google Analytics 4',
-            'Mede sessões e conversões no Analytics.',
-            class_exists('AdSpirit_Settings') ? AdSpirit_Settings::get_ga4() : array(),
-            'measurement_id', (array) ($rel['ga4_na_pagina'] ?? array()), $tem_gtm);
-
-        $itens[] = self::medicao_item('clarity', 'Gravações de sessão',
-            'Mapa de calor e gravação do que o visitante faz.',
-            class_exists('AdSpirit_Clarity') ? AdSpirit_Clarity::get_settings() : array(),
-            'project_id', (array) ($rel['clarity_na_pagina'] ?? array()), $tem_gtm);
-
-        // 6. Formulários — o elo que prova entrega de ponta a ponta.
-        $itens[] = self::item('formularios', 'Entrega de leads',
-            'Cada formulário enviado chega no AdSpirit.',
-            $conectado ? 'nosso' : 'ausente',
-            $conectado
-                ? 'Os formulários do site enviam pro AdSpirit.'
-                : 'Sem conexão, nenhum lead é entregue.'
-        );
-
         return $itens;
     }
 
-    /**
-     * Um item de medição: compara o que o connector tem configurado com o que
-     * está de fato na página.
-     */
-    private static function medicao_item($chave, $nome, $oque, $config, $campo, $na_pagina, $tem_gtm) {
-        $meu = trim((string) ($config[$campo] ?? ''));
-        $ligado = ($config['enabled'] ?? '0') === '1';
-
-        if ($ligado && $meu !== '') {
-            return self::item($chave, $nome, $oque, 'nosso',
-                sprintf('O AdSpirit cuida disto (%s).', $meu));
+    /** Agrupado por situação, na ordem em que a tela desenha. */
+    public static function por_situacao() {
+        $g = array('nosso' => array(), 'de_outro' => array(), 'falta' => array());
+        foreach (self::estado() as $i) {
+            $g[$i['situacao']][] = $i;
         }
-        if ($na_pagina) {
-            return self::item($chave, $nome, $oque, 'de_outro',
-                sprintf('Já está na página (%s), por fora do AdSpirit.', implode(', ', $na_pagina)),
-                array('pode_substituir' => true, 'valor_na_pagina' => $na_pagina));
-        }
-        if ($tem_gtm) {
-            return self::item($chave, $nome, $oque, 'invisivel',
-                'Este site usa Tag Manager, e daqui não dá pra ver o que ele injeta. Confira no Tag Assistant.');
-        }
-        return self::item($chave, $nome, $oque, 'ausente',
-            'Ninguém está medindo isto neste site.');
+        return $g;
     }
 
-    /** Resumo pra uma frase só no topo da tela. */
     public static function resumo() {
-        $itens = self::estado();
-        $c = array('nosso' => 0, 'de_outro' => 0, 'ausente' => 0, 'invisivel' => 0);
-        foreach ($itens as $i) {
-            if (isset($c[$i['situacao']])) $c[$i['situacao']]++;
-        }
-        return $c;
+        $g = self::por_situacao();
+        return array('nosso' => count($g['nosso']), 'de_outro' => count($g['de_outro']), 'falta' => count($g['falta']));
     }
 }

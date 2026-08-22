@@ -605,46 +605,21 @@ add_action('adspirit_connector_render_tab_connection', AdSpirit_Safe_Hook::actio
     <?php endif; ?>
 
     <?php if ($connected): ?>
-        <h2 class="as-section"><span class="as-kicker-inline">Conexão</span>Status</h2>
-        <p class="as-section-help">Plugin conectado ao AdSpirit. Pra trocar de brand ou rotacionar credenciais, desconecte e reconecte.</p>
-
-        <?php AdSpirit_Menu::card_open('Conectado', 'Credenciais salvas no banco do WordPress', '<span class="as-badge ok">Online</span>'); ?>
-        <table class="form-table">
-            <tr>
-                <th>Marca</th>
-                <td>
-                    <strong style="font-size:14px; color:var(--as-ink);"><?php echo esc_html($s['brand_name'] ?: $s['brand_slug']); ?></strong>
-                    <span class="as-field-help" style="display:inline; margin-left:8px;">slug <code><?php echo esc_html($s['brand_slug']); ?></code></span>
-                </td>
-            </tr>
-            <tr>
-                <th>Endpoint</th>
-                <td><code><?php echo esc_html($s['endpoint_url']); ?></code></td>
-            </tr>
-            <tr>
-                <th>Pixel token</th>
-                <td><code><?php echo esc_html($s['pixel_token']); ?></code></td>
-            </tr>
-            <tr>
-                <th>Secret CF7</th>
-                <td><code><?php echo esc_html(substr($s['secret'], 0, 8) . str_repeat('•', 32) . substr($s['secret'], -4)); ?></code></td>
-            </tr>
-            <tr>
-                <th>Features</th>
-                <td>
-                    <span class="as-badge <?php echo $s['cf7_enabled'] === '1' ? 'ok' : 'muted'; ?>">CF7 → CRM <?php echo $s['cf7_enabled'] === '1' ? 'ativo' : 'desligado'; ?></span>
-                    <span class="as-badge <?php echo $s['pixel_enabled'] === '1' ? 'ok' : 'muted'; ?>" style="margin-left:6px;">Pixel <?php echo $s['pixel_enabled'] === '1' ? 'ativo' : 'desligado'; ?></span>
-                </td>
-            </tr>
-        </table>
-        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin-top:16px;">
-            <input type="hidden" name="action" value="adspirit_disconnect">
-            <?php wp_nonce_field('adspirit_disconnect'); ?>
-            <button type="submit" class="button button-danger">Desconectar</button>
-        </form>
-        <?php AdSpirit_Menu::card_close(); ?>
-
-        <?php AdSpirit_Menu::card_open('Configuração avançada', 'Editar valores manualmente — use só pra debug ou caso especial'); ?>
+        <?php
+        // A tabela de status que existia aqui saiu: os cards no topo já dizem
+        // com qual marca este site fala e o que está funcionando, sem
+        // despejar endpoint, token e secret na tela. Sobrou o que ela tinha de
+        // acionável — desconectar — e isso mora junto do resto do avançado.
+        ?>
+        <?php
+        // Edição atrás do clique: quem abre esta aba quer saber se está tudo
+        // certo, não editar endpoint. Quem precisa editar sabe procurar.
+        ?>
+        <details class="as-avancado" style="margin-top:8px">
+        <summary style="cursor:pointer;font-size:12.5px;font-weight:600;color:var(--as-ink-soft);padding:10px 0">
+            Ajustes técnicos e desconectar
+        </summary>
+        <?php AdSpirit_Menu::card_open('Configuração avançada', 'Endereço, marca e chaves. Mexer aqui só em caso especial — normalmente esses valores vêm do AdSpirit.'); ?>
         <?php AdSpirit_Menu::form_open('connection'); ?>
         <table class="form-table"><?php
     else:
@@ -714,29 +689,29 @@ add_action('adspirit_connector_render_tab_connection', AdSpirit_Safe_Hook::actio
             </td>
         </tr>
         <tr>
-            <th>O que este site envia</th>
+            <th>Extras opcionais</th>
             <td>
                 <div class="as-toggle">
                     <input type="checkbox" id="as_cf7" name="cf7_enabled" value="1" <?php checked($s['cf7_enabled'], '1'); ?>>
-                    <label class="t" for="as_cf7">Enviar leads dos formulários
+                    <label class="t" for="as_cf7">Enviar leads dos formulários <span style="font-weight:400;color:var(--as-ink-faint)">· é pra isso que o plugin existe</span>
                         <small>Todo formulário conectado entrega os leads direto no AdSpirit.</small>
                     </label>
                 </div>
                 <div class="as-toggle as-sub">
                     <input type="checkbox" id="as_generic" name="generic_forms_enabled" value="1" <?php checked($s['generic_forms_enabled'] ?? '0', '1'); ?>>
-                    <label class="t" for="as_generic">Capturar formulários de outros plugins (beta)
+                    <label class="t" for="as_generic">Capturar formulários de outros plugins <span style="font-weight:400;color:var(--as-ink-faint)">· opcional, em teste</span>
                         <small>Rede de segurança: um formulário que o AdSpirit não conhece também entrega o lead, desde que tenha e-mail ou telefone. Os formulários conectados continuam com prioridade.</small>
                     </label>
                 </div>
                 <div class="as-toggle">
                     <input type="checkbox" id="as_px" name="pixel_enabled" value="1" <?php checked($s['pixel_enabled'], '1'); ?>>
-                    <label class="t" for="as_px">Medir visitas e jornada
+                    <label class="t" for="as_px">Medir visitas e jornada <span style="font-weight:400;color:var(--as-ink-faint)">· é o que liga lead a campanha</span>
                         <small>O rastreador registra de onde cada visitante veio — é o que liga lead a campanha.</small>
                     </label>
                 </div>
                 <div class="as-toggle as-sub">
                     <input type="checkbox" id="as_px1p" name="pixel_firstparty" value="1" <?php checked($s['pixel_firstparty'] ?? '0', '1'); ?>>
-                    <label class="t" for="as_px1p">Servir o rastreador pelo endereço deste site
+                    <label class="t" for="as_px1p">Servir o rastreador pelo endereço deste site <span style="font-weight:400;color:var(--as-ink-faint)">· opcional</span>
                         <small>Reduz perda por bloqueadores de anúncio. O código continua vindo do AdSpirit — só o endereço muda.</small>
                     </label>
                 </div>
@@ -750,7 +725,7 @@ add_action('adspirit_connector_render_tab_connection', AdSpirit_Safe_Hook::actio
     </table>
     <?php AdSpirit_Menu::form_close('Salvar conexão'); ?>
     <?php AdSpirit_Menu::card_close(); ?>
-    <?php if (!$connected): ?></details><?php endif; ?>
+    <?php ?></details><?php ?>
     <?php
 }, 'connection_tab'));
 

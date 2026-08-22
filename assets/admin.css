@@ -741,3 +741,75 @@
 .adspirit-app .fh-add-label { font-size: 12.5px; font-weight: 600; }
 .adspirit-app .fh-card.fh-draft { opacity: .68; border-style: dashed; }
 .adspirit-app .fh-chip.warn { background: var(--as-bg-warning); color: var(--as-warning); font-weight: 600; }
+
+/* ─────────────────────────────────────────────────────────────
+   Cards de estado (faxina — padrão das configurações do AdSpirit)
+   
+   O estado é dito por AGRUPAMENTO, não por selo em cada item: a faixa
+   diz "funcionando 3", e dentro dela nenhum card precisa se explicar.
+   Sobra contraste pra marcar só a exceção — por isso existe um único
+   ponto de cor por card, e só nos que estão ativos.
+   ───────────────────────────────────────────────────────────── */
+
+.as-faixa { margin: 0 0 22px; }
+.as-faixa > h4 {
+  margin: 0; font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--as-ink-soft);
+}
+.as-faixa > h4 .as-conta { margin-left: 6px; font-weight: 400; color: var(--as-ink-faint); font-variant-numeric: tabular-nums; }
+.as-faixa > p { margin: 2px 0 10px; font-size: 11.5px; line-height: 1.5; color: var(--as-ink-faint); max-width: 62ch; }
+
+.as-cards {
+  display: grid; gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(228px, 1fr));
+}
+
+.as-card {
+  display: flex; flex-direction: column; justify-content: space-between; gap: 10px;
+  min-height: 98px; padding: 13px 14px; border-radius: 12px;
+  border: 1px solid var(--as-line); background: var(--as-bg-card);
+  text-decoration: none; color: inherit; transition: border-color .15s, background .15s;
+}
+a.as-card:hover, button.as-card:hover { border-color: var(--as-accent); }
+.as-card--ativo { border-color: var(--as-line-strong); }
+button.as-card { width: 100%; text-align: left; font: inherit; cursor: pointer; }
+
+.as-card-topo { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.as-card-nome { display: block; font-size: 12.5px; font-weight: 600; color: var(--as-ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.as-card-cat { display: block; font-size: 9.5px; text-transform: uppercase;
+  letter-spacing: .09em; color: var(--as-ink-faint); margin-top: 1px; }
+
+.as-chip {
+  flex: 0 0 auto; width: 30px; height: 30px; border-radius: 9px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; color: #fff; letter-spacing: -.02em;
+}
+.as-chip--meta     { background: #0866FF; }
+.as-chip--google   { background: #1A73E8; }
+.as-chip--hotjar   { background: #FF3C00; }
+.as-chip--clarity  { background: #0F6CBD; }
+.as-chip--adspirit { background: var(--as-accent); color: #08201F; }
+.as-chip--outro    { background: var(--as-ink-faint); }
+.as-chip--vazio    { background: transparent; border: 1px dashed var(--as-line-strong); color: var(--as-ink-faint); }
+
+.as-card-pe { font-size: 10.5px; font-weight: 500; color: var(--as-ink-faint); }
+.as-card-pe--ativo { display: inline-flex; align-items: center; gap: 6px;
+  font-weight: 600; color: var(--as-success); }
+.as-card-pe--ativo::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--as-success); }
+.as-card:hover .as-card-pe--acao { color: var(--as-accent); }
+
+.as-vazio {
+  border: 1px dashed var(--as-line-strong); border-radius: 12px;
+  padding: 18px; text-align: center; color: var(--as-ink-faint); font-size: 12px;
+}
+
+/* Sem tema escuro por prefers-color-scheme, de propósito.
+   
+   O wp-admin não segue o tema do sistema operacional: os esquemas dele
+   (Fresh, Midnight, Ectoplasm) pintam o menu, e a área de conteúdo fica
+   clara em todos. Ligar o escuro pelo sistema deixaria estes cards pretos
+   dentro de uma página branca — foi o que o QA pegou.
+   
+   Quando o painel do AdSpirit for embutido aqui, os tokens acompanham a
+   classe que ele carrega, não a preferência do sistema. */

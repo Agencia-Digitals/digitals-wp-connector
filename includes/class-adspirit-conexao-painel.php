@@ -40,80 +40,89 @@ class AdSpirit_Conexao_Painel {
         );
     }
 
-    /** Ícone e cor por situação — a tela inteira se lê pela coluna da esquerda. */
-    private function marca($situacao) {
-        switch ($situacao) {
-            case 'nosso':     return array('✓', '#1F6B4A', 'funcionando');
-            case 'de_outro':  return array('!', '#8A5A00', 'já existe no site');
-            case 'invisivel': return array('?', '#5B5F6B', 'não dá pra ver daqui');
-            default:          return array('—', '#A3282A', 'falta configurar');
+    /** Duas letras pro chip quando não há logo. */
+    private function iniciais($nome) {
+        $limpo = trim(preg_replace('/[^A-Za-zÀ-ÿ ]/u', '', $nome));
+        $partes = preg_split('/\s+/', $limpo);
+        if (count($partes) >= 2) return mb_strtoupper(mb_substr($partes[0], 0, 1) . mb_substr($partes[1], 0, 1));
+        return mb_strtoupper(mb_substr($limpo, 0, 2));
+    }
+
+    private function card($i) {
+        $ativo = $i['situacao'] === 'nosso';
+        $marca = in_array($i['marca'], array('meta','google','hotjar','clarity','adspirit','vazio'), true) ? $i['marca'] : 'outro';
+        $rotulo_chip = $marca === 'adspirit' ? 'AS' : $this->iniciais(!empty($i['fornecedor']) ? $i['fornecedor'] : $i['nome']);
+
+        $classe = 'as-card' . ($ativo ? ' as-card--ativo' : '');
+        $pe_classe = $ativo ? 'as-card-pe as-card-pe--ativo'
+            : (!empty($i['pode_substituir']) ? 'as-card-pe as-card-pe--acao' : 'as-card-pe');
+
+        $interno = '<span class="as-card-topo">'
+            . '<span class="as-chip as-chip--' . esc_attr($marca) . '">' . esc_html($rotulo_chip) . '</span>'
+            . '<span style="min-width:0">'
+            . '<span class="as-card-nome">' . esc_html($i['nome']) . '</span>'
+            . '<span class="as-card-cat">' . esc_html($i['cat']) . '</span>'
+            . '</span></span>'
+            . '<span class="' . esc_attr($pe_classe) . '">' . esc_html($i['pe']) . '</span>';
+
+        // Card que oferece troca é um botão de verdade; o resto é só leitura.
+        if (!empty($i['pode_substituir'])) {
+            AdSpirit_Menu::form_open('connection');
+            echo '<input type="hidden" name="assumir_item" value="' . esc_attr($i['chave']) . '">';
+            echo '<button type="submit" class="' . esc_attr($classe) . '" title="Passar '
+               . esc_attr($i['nome']) . ' pro AdSpirit">' . $interno . '</button>';
+            echo '</form>';
+            return;
         }
+        echo '<div class="' . esc_attr($classe) . '">' . $interno . '</div>';
+    }
+
+    private function faixa($rotulo, $itens, $dica, $vazio = '') {
+        if (!$itens) {
+            if ($vazio === '') return;
+            echo '<div class="as-faixa"><h4>' . esc_html($rotulo) . '</h4>';
+            echo '<div class="as-vazio">' . esc_html($vazio) . '</div></div>';
+            return;
+        }
+        echo '<div class="as-faixa">';
+        echo '<h4>' . esc_html($rotulo) . '<span class="as-conta">' . count($itens) . '</span></h4>';
+        echo '<p>' . esc_html($dica) . '</p>';
+        echo '<div class="as-cards">';
+        foreach ($itens as $i) $this->card($i);
+        echo '</div></div>';
     }
 
     public function render() {
         if (!class_exists('AdSpirit_Handshake')) return;
 
-        $itens = AdSpirit_Handshake::estado();
-        $r = AdSpirit_Handshake::resumo();
-        $tudo_certo = $r['ausente'] === 0 && $r['de_outro'] === 0;
-
-        $selo = $tudo_certo
-            ? '<span class="as-badge" style="border-color:#A8D3BC;background:#E6F3EC;color:#1F6B4A">tudo funcionando</span>'
-            : sprintf('<span class="as-badge">%d de %d no AdSpirit</span>', $r['nosso'], count($itens));
+        $g = AdSpirit_Handshake::por_situacao();
+        $tudo_certo = !$g['de_outro'] && !$g['falta'];
 
         AdSpirit_Menu::card_open(
-            'Está tudo funcionando?',
+            $tudo_certo ? 'Tudo passando pelo AdSpirit' : 'O que este site já faz',
             $tudo_certo
-                ? 'Sim. Cada item abaixo foi verificado neste site agora.'
-                : 'A lista abaixo mostra o que o AdSpirit já cuida e o que ainda não. Nada aqui é alterado sem você mandar.',
-            $selo
+                ? 'Verificado neste site agora. Não há nada pendente.'
+                : 'Verificado neste site agora — não é o que está configurado aqui, é o que está de fato acontecendo na página.',
+            ''
         );
 
-        echo '<table class="widefat" style="border:0"><tbody>';
-        foreach ($itens as $i) {
-            list($icone, $cor, $rotulo) = $this->marca($i['situacao']);
-            echo '<tr>';
-            echo '<td style="width:2.4rem;text-align:center;vertical-align:top;padding-top:14px">'
-               . '<span style="display:inline-flex;width:22px;height:22px;border-radius:50%;align-items:center;'
-               . 'justify-content:center;font-weight:700;color:#fff;background:' . esc_attr($cor) . '">'
-               . esc_html($icone) . '</span></td>';
-            echo '<td style="vertical-align:top">'
-               . '<strong>' . esc_html($i['nome']) . '</strong> '
-               . '<span style="color:' . esc_attr($cor) . ';font-size:11px;text-transform:uppercase;letter-spacing:.04em">'
-               . esc_html($rotulo) . '</span>'
-               . '<br><span class="as-field-help">' . esc_html($i['oque']) . '</span>'
-               . '<br><span class="as-field-help" style="color:#3D4C4E">' . esc_html($i['detalhe']) . '</span>'
-               . '</td>';
+        $this->faixa(
+            'Pelo AdSpirit', $g['nosso'],
+            'O AdSpirit cuida. O valor vem da sua conta e vale pra todos os sites.'
+        );
 
-            echo '<td style="width:12rem;vertical-align:top;text-align:right;padding-top:12px">';
-            if (!empty($i['pode_substituir'])) {
-                $this->botao_substituir($i);
-            }
-            echo '</td>';
-            echo '</tr>';
-        }
-        echo '</tbody></table>';
+        $this->faixa(
+            'Já existe no site', $g['de_outro'],
+            'Outra ferramenta faz isto, e funciona. Passar pro AdSpirit centraliza o controle — clique no card pra trocar.'
+        );
 
-        if ($r['de_outro'] > 0) {
-            echo '<div class="as-notice"><p><strong>Sobre o que já existe.</strong> '
-               . 'Não é problema — o site foi montado assim antes do AdSpirit chegar, e continua '
-               . 'medindo. Trocar pelo nosso faz o valor passar a vir do AdSpirit, e aí muda num '
-               . 'lugar só pra todos os sites. Enquanto não trocar, nada é alterado.</p></div>';
-        }
-        if ($r['invisivel'] > 0) {
-            echo '<div class="as-notice"><p><strong>Sobre o Tag Manager.</strong> '
-               . 'O que ele injeta só aparece depois do JavaScript rodar, e esta verificação lê o '
-               . 'HTML do servidor. Prefiro dizer que não enxergo a dizer que falta.</p></div>';
-        }
+        $this->faixa(
+            'Ninguém faz', $g['falta'],
+            'Nada mede isto neste site hoje.',
+            'Nada faltando.'
+        );
 
         AdSpirit_Menu::card_close();
-    }
-
-    private function botao_substituir($item) {
-        AdSpirit_Menu::form_open('connection');
-        echo '<input type="hidden" name="assumir_item" value="' . esc_attr($item['chave']) . '">';
-        echo '<button type="submit" class="button">Usar o do AdSpirit</button>';
-        echo '</form>';
     }
 
     /**
