@@ -38,7 +38,7 @@
       title: 'Seu WhatsApp',
       capturePartial: true, // ao passar daqui, dispara lead PARCIAL pro CRM
       fields: [
-        { key: 'phone', type: 'tel', placeholder: 'WhatsApp com DDD', required: true },
+        { key: 'phone', type: 'tel', placeholder: '(21) 99999-9999', required: true },
       ],
     },
     {
@@ -625,6 +625,34 @@
     return html;
   }
 
+  // ── Telefone: máscara só de leitura ────────────────────────────
+  //
+  // Número comprido e sem separação é onde o dedo erra. Formatar enquanto
+  // digita reduz erro de digitação e deixa claro que o DDD é esperado.
+  //
+  // REGRA: o dado guardado e enviado continua sendo SÓ DÍGITO. A máscara não
+  // pode vazar pro payload — a Elisa e o CRM já esperam o formato cru, e
+  // mudar isso quebraria o pareamento de contato.
+  function soDigitosTelefone(valor) {
+    var d = String(valor || '').replace(/\D/g, '');
+    // Cola do WhatsApp costuma vir com +55 na frente; o resto do fluxo
+    // trabalha com DDD + número, então tira o país.
+    if (d.length > 11 && d.indexOf('55') === 0) d = d.slice(2);
+    return d.slice(0, 11);
+  }
+
+  function mascaraTelefone(digitos) {
+    var d = String(digitos || '');
+    if (!d) return '';
+    if (d.length <= 2) return '(' + d;
+    var ddd = d.slice(0, 2);
+    var resto = d.slice(2);
+    if (resto.length <= 4) return '(' + ddd + ') ' + resto;
+    // 9 dígitos = celular (5+4); 8 = fixo (4+4).
+    var corte = resto.length > 8 ? 5 : 4;
+    return '(' + ddd + ') ' + resto.slice(0, corte) + '-' + resto.slice(corte);
+  }
+
   function renderSuccess() {
     // Quiz com template pro perfil devolvido pelo CRM → resultado na tela.
     var last = window.AdSpiritQualifierLastResponse || {};
@@ -653,13 +681,28 @@
 
     // Inputs (persist on type)
     stepEl.querySelectorAll('input.adspirit-qf-input, textarea.adspirit-qf-input').forEach(function (el) {
+      var ehTelefone = (el.getAttribute('type') || '') === 'tel';
       el.addEventListener('input', function () {
         var key = el.getAttribute('data-key');
-        if (key) {
+        if (!key) return;
+        if (ehTelefone) {
+          // O visitante lê "(21) 99999-9999"; o que sai daqui continua sendo
+          // só dígito. A Elisa e o CRM recebem exatamente o mesmo formato de
+          // antes — a máscara é de tela, não de dado.
+          var cursorNoFim = el.selectionStart === el.value.length;
+          var digitos = soDigitosTelefone(el.value);
+          el.value = mascaraTelefone(digitos);
+          if (cursorNoFim) {
+            try { el.setSelectionRange(el.value.length, el.value.length); } catch (e) {}
+          }
+          state.responses[key] = digitos;
+        } else {
           state.responses[key] = el.value;
-          saveState();
         }
+        saveState();
       });
+      // Valor que veio do estado salvo também aparece formatado.
+      if (ehTelefone && el.value) el.value = mascaraTelefone(soDigitosTelefone(el.value));
     });
 
     // Choices
