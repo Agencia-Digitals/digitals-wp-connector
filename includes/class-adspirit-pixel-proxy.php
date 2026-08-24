@@ -47,6 +47,37 @@ class AdSpirit_Pixel_Proxy {
         );
     }
 
+    /**
+     * O pixel.js deste CRM aceita config explícita (window.AdSpiritPixel)?
+     *
+     * Sem isso, servir o arquivo pelo domínio do site faz o pixel perder
+     * token e destino, e parar de medir — foi o que suspendeu o modo em
+     * 2026-08-22. Como o proxy já baixa o arquivo pra servir, dá pra
+     * responder olhando o que veio, sem requisição extra.
+     *
+     * O recurso se habilita sozinho quando o CRM for atualizado; nenhum
+     * site precisa ser tocado.
+     */
+    public static function suporta_config() {
+        $js = get_transient(self::TRANSIENT_CACHE);
+        if (!is_string($js) || $js === '') {
+            $js = get_option(self::OPTION_LAST_GOOD, '');
+        }
+        if (!is_string($js) || $js === '') {
+            // Nada em cache ainda: busca uma vez (o resultado alimenta o
+            // cache que o serve() usaria de qualquer forma).
+            $origin = self::origin_url();
+            if ($origin === '') return false;
+            $resp = wp_remote_get($origin, array('timeout' => 8));
+            if (is_wp_error($resp) || (int) wp_remote_retrieve_response_code($resp) !== 200) return false;
+            $js = (string) wp_remote_retrieve_body($resp);
+            if ($js === '') return false;
+            set_transient(self::TRANSIENT_CACHE, $js, self::CACHE_TTL);
+            update_option(self::OPTION_LAST_GOOD, $js, false);
+        }
+        return strpos($js, 'AdSpiritPixel') !== false;
+    }
+
     /** URL de origem no CRM (fonte real + fallback do 302). */
     private static function origin_url() {
         $core = AdSpirit_Settings::get_core();

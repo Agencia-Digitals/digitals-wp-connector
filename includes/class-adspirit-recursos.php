@@ -221,16 +221,17 @@ class AdSpirit_Recursos {
         // o destino, e passava a não medir nada. Enquanto isso valer, o
         // toggle não muda nada — e a tela precisa DIZER isso, em vez de
         // mostrar um verde que não corresponde ao que acontece na página.
-        $disponivel = (bool) apply_filters('adspirit_pixel_firstparty_ok', false);
+        $disponivel = class_exists('AdSpirit_Pixel_Proxy')
+            && (bool) apply_filters('adspirit_pixel_firstparty_ok', AdSpirit_Pixel_Proxy::suporta_config());
         if (!$disponivel) {
             $r['indisponivel'] = true;
             $r['estado'] = $ligado ? self::ATENCAO : self::OFF;
             $r['resumo'] = $ligado
-                ? 'Marcado, mas em pausa técnica: o rastreador continua vindo do endereço do '
-                  . 'AdSpirit. A entrega local perdia a identificação do site e parava de medir, '
-                  . 'então ficou suspensa até ser corrigida dos dois lados.'
-                : 'Em pausa técnica. A entrega local perdia a identificação do site e parava de '
-                  . 'medir, então está suspensa até ser corrigida dos dois lados.';
+                ? 'Marcado, mas ainda sem efeito: o AdSpirit desta conta precisa ser atualizado '
+                  . 'antes. Enquanto isso o rastreador continua vindo do endereço do AdSpirit e '
+                  . 'medindo normalmente — liga sozinho assim que o outro lado subir.'
+                : 'Indisponível até o AdSpirit desta conta ser atualizado. O rastreador segue '
+                  . 'vindo do endereço do AdSpirit e medindo normalmente.';
             return $r;
         }
         if (!$ligado) {

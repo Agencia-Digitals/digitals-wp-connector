@@ -89,7 +89,11 @@ class AdSpirit_Settings {
             // ele monta o destino como `origem-do-script + /api/track`, que
             // no domínio do site não existe. Quem ligou isso parou de medir
             // sem receber nenhum sinal. Ver AdSpirit_Pixel_Proxy.
-            'pixel_firstparty' => '0',
+            // Padrão ligado (Pedro, 2026-08-24): menos visitante perdido
+            // por bloqueador. Seguro porque o injetor só usa o modo quando
+            // o pixel.js do CRM aceita config — senão cai no tradicional.
+            // Instalação já existente mantém o que o usuário escolheu.
+            'pixel_firstparty' => '1',
             // Feature 35: preview de lead score no [adspirit_form].
             // Off por default (opt-in) — feature visível só pra brands que
             // querem ativar gamification de qualificação.
