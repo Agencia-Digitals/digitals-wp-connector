@@ -1050,3 +1050,7 @@ button.as-card { width: 100%; text-align: left; font: inherit; cursor: pointer; 
    
    Quando o painel do AdSpirit for embutido aqui, os tokens acompanham a
    classe que ele carrega, não a preferência do sistema. */
+
+/* Recurso em pausa técnica: o switch não deve parecer acionável. */
+.as-switch--pausado { cursor: not-allowed; opacity: .55; }
+.as-switch input:disabled + .as-switch-track { background: var(--as-line-strong); }

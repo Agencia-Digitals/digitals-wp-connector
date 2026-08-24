@@ -216,6 +216,23 @@ class AdSpirit_Recursos {
                 : 'Sem efeito enquanto a medição acima estiver desligada.';
             return $r;
         }
+        // O injetor tem um kill-switch: desde 2026-08-22 o modo first-party
+        // está suspenso porque o script servido localmente perdia o token e
+        // o destino, e passava a não medir nada. Enquanto isso valer, o
+        // toggle não muda nada — e a tela precisa DIZER isso, em vez de
+        // mostrar um verde que não corresponde ao que acontece na página.
+        $disponivel = (bool) apply_filters('adspirit_pixel_firstparty_ok', false);
+        if (!$disponivel) {
+            $r['indisponivel'] = true;
+            $r['estado'] = $ligado ? self::ATENCAO : self::OFF;
+            $r['resumo'] = $ligado
+                ? 'Marcado, mas em pausa técnica: o rastreador continua vindo do endereço do '
+                  . 'AdSpirit. A entrega local perdia a identificação do site e parava de medir, '
+                  . 'então ficou suspensa até ser corrigida dos dois lados.'
+                : 'Em pausa técnica. A entrega local perdia a identificação do site e parava de '
+                  . 'medir, então está suspensa até ser corrigida dos dois lados.';
+            return $r;
+        }
         if (!$ligado) {
             $r['estado'] = self::OFF;
             $r['resumo'] = 'Desligado. O rastreador vem do endereço do AdSpirit e '

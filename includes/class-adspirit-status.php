@@ -628,10 +628,11 @@ add_action('adspirit_connector_render_tab_connection', AdSpirit_Safe_Hook::actio
             <ul class="as-recursos">
                 <?php foreach ($recursos as $r) : ?>
                     <li class="as-recurso<?php echo $r['sub'] ? ' as-recurso--sub' : ''; ?>">
-                        <label class="as-switch" for="asr_<?php echo esc_attr($r['key']); ?>">
+                        <label class="as-switch<?php echo !empty($r['indisponivel']) ? ' as-switch--pausado' : ''; ?>" for="asr_<?php echo esc_attr($r['key']); ?>">
                             <input type="checkbox" id="asr_<?php echo esc_attr($r['key']); ?>"
                                    name="<?php echo esc_attr($r['key']); ?>" value="1"
-                                   <?php checked($r['ligado']); ?>>
+                                   <?php checked($r['ligado']); ?>
+                                   <?php disabled(!empty($r['indisponivel'])); ?>>
                             <span class="as-switch-track" aria-hidden="true"><span class="as-switch-thumb"></span></span>
                         </label>
                         <div class="as-recurso-body">
@@ -639,6 +640,9 @@ add_action('adspirit_connector_render_tab_connection', AdSpirit_Safe_Hook::actio
                                 <span class="as-recurso-titulo"><?php echo esc_html($r['titulo']); ?></span>
                                 <?php if ($r['essencial']) : ?>
                                     <span class="as-recurso-tag">essencial</span>
+                                <?php endif; ?>
+                                <?php if (!empty($r['indisponivel'])) : ?>
+                                    <span class="as-recurso-tag as-recurso-tag--exp">em pausa</span>
                                 <?php endif; ?>
                                 <span class="as-recurso-selo as-recurso-selo--<?php echo esc_attr($r['estado']); ?>">
                                     <span class="as-status-dot" aria-hidden="true"></span><?php
