@@ -322,12 +322,59 @@ class AdSpirit_Pixel_Conflito {
 
         // 3. O pixel que o AdSpirit usa no CAPI está repetido na página.
         //
-        // Só conta duplicata do NOSSO. Pixel de terceiro na mesma página é
-        // comum e legítimo (parceiro, agência anterior, co-marketing) e não é
-        // assunto do AdSpirit — reportar como erro seria alarme falso.
+        // Duplicata do NOSSO é erro. Pixel de terceiro é tratado logo abaixo
+        // (3b) — continua não sendo erro, mas deixou de ser ignorado.
         $vezes_nosso = 0;
+        $outros_ids  = array();
         foreach (array_merge($m1[1], $m2[1]) as $id) {
-            if ($nosso_pixel && $id === $nosso_pixel) $vezes_nosso++;
+            if ($nosso_pixel && $id === $nosso_pixel) { $vezes_nosso++; continue; }
+            if ($id !== '' && !in_array($id, $outros_ids, true)) $outros_ids[] = $id;
+        }
+
+        // 3b. Pixel de OUTRO id na página, junto com o nosso CAPI.
+        //
+        // Antes isto era ignorado de propósito ("pixel de terceiro é comum e
+        // legítimo"). É verdade que ter um não é erro — mas a combinação
+        // importa e ninguém enxergava: o navegador reporta pro pixel que está
+        // na página, o servidor reporta pro pixel do CAPI, e se os dois ids
+        // forem diferentes NÃO HÁ DEDUPLICAÇÃO. Os dois contam a mesma
+        // conversão, e nenhum fica com a história completa.
+        //
+        // Por isso o alerta não diz "apague": diz o que confirmar. Um pixel
+        // de parceiro pode ser intencional — o que não pode é ser o nosso
+        // sem a gente saber.
+        if (!empty($outros_ids)) {
+            $lista = implode(', ', array_slice($outros_ids, 0, 4));
+            if ($nosso_pixel && $vezes_nosso > 0) {
+                $alertas[] = array(
+                    'nivel' => 'aviso',
+                    'texto' => sprintf(
+                        'Além do pixel %s (o que o AdSpirit usa), a página tem outro pixel da Meta: %s.',
+                        $nosso_pixel, $lista
+                    ),
+                    'acao' => 'Se o outro for de um parceiro, tudo bem — deixe como está. Se for da própria '
+                        . 'marca, cada visita está sendo contada nos dois e nenhum dos dois vê a jornada inteira.',
+                );
+            } elseif ($nosso_pixel) {
+                $alertas[] = array(
+                    'nivel' => 'erro',
+                    'texto' => sprintf(
+                        'A página tem o pixel %s, mas o AdSpirit envia as conversões pro pixel %s. São diferentes.',
+                        $lista, $nosso_pixel
+                    ),
+                    'acao' => 'Sem o mesmo id nos dois lados a deduplicação não acontece: o navegador conta '
+                        . 'num pixel e o servidor no outro, então a mesma conversão aparece duas vezes e o '
+                        . 'Meta otimiza em cima de número inflado. Iguale o id do CAPI ao que está na página, '
+                        . 'ou troque o da página pelo do CAPI.',
+                );
+            } else {
+                $alertas[] = array(
+                    'nivel' => 'aviso',
+                    'texto' => sprintf('A página tem pixel da Meta (%s), mas o AdSpirit não tem CAPI configurado.', $lista),
+                    'acao' => 'Configurando o CAPI com esse mesmo id, as conversões passam a ser enviadas '
+                        . 'também pelo servidor — o que sobrevive a bloqueador e a iOS.',
+                );
+            }
         }
         // O <noscript> legítimo repete o mesmo id do script: 2 ocorrências é o
         // normal de UMA instalação. Duplicata de verdade começa em 3.

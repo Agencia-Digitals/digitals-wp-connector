@@ -84,6 +84,18 @@ class AdSpirit_Health_Checker {
                 : 'adspirit_connector_crm_auth_error'
         );
 
+        // A TABELA é a fonte quando existe. O log acima (wp_options, só CF7,
+        // capado em 50, TTL 30d) não enxerga lead vindo do qualifier nem do
+        // formulário nativo — e a lista logo abaixo destes números lê a
+        // tabela. Dava contradição na mesma tela: "Último lead: 2 semanas
+        // atrás" com leads de hoje na lista (visto pelo Pedro em 2026-08-24).
+        $t = self::from_lead_store($w24h, $w7d, $w30d);
+        if ($t !== null) {
+            $cf7 = array_merge($cf7, $t);
+            $tot = $cf7['sent_30d'] + $cf7['failed_30d'];
+            $success_rate = $tot > 0 ? (int) round(($cf7['sent_30d'] / $tot) * 100) : 100;
+        }
+
         return array(
             'crm_auth_error'       => (is_array($auth_error) && !empty($auth_error)) ? $auth_error : null,
             'cf7_sent_24h'         => $cf7['sent_24h'],
@@ -99,6 +111,52 @@ class AdSpirit_Health_Checker {
             'antispam_blocked_24h' => $as['blocked_24h'],
             'antispam_blocked_7d'  => $as['blocked_7d'],
             'antispam_blocked_30d' => $as['blocked_30d'],
+        );
+    }
+
+    /**
+     * Os mesmos números, lidos da tabela de submissões — que registra TODA
+     * origem (CF7, qualifier, formulário nativo, adapters, coletor), sem
+     * cap nem TTL.
+     *
+     * Parciais ficam de fora: o lead completo tem linha própria e contá-los
+     * dobraria a mesma pessoa.
+     *
+     * @return array|null null quando a tabela não existe (aí vale o log).
+     */
+    private static function from_lead_store($w24h, $w7d, $w30d) {
+        if (!class_exists('AdSpirit_Lead_Store') || !AdSpirit_Lead_Store::available()) return null;
+        global $wpdb;
+        $table = AdSpirit_Lead_Store::table_name();
+
+        $conta = function ($status_sql, $desde) use ($wpdb, $table) {
+            return (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$table}
+                 WHERE created_at >= %s AND source <> 'qualifier_partial' AND {$status_sql}",
+                gmdate('Y-m-d H:i:s', $desde)
+            ));
+        };
+        $enviado = "status = 'sent'";
+        $falho   = "status IN ('failed','pending')";
+
+        $ultimo = $wpdb->get_row(
+            "SELECT created_at, last_error, status FROM {$table}
+             WHERE source <> 'qualifier_partial'
+             ORDER BY created_at DESC LIMIT 1", ARRAY_A
+        );
+        $last_at = (!empty($ultimo['created_at']))
+            ? strtotime((string) $ultimo['created_at'] . ' UTC') : null;
+
+        return array(
+            'sent_24h'   => $conta($enviado, $w24h),
+            'sent_7d'    => $conta($enviado, $w7d),
+            'sent_30d'   => $conta($enviado, $w30d),
+            'failed_24h' => $conta($falho, $w24h),
+            'failed_7d'  => $conta($falho, $w7d),
+            'failed_30d' => $conta($falho, $w30d),
+            'last_at'    => $last_at ?: null,
+            'last_error' => (!empty($ultimo['last_error']) && ($ultimo['status'] ?? '') !== 'sent')
+                ? (string) $ultimo['last_error'] : null,
         );
     }
 }
