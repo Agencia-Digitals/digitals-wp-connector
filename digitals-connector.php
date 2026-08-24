@@ -86,6 +86,7 @@ adspirit_connector_safe_require('includes/class-adspirit-lead-score.php');
 adspirit_connector_safe_require('includes/class-adspirit-field-mapping-sync.php');
 adspirit_connector_safe_require('includes/class-adspirit-ambiente.php');
 adspirit_connector_safe_require('includes/class-adspirit-agente.php');
+adspirit_connector_safe_require('includes/class-adspirit-fontes.php');
 adspirit_connector_safe_require('includes/class-adspirit-medicao.php');
 adspirit_connector_safe_require('includes/class-adspirit-deteccao.php');
 adspirit_connector_safe_require('includes/class-adspirit-handshake.php');
@@ -181,6 +182,7 @@ function adspirit_connector_init() {
     if (class_exists('AdSpirit_Pixel_Conflito')) AdSpirit_Pixel_Conflito::instance();
     // Operações do agente: existem em todo site, trancadas por quem chama.
     if (class_exists('AdSpirit_Agente')) AdSpirit_Agente::instance();
+    if (class_exists('AdSpirit_Fontes')) AdSpirit_Fontes::instance();
     if (class_exists('AdSpirit_Medicao')) AdSpirit_Medicao::instance();
     if (class_exists('AdSpirit_Conexao_Painel')) AdSpirit_Conexao_Painel::instance();
 
@@ -314,6 +316,9 @@ function adspirit_connector_deactivate() {
     // o plugin for reativado.
     if (class_exists('AdSpirit_Lead_Store')) {
         AdSpirit_Lead_Store::unschedule();
+    }
+    if (class_exists('AdSpirit_Fontes')) {
+        AdSpirit_Fontes::unschedule();
     }
 }
 register_deactivation_hook(__FILE__, 'adspirit_connector_deactivate');

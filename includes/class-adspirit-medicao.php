@@ -140,8 +140,90 @@ class AdSpirit_Medicao {
         );
     }
 
+    /**
+     * Monitor das fontes: conectada? funcional? gerando dado?
+     *
+     * O veredito vem de verificação ATIVA (o plugin bate na API de cada
+     * fonte), não de "a caixinha está marcada". Fonte que não dá pra
+     * verificar aparece como tal, com o motivo — nunca como saudável.
+     */
+    private function render_monitor() {
+        $q = AdSpirit_Fontes::quadro();
+        $quando = !empty($q['verificado_em'])
+            ? human_time_diff((int) $q['verificado_em'], time()) . ' atrás'
+            : 'ainda não verificado';
+        ?>
+        <div class="as-monitor-topo">
+            <div>
+                <h2 class="as-section" style="margin:0;"><span class="as-kicker-inline">Diagnóstico</span>Fontes de dados</h2>
+                <p class="as-section-help" style="margin:4px 0 0;">
+                    Verificado <?php echo esc_html($quando); ?>. Cada fonte é testada de verdade —
+                    o plugin pergunta pra ela, em vez de supor pela configuração.
+                </p>
+            </div>
+            <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin:0;">
+                <input type="hidden" name="action" value="adspirit_fontes_scan">
+                <?php wp_nonce_field('adspirit_fontes_scan'); ?>
+                <button type="submit" class="button">Verificar agora</button>
+            </form>
+        </div>
+
+        <ul class="as-fontes">
+            <?php foreach ($q['linhas'] as $f) :
+                $estado = $f['check']['estado'] ?? 'nao_testavel';
+                $tom = AdSpirit_Fontes::tom($estado);
+            ?>
+                <li class="as-fonte">
+                    <div class="as-fonte-head">
+                        <span class="as-fonte-nome"><?php echo esc_html($f['nome']); ?></span>
+                        <span class="as-status as-status--<?php echo esc_attr($tom); ?>">
+                            <span class="as-status-dot" aria-hidden="true"></span><?php
+                            echo esc_html(AdSpirit_Fontes::rotulo($estado));
+                        ?></span>
+                    </div>
+                    <p class="as-fonte-papel"><?php echo esc_html($f['papel']); ?></p>
+
+                    <?php if (!empty($f['check']['detalhe'])) : ?>
+                        <p class="as-fonte-detalhe<?php echo $tom === 'danger' ? ' ruim' : ''; ?>"><?php
+                            echo esc_html($f['check']['detalhe']);
+                        ?></p>
+                    <?php endif; ?>
+
+                    <?php if (!empty($f['volume'])) : ?>
+                        <div class="as-recurso-metrica">
+                            <span class="as-recurso-num"><?php echo esc_html($f['volume']['numero']); ?></span>
+                            <span class="as-recurso-num-rot"><?php echo esc_html($f['volume']['rotulo']); ?></span>
+                        </div>
+                        <?php if (!empty($f['volume']['ultimo'])) : ?>
+                            <p class="as-fonte-detalhe">Último há <?php
+                                echo esc_html(human_time_diff((int) $f['volume']['ultimo'], time()));
+                            ?>.</p>
+                        <?php endif; ?>
+                    <?php elseif (!empty($f['nota_volume'])) : ?>
+                        <p class="as-fonte-detalhe"><?php echo esc_html($f['nota_volume']); ?></p>
+                    <?php endif; ?>
+
+                    <dl class="as-recurso-meta">
+                        <?php if (!empty($f['credencial'])) : ?>
+                            <div><dt>Identificação</dt><dd><?php echo esc_html($f['credencial']); ?></dd></div>
+                        <?php endif; ?>
+                        <?php if (!empty($f['origem'])) : ?>
+                            <div><dt>Quem configura</dt><dd><?php echo esc_html($f['origem']); ?></dd></div>
+                        <?php endif; ?>
+                    </dl>
+                </li>
+            <?php endforeach; ?>
+        </ul>
+        <?php
+    }
+
     public function render_mapa() {
         $url = admin_url('admin.php?page=' . (defined('AdSpirit_Menu::PAGE_SLUG') ? AdSpirit_Menu::PAGE_SLUG : 'adspirit-connector'));
+
+        // Monitor primeiro: quem abre esta aba quer saber se está tudo de
+        // pé. O mapa de "quem ajusta o quê" vem depois — é referência, não
+        // diagnóstico.
+        if (class_exists('AdSpirit_Fontes')) $this->render_monitor();
 
         AdSpirit_Menu::card_open(
             'O que este site mede',
