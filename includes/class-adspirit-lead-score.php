@@ -222,13 +222,13 @@ class AdSpirit_Lead_Score {
         ob_start();
         ?>
         <tr>
-            <th>Preview de score no form</th>
+            <th>Devolutiva ao fim do formulário</th>
             <td>
                 <label>
                     <input type="checkbox" name="<?php echo esc_attr(self::SETTING_KEY); ?>" value="1" <?php checked($enabled); ?>>
-                    Mostrar card "Perfil A/B/C/D" no último step do <code>[adspirit_form]</code>
+                    Mostrar uma resposta pessoal no último passo do formulário do AdSpirit
                 </label>
-                <p class="description">Aumenta perceived value e conversão. Calcula em real-time via CRM <strong>sem criar lead</strong>. Desligado por padrão.</p>
+                <p class="description">Quem terminou de preencher lê uma frase sobre o próprio caso — "Você é exatamente quem buscamos", por exemplo. Serve pra fechar a experiência com sensação de avaliação de verdade, em vez de um "obrigado" seco. A pessoa <strong>nunca vê nota nem letra de perfil</strong>, e <strong>nenhum lead é criado</strong> por essa consulta. Desligado por padrão.</p>
             </td>
         </tr>
         <?php

@@ -689,12 +689,12 @@ add_action('adspirit_connector_render_tab_connection', AdSpirit_Safe_Hook::actio
             </td>
         </tr>
         <tr>
-            <th>Extras opcionais</th>
+            <th>O que o plugin faz neste site</th>
             <td>
                 <div class="as-toggle">
                     <input type="checkbox" id="as_cf7" name="cf7_enabled" value="1" <?php checked($s['cf7_enabled'], '1'); ?>>
                     <label class="t" for="as_cf7">Enviar leads dos formulários <span style="font-weight:400;color:var(--as-ink-faint)">· é pra isso que o plugin existe</span>
-                        <small>Todo formulário conectado entrega os leads direto no AdSpirit.</small>
+                        <small>Cada envio vira lead no AdSpirit na hora. Desligado, o site continua guardando os envios aqui, mas nada sobe.</small>
                     </label>
                 </div>
                 <div class="as-toggle as-sub">
@@ -706,13 +706,13 @@ add_action('adspirit_connector_render_tab_connection', AdSpirit_Safe_Hook::actio
                 <div class="as-toggle">
                     <input type="checkbox" id="as_px" name="pixel_enabled" value="1" <?php checked($s['pixel_enabled'], '1'); ?>>
                     <label class="t" for="as_px">Medir visitas e jornada <span style="font-weight:400;color:var(--as-ink-faint)">· é o que liga lead a campanha</span>
-                        <small>O rastreador registra de onde cada visitante veio — é o que liga lead a campanha.</small>
+                        <small>Sem isso o lead chega sem origem: não dá pra saber se veio de anúncio, busca ou indicação.</small>
                     </label>
                 </div>
                 <div class="as-toggle as-sub">
                     <input type="checkbox" id="as_px1p" name="pixel_firstparty" value="1" <?php checked($s['pixel_firstparty'] ?? '0', '1'); ?>>
                     <label class="t" for="as_px1p">Servir o rastreador pelo endereço deste site <span style="font-weight:400;color:var(--as-ink-faint)">· opcional</span>
-                        <small>Reduz perda por bloqueadores de anúncio. O código continua vindo do AdSpirit — só o endereço muda.</small>
+                        <small>Bloqueadores de anúncio barram scripts de outros domínios. Servindo pelo endereço deste site, menos visitantes ficam invisíveis. O código é o mesmo — só o endereço muda.</small>
                     </label>
                 </div>
             </td>
