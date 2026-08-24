@@ -37,6 +37,41 @@ class AdSpirit_Dashboard_Widget {
         wp_add_dashboard_widget('adspirit_leads_widget', 'AdSpirit — Leads', array($this, 'render'));
     }
 
+    /**
+     * Resumo de mídia da marca, vindo do AdSpirit.
+     *
+     * O widget sabia só o que passou por este site. Investimento e cliques
+     * moram no AdSpirit — trazer pra cá é o que faz o painel do WordPress
+     * responder "e aí, como foi o mês" sem sair daqui.
+     *
+     * Cache de 1h e fail-soft: se o AdSpirit não responder, o widget mostra
+     * a parte de leads normalmente. Nunca deixa o painel quebrado por causa
+     * de um número extra.
+     */
+    private function resumo_midia() {
+        $cache = get_transient('adspirit_widget_midia');
+        if (is_array($cache)) return $cache;
+        if (!class_exists('AdSpirit_Settings')) return null;
+        $core = AdSpirit_Settings::get_core();
+        if (empty($core['endpoint_url']) || empty($core['brand_slug']) || empty($core['secret'])) return null;
+
+        $resp = wp_remote_get(
+            rtrim((string) $core['endpoint_url'], '/') . '/api/wp/resumo?brand_slug='
+                . rawurlencode((string) $core['brand_slug']),
+            array('timeout' => 6, 'headers' => array('x-cf7-secret' => (string) $core['secret']))
+        );
+        if (is_wp_error($resp) || (int) wp_remote_retrieve_response_code($resp) !== 200) return null;
+        $d = json_decode((string) wp_remote_retrieve_body($resp), true);
+        if (!is_array($d) || empty($d['ok'])) return null;
+        set_transient('adspirit_widget_midia', $d, HOUR_IN_SECONDS);
+        return $d;
+    }
+
+    /** Centavos → "R$ 1.234" (sem centavos: é resumo, não extrato). */
+    private static function reais($cents) {
+        return 'R$ ' . number_format(((int) $cents) / 100, 0, ',', '.');
+    }
+
     public function render() {
         $data = AdSpirit_Safe_Hook::try_run(array($this, 'collect'), null, 'dashboard_widget_collect');
         $core = class_exists('AdSpirit_Settings') ? AdSpirit_Settings::get_core() : array();
@@ -58,6 +93,16 @@ class AdSpirit_Dashboard_Widget {
             $delta = (int) round((($data['month'] - $data['prev_month']) / $data['prev_month']) * 100);
         }
         ?>
+        <style>
+        .as-w-midia { margin: 12px 0 14px; padding: 12px 0 0; border-top: 1px solid #f0f0f1; }
+        .as-w-midia-linha { display: flex; gap: 26px; flex-wrap: wrap; margin-bottom: 10px; }
+        .as-w-num { font-size: 19px; font-weight: 600; line-height: 1.1; display: block; color: #1d2327; }
+        .as-w-rot { font-size: 11px; color: #646970; }
+        .as-w-plataformas { margin: 0; }
+        .as-w-plataformas li { display: flex; align-items: baseline; gap: 8px; margin: 3px 0; }
+        .as-w-plataformas li span { flex: 1; }
+        .as-w-plataformas li small { color: #646970; }
+        </style>
         <div style="display:flex; gap:18px; align-items:baseline; flex-wrap:wrap; margin-bottom:10px;">
             <div>
                 <span style="font-size:28px; font-weight:700; line-height:1;"><?php echo (int) $data['month']; ?></span>
@@ -69,6 +114,36 @@ class AdSpirit_Dashboard_Widget {
                 </span>
             <?php endif; ?>
         </div>
+
+        <?php
+        $midia = $this->resumo_midia();
+        if (is_array($midia) && (int) ($midia['investimento_cents'] ?? 0) > 0) :
+            $cpl = $midia['custo_por_lead_cents'] ?? null;
+        ?>
+            <div class="as-w-midia">
+                <div class="as-w-midia-linha">
+                    <div>
+                        <span class="as-w-num"><?php echo esc_html(self::reais($midia['investimento_cents'])); ?></span>
+                        <span class="as-w-rot">investidos em 30 dias</span>
+                    </div>
+                    <div>
+                        <span class="as-w-num"><?php echo $cpl !== null ? esc_html(self::reais($cpl)) : '—'; ?></span>
+                        <span class="as-w-rot">por lead</span>
+                    </div>
+                </div>
+                <?php if (!empty($midia['plataformas'])) : ?>
+                    <ul class="as-w-plataformas">
+                        <?php foreach ($midia['plataformas'] as $p) : ?>
+                            <li>
+                                <span><?php echo esc_html($p['plataforma']); ?></span>
+                                <strong><?php echo esc_html(self::reais($p['investimento_cents'])); ?></strong>
+                                <small><?php echo esc_html(number_format((int) $p['cliques'], 0, ',', '.')); ?> cliques</small>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
 
         <?php if (!empty($data['by_source'])) : ?>
             <p style="margin:0 0 4px; color:#646970; text-transform:uppercase; font-size:11px; letter-spacing:.04em;">Por origem</p>
