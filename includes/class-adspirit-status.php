@@ -628,13 +628,25 @@ add_action('adspirit_connector_render_tab_connection', AdSpirit_Safe_Hook::actio
             <ul class="as-recursos">
                 <?php foreach ($recursos as $r) : ?>
                     <li class="as-recurso<?php echo $r['sub'] ? ' as-recurso--sub' : ''; ?>">
-                        <label class="as-switch<?php echo !empty($r['indisponivel']) ? ' as-switch--pausado' : ''; ?>" for="asr_<?php echo esc_attr($r['key']); ?>">
+                        <?php if ($r['essencial']) : ?>
+                            <?php // Indicador, não controle: desligar isto é
+                                  // decisão rara e mora no rodapé do card. O
+                                  // input segue no form (escondido) pra que
+                                  // salvar nunca zere a chave sem querer. ?>
+                            <span class="as-essencial-marca <?php echo $r['ligado'] ? 'on' : 'off'; ?>"
+                                  title="<?php echo $r['ligado'] ? 'Ativo' : 'Desligado'; ?>" aria-hidden="true"></span>
                             <input type="checkbox" id="asr_<?php echo esc_attr($r['key']); ?>"
                                    name="<?php echo esc_attr($r['key']); ?>" value="1"
-                                   <?php checked($r['ligado']); ?>
-                                   <?php disabled(!empty($r['indisponivel'])); ?>>
-                            <span class="as-switch-track" aria-hidden="true"><span class="as-switch-thumb"></span></span>
-                        </label>
+                                   <?php checked($r['ligado']); ?> class="as-oculto">
+                        <?php else : ?>
+                            <label class="as-switch<?php echo !empty($r['indisponivel']) ? ' as-switch--pausado' : ''; ?>" for="asr_<?php echo esc_attr($r['key']); ?>">
+                                <input type="checkbox" id="asr_<?php echo esc_attr($r['key']); ?>"
+                                       name="<?php echo esc_attr($r['key']); ?>" value="1"
+                                       <?php checked($r['ligado']); ?>
+                                       <?php disabled(!empty($r['indisponivel'])); ?>>
+                                <span class="as-switch-track" aria-hidden="true"><span class="as-switch-thumb"></span></span>
+                            </label>
+                        <?php endif; ?>
                         <div class="as-recurso-body">
                             <div class="as-recurso-head">
                                 <span class="as-recurso-titulo"><?php echo esc_html($r['titulo']); ?></span>
@@ -684,6 +696,22 @@ add_action('adspirit_connector_render_tab_connection', AdSpirit_Safe_Hook::actio
                                 <?php endif; ?>
                             </dl>
 
+                            <?php if ($r['essencial']) : ?>
+                                <details class="as-desligar">
+                                    <summary><?php echo $r['ligado'] ? 'Desligar este recurso' : 'Religar este recurso'; ?></summary>
+                                    <p>
+                                        <?php echo $r['ligado']
+                                            ? 'Só faz sentido em caso raro — cliente que não quer medição no site, ou site em construção. Desmarque e salve.'
+                                            : 'Este recurso está desligado. Marque e salve pra voltar a funcionar.'; ?>
+                                    </p>
+                                    <label class="as-toggle">
+                                        <input type="checkbox" class="as-espelho"
+                                               data-alvo="asr_<?php echo esc_attr($r['key']); ?>"
+                                               <?php checked($r['ligado']); ?>>
+                                        <span class="t"><?php echo esc_html($r['titulo']); ?></span>
+                                    </label>
+                                </details>
+                            <?php endif; ?>
                             <?php if (!empty($r['acao'])) : ?>
                                 <p class="as-recurso-acao">
                                     <a class="button button-small" href="<?php
@@ -695,6 +723,22 @@ add_action('adspirit_connector_render_tab_connection', AdSpirit_Safe_Hook::actio
                     </li>
                 <?php endforeach; ?>
             </ul>
+            <script>
+            // O "desligar" do card é um espelho: o input que o form envia
+            // fica escondido, pra que salvar jamais zere a chave por ela
+            // simplesmente não ter sido renderizada.
+            (function () {
+                var lista = document.querySelector('.as-recursos');
+                var f = lista && lista.closest('form');
+                if (!f) return;
+                f.addEventListener('change', function (e) {
+                    var esp = e.target.closest('.as-espelho');
+                    if (!esp) return;
+                    var alvo = document.getElementById(esp.getAttribute('data-alvo'));
+                    if (alvo) alvo.checked = esp.checked;
+                });
+            })();
+            </script>
             <p class="as-recursos-salvar">
                 <button type="submit" class="button">Salvar alterações</button>
                 <span class="as-recursos-dica">A mudança vale assim que você salvar.</span>

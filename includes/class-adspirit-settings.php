@@ -79,7 +79,11 @@ class AdSpirit_Settings {
             'secret'        => '',
             'pixel_token'   => '',
             'cf7_enabled'   => '1',
-            'pixel_enabled' => '0',
+            // Ligado por padrão (Pedro, 2026-08-24): sem isto metade do
+            // AdSpirit fica cega — lead sem origem não entra na conta de
+            // campanha. O fluxo de conexão automática já ligava; o default
+            // cobre quem conecta colando credenciais na mão.
+            'pixel_enabled' => '1',
             // v2.29: servir o pixel do próprio domínio (anti ad-blocker).
             // Sub-opção do pixel; default OFF — opt-in por site.
             // DESLIGADO e travado até o proxy ser consertado. Medido em

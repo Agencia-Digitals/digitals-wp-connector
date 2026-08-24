@@ -1085,3 +1085,29 @@ button.as-card { width: 100%; text-align: left; font: inherit; cursor: pointer; 
   background: var(--as-warning); margin-right: 6px; vertical-align: middle;
 }
 .as-recurso-acao { margin: 12px 0 0; }
+
+/* Essencial: indicador, não interruptor. Desligar é decisão rara e mora
+   atrás de um clique no rodapé do card. */
+.as-essencial-marca {
+  width: 22px; height: 22px; border-radius: 50%; flex: 0 0 auto; margin-top: 2px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--as-bg-success);
+}
+.as-essencial-marca::after {
+  content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--as-success);
+}
+.as-essencial-marca.off { background: var(--as-bg-subtle); }
+.as-essencial-marca.off::after { background: var(--as-ink-faint); }
+.as-oculto { position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0; }
+
+.adspirit-app details.as-desligar {
+  margin: 12px 0 0; padding: 0; border: 0; background: none;
+}
+.adspirit-app details.as-desligar > summary {
+  cursor: pointer; font-size: 11.5px; color: var(--as-ink-faint);
+  padding: 0; border: 0; background: none; font-weight: 400; list-style-position: inside;
+}
+.adspirit-app details.as-desligar > summary:hover { color: var(--as-ink-soft); }
+.adspirit-app details.as-desligar p {
+  margin: 8px 0 8px; font-size: 12px; color: var(--as-ink-soft); max-width: 62ch;
+}
