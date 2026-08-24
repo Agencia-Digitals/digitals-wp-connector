@@ -7,6 +7,36 @@ Connector" (galeria do Pedro). **Regra de ouro: nada destrutivo — mudança
 aditiva atrás de condição; ler PAREDES-MESTRAS antes de mexer; deploy CRM
 antes de release do plugin.**
 
+## Feito (2026-08-24) — v2.51.0: a aba Submissões vira tela de leitura
+
+Revisão do Pedro sobre a 2.50, tudo aplicado:
+
+- [x] **Colunas na ordem de leitura**: quando · formulário · perfil ·
+      contato · canal · status · ação.
+- [x] **"Ver detalhes" saiu de Ação e foi pra Contato** — abrir o detalhe é
+      sobre a pessoa, não sobre a entrega — e virou ação secundária de
+      verdade (outlined, com estado ativo), não mais um link apagado.
+- [x] **Canal de origem** (coluna nova): Google Ads, Meta Ads, LinkedIn,
+      busca orgânica, direto. Derivado do payload na ordem de confiança —
+      click id → utm_last com medium pago → utm_last → referrer → direto.
+- [x] **Status em frase**: "entregue" → **Enviado ao AdSpirit**; "pendente"
+      → Aguardando envio; "falhou" → Falha no envio. Deixou de ser badge
+      (UPPERCASE + tracking, feito pra uma palavra) e virou ponto colorido +
+      frase, o padrão de saúde que o DS já usa na navegação.
+- [x] **Origem = qual formulário + qual motor**, no lugar da chave interna
+      ("form", "qualifier", "cf7"), que não dizia nada a quem opera.
+- [x] **Comportamento na página** no painel: rolagem máxima, tempo ativo,
+      cliques de frustração, saiu-e-voltou, copiou conteúdo. Já vinha no
+      payload (behavior_v1) e nunca era exibido.
+- [x] **Ciclo de decisão** ("na mesma visita" / "há 6 dias"), de first_seen_at.
+- [x] **"Ver no AdSpirit ↗"** por lead entregue, usando o leadId que o CRM
+      devolve.
+
+**Regra que saiu da comparação com a aba Leads do CRM:** o plugin mostra o
+que só o SITE sabe (comportamento, origem técnica, entrega) e **linka** o
+resto. Qualificação, temperatura, pipeline e responsável são do CRM —
+espelhar aqui criaria duas fontes divergentes pra mesma pessoa.
+
 ## Feito (2026-08-24) — submissões legíveis
 
 - [x] **Payload em leitura humana** na aba Submissões. Antes só havia o JSON
