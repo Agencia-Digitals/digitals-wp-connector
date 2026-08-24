@@ -804,30 +804,118 @@ button.as-card { width: 100%; text-align: left; font: inherit; cursor: pointer; 
   padding: 18px; text-align: center; color: var(--as-ink-faint); font-size: 12px;
 }
 
-/* Leitura humana do payload de uma submissão (aba Submissões).
-   Três blocos — Respostas, Origem, Técnico — em pares rótulo/valor.
-   O rótulo carrega a chave crua no title, pra quem precisa depurar. */
-.as-payload { margin-top: 6px; display: grid; gap: 10px; }
-.as-payload-block {
-  background: var(--as-bg-subtle); border-radius: 6px; padding: 8px 10px;
+/* ── Submissões: linha expansível com o detalhe do lead ──────────────
+   Zebrado próprio: o `striped` do WP zebra por :nth-child, e cada linha
+   de dados tem uma linha de detalhe irmã (conta no DOM mesmo fechada),
+   o que apagaria a alternância. O PHP marca .as-row-alt. */
+.as-striped tbody tr.as-row-alt > td { background: var(--as-bg-card); }
+
+.as-row-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
+
+/* Gatilho: discreto até o hover — a ação primária da linha é Reenviar. */
+.as-detail-toggle {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: none; border: 0; padding: 0; cursor: pointer;
+  font-size: 11.5px; color: var(--as-ink-faint);
+  transition: color .15s ease;
 }
-.as-payload-title {
-  font-size: 9.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
-  color: var(--as-ink-faint); margin-bottom: 6px;
+.as-detail-toggle:hover { color: var(--as-accent); }
+.as-detail-toggle:focus-visible { outline: 2px solid var(--as-accent); outline-offset: 2px; border-radius: 3px; }
+.as-detail-chevron {
+  width: 0; height: 0; border-left: 4px solid currentColor;
+  border-top: 3.5px solid transparent; border-bottom: 3.5px solid transparent;
+  transition: transform .15s ease;
 }
-.as-payload-list {
-  margin: 0; display: grid; grid-template-columns: minmax(84px, 38%) 1fr;
-  gap: 3px 10px; align-items: baseline;
+.as-detail-toggle[aria-expanded="true"] .as-detail-chevron { transform: rotate(90deg); }
+
+/* Painel: uma superfície só, separação por espaço em vez de caixas.
+   A faixa à esquerda amarra o painel à linha que o abriu. */
+.as-detail-row > td { padding: 0 !important; background: var(--as-bg-subtle) !important; }
+.as-detail {
+  padding: 15px 18px 16px;
+  border-left: 3px solid var(--as-accent);
 }
-.as-payload-list dt {
-  margin: 0; font-size: 11px; color: var(--as-ink-faint); line-height: 1.45;
-  overflow-wrap: anywhere;
+.as-detail-grid {
+  display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 20px 30px; align-items: start;
 }
-.as-payload-list dd {
-  margin: 0; font-size: 11.5px; color: var(--as-ink); line-height: 1.45;
-  overflow-wrap: anywhere;
+/* Respostas é a coluna larga E quebra em duas internas: um roteiro de 14
+   perguntas empilhado vira uma parede de 700px com a metade direita do
+   painel vazia. Multi-coluna corta a altura pela metade sem apertar.
+   display:block é obrigatório — `columns` não tem efeito em grid. */
+.as-detail-col--wide .as-detail-list {
+  display: block; columns: 2; column-gap: 30px;
 }
-.as-payload-list dd.empty { color: var(--as-ink-faint); }
+.as-detail-col--wide .as-detail-item { break-inside: avoid; margin-bottom: 9px; }
+
+@media (max-width: 1200px) {
+  .as-detail-grid { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
+  /* Com 2 colunas o diagnóstico cairia sozinho na 2ª linha, deixando
+     metade da largura vazia. Atravessa as duas e se divide internamente. */
+  .as-detail-col-group {
+    grid-column: 1 / -1;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 16px 30px;
+  }
+}
+/* Só empilha de verdade quando 2 colunas deixariam de caber (~700px).
+   Em 760px o painel ainda tem ~850px úteis — empilhar ali deixava metade
+   da largura vazia e o painel com 1500px de altura. */
+@media (max-width: 700px) {
+  .as-detail-grid { grid-template-columns: 1fr; gap: 18px; }
+  .as-detail-col-group { grid-template-columns: 1fr; }
+  .as-detail-col--wide .as-detail-list { display: grid; gap: 9px; columns: auto; }
+  .as-detail-col--wide .as-detail-item { margin-bottom: 0; }
+  .as-detail { padding: 14px 14px 15px; }
+}
+
+.as-detail-col-group { display: grid; gap: 16px; align-content: start; }
+.as-detail-eyebrow {
+  margin: 0 0 9px; font-size: 9.5px; font-weight: 700; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--as-ink-faint);
+}
+/* Rótulo em cima do valor: sobrevive a qualquer largura de coluna, e o
+   valor (o que se lê) fica alinhado à esquerda com a margem do bloco. */
+.as-detail-list { margin: 0; display: grid; gap: 9px; }
+.as-detail-item { min-width: 0; }
+.as-detail-list dt {
+  margin: 0 0 1px; font-size: 10.5px; line-height: 1.35;
+  color: var(--as-ink-faint); overflow-wrap: anywhere;
+}
+.as-detail-list dd {
+  margin: 0; font-size: 12.5px; line-height: 1.4;
+  color: var(--as-ink); overflow-wrap: anywhere;
+}
+.as-detail-list dd.empty { color: var(--as-ink-faint); }
+/* Diagnóstico é referência, não leitura — um degrau abaixo. */
+.as-detail-col.muted dd { font-size: 11.5px; color: var(--as-ink-soft); }
+
+/* Escape hatch, não seção: um link discreto, sem caixa nem borda — com
+   elas "Ver JSON" lia como campo de formulário vazio. */
+.adspirit-app details.as-detail-json {
+  margin: 14px 0 0; padding: 0; border: 0; background: none;
+}
+.adspirit-app details.as-detail-json > summary {
+  display: inline-flex; align-items: center; gap: 5px;
+  cursor: pointer; font-size: 11px; color: var(--as-ink-faint);
+  list-style: none; padding: 0; border: 0; background: none; width: auto;
+}
+.adspirit-app details.as-detail-json > summary::-webkit-details-marker { display: none; }
+.adspirit-app details.as-detail-json > summary::marker { content: ''; }
+.adspirit-app details.as-detail-json > summary::before {
+  content: ''; width: 0; height: 0; border-left: 4px solid currentColor;
+  border-top: 3.5px solid transparent; border-bottom: 3.5px solid transparent;
+  transition: transform .15s ease;
+}
+.adspirit-app details.as-detail-json[open] > summary::before { transform: rotate(90deg); }
+.adspirit-app details.as-detail-json > summary:hover { color: var(--as-accent); }
+.adspirit-app details.as-detail-json pre {
+  margin: 9px 0 0; padding: 12px 14px; max-height: 240px; overflow: auto;
+  font-family: ui-monospace, "SF Mono", Monaco, Consolas, monospace;
+  font-size: 11px; line-height: 1.55; background: var(--as-bg);
+  border: 1px solid var(--as-line); border-radius: 6px;
+  white-space: pre-wrap; word-break: break-word; color: var(--as-ink-soft);
+}
 
 /* Sem tema escuro por prefers-color-scheme, de propósito.
    

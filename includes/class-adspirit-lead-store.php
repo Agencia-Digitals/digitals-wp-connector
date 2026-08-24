@@ -948,7 +948,15 @@ class AdSpirit_Lead_Store {
                     <?php endif; ?>
                     <a class="button-link" href="<?php echo esc_url(add_query_arg(array('page' => AdSpirit_Menu::PAGE_SLUG, 'tab' => 'submissions', 'sl_status' => 'problemas'), admin_url('admin.php'))); ?>">Ver só os problemas</a>
                 </p>
-                <table class="wp-list-table widefat striped">
+                <?php
+                // `striped` do WP sai de propósito: ele zebra por
+                // :nth-child, e cada linha de dados agora tem uma linha de
+                // detalhe irmã (mesmo fechada, ela conta no DOM) — o
+                // zebrado nativo ficaria todo na mesma cor. A alternância
+                // passa a ser marcada no PHP, que sabe qual linha é qual.
+                $alt = false;
+                ?>
+                <table class="wp-list-table widefat as-striped">
                     <thead>
                         <tr>
                             <th style="width:28px;"></th>
@@ -977,8 +985,9 @@ class AdSpirit_Lead_Store {
                         // Spam reenviável de propósito: falso positivo sai da
                         // quarentena pelo mesmo botão ("não era spam").
                         $can_resend = in_array($status, array('pending', 'failed', 'spam'), true);
+                        $alt = !$alt;
                     ?>
-                        <tr>
+                        <tr class="<?php echo $alt ? 'as-row-alt' : ''; ?>">
                             <td>
                                 <?php if ($can_resend) : ?>
                                     <input type="checkbox" name="ids[]" value="<?php echo (int) $r['id']; ?>">
@@ -1016,62 +1025,84 @@ class AdSpirit_Lead_Store {
                                 <?php if ($lerr !== '' && $status !== 'sent') : ?>
                                     <br><small style="opacity:.7;" title="<?php echo esc_attr($lerr); ?>"><?php echo esc_html(mb_substr($lerr, 0, 60)); ?><?php echo mb_strlen($lerr) > 60 ? '…' : ''; ?></small>
                                 <?php endif; ?>
-                                <?php
-                                // Histórico de tentativas (diagnóstico sem SSH).
-                                $integ = json_decode((string) ($r['integrations'] ?? ''), true);
-                                $hist = is_array($integ) && isset($integ['crm_attempts']) && is_array($integ['crm_attempts'])
-                                    ? $integ['crm_attempts'] : array();
-                                ?>
-                                <?php if (!empty($hist)) : ?>
-                                    <details style="margin-top:4px;">
-                                        <summary style="cursor:pointer; font-size:11px; opacity:.7;">histórico (<?php echo count($hist); ?>)</summary>
-                                        <ul style="margin:4px 0 0 14px; font-size:11px; opacity:.85;">
-                                            <?php foreach (array_reverse($hist) as $h) : ?>
-                                                <li>
-                                                    <?php echo !empty($h['at']) ? esc_html(get_date_from_gmt((string) $h['at'], 'd/m H:i')) : '—'; ?>
-                                                    · HTTP <?php echo (int) ($h['code'] ?? 0); ?>
-                                                    <?php if (!empty($h['error'])) : ?> · <span title="<?php echo esc_attr((string) $h['error']); ?>"><?php echo esc_html(mb_substr((string) $h['error'], 0, 50)); ?></span><?php endif; ?>
-                                                </li>
-                                            <?php endforeach; ?>
-                                        </ul>
-                                    </details>
-                                <?php endif; ?>
-                                <?php
-                                // Dados enviados (o "request" do diagnóstico sem
-                                // SSH): o payload já mora na linha — só faltava
-                                // mostrar. Pretty-print sob demanda, admin-only.
-                                $pl = json_decode((string) ($r['payload'] ?? ''), true);
-                                ?>
-                                <?php if (is_array($pl) && !empty($pl)) : ?>
-                                    <details style="margin-top:2px;">
-                                        <summary style="cursor:pointer; font-size:11px; opacity:.7;">dados enviados (<?php echo count($pl); ?> campos)</summary>
-                                        <?php
-                                        // Leitura humana primeiro; o JSON continua
-                                        // logo abaixo, como visão avançada.
-                                        if (class_exists('AdSpirit_Payload_View')) {
-                                            echo AdSpirit_Payload_View::render($pl); // já escapado no render
-                                        }
-                                        ?>
-                                        <details style="margin-top:6px;">
-                                            <summary style="cursor:pointer; font-size:11px; opacity:.55;">ver JSON</summary>
-                                            <pre style="margin:4px 0 0; padding:8px 10px; max-height:220px; overflow:auto; font-size:11px; line-height:1.5; background:var(--as-bg-subtle); border-radius:6px; white-space:pre-wrap; word-break:break-word;"><?php echo esc_html((string) wp_json_encode($pl, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)); ?></pre>
-                                        </details>
-                                    </details>
-                                <?php endif; ?>
                             </td>
                             <td><?php echo $r['profile'] !== '' ? '<span class="as-badge accent">' . esc_html((string) $r['profile']) . '</span>' : '<span style="opacity:.4;">—</span>'; ?></td>
                             <td>
-                                <?php if ($can_resend) : ?>
-                                    <button type="submit" class="button button-small" name="single" value="<?php echo (int) $r['id']; ?>" title="Reenvia ao CRM reusando o ID original (sem duplicar)">Reenviar</button>
-                                <?php else : ?>
-                                    <span style="opacity:.4;">—</span>
-                                <?php endif; ?>
+                                <?php
+                                // Detalhe abre EMBAIXO da linha, em largura
+                                // total — não cabe na célula de Status (90px).
+                                $pl = json_decode((string) ($r['payload'] ?? ''), true);
+                                $has_detail = is_array($pl) && !empty($pl);
+                                $detail_id = 'as-detail-' . (int) $r['id'];
+                                ?>
+                                <div class="as-row-actions">
+                                    <?php if ($has_detail) : ?>
+                                        <button type="button" class="as-detail-toggle" aria-expanded="false"
+                                                aria-controls="<?php echo esc_attr($detail_id); ?>">
+                                            <span class="as-detail-chevron" aria-hidden="true"></span>Detalhes
+                                        </button>
+                                    <?php endif; ?>
+                                    <?php if ($can_resend) : ?>
+                                        <button type="submit" class="button button-small" name="single" value="<?php echo (int) $r['id']; ?>" title="Reenvia ao CRM reusando o ID original (sem duplicar)">Reenviar</button>
+                                    <?php elseif (!$has_detail) : ?>
+                                        <span style="opacity:.4;">—</span>
+                                    <?php endif; ?>
+                                </div>
                             </td>
                         </tr>
+                        <?php if ($has_detail) : ?>
+                            <tr class="as-detail-row" id="<?php echo esc_attr($detail_id); ?>" hidden>
+                                <td colspan="7">
+                                    <?php
+                                    // Bloco "Entrega": histórico de tentativas ao
+                                    // CRM. Vive aqui, junto do resto do
+                                    // diagnóstico, em vez de espremido no Status.
+                                    $integ = json_decode((string) ($r['integrations'] ?? ''), true);
+                                    $hist = is_array($integ) && isset($integ['crm_attempts']) && is_array($integ['crm_attempts'])
+                                        ? $integ['crm_attempts'] : array();
+                                    $extra = array();
+                                    if (!empty($hist)) {
+                                        $rows_hist = array();
+                                        foreach (array_reverse($hist) as $h) {
+                                            $when_h = !empty($h['at']) ? get_date_from_gmt((string) $h['at'], 'd/m H:i') : '—';
+                                            $code   = (int) ($h['code'] ?? 0);
+                                            $val    = 'HTTP ' . $code;
+                                            if (!empty($h['error'])) $val .= ' · ' . mb_substr((string) $h['error'], 0, 80);
+                                            $rows_hist[] = array('label' => $when_h, 'value' => $val, 'key' => '');
+                                        }
+                                        $extra[] = array('title' => 'Tentativas de entrega', 'rows' => $rows_hist, 'tone' => 'muted');
+                                    }
+                                    echo class_exists('AdSpirit_Payload_View')
+                                        ? AdSpirit_Payload_View::render_panel($pl, $extra) // escapado no render
+                                        : '';
+                                    ?>
+                                </td>
+                            </tr>
+                        <?php endif; ?>
                     <?php endforeach; ?>
                     </tbody>
                 </table>
                 </form>
+                <script>
+                // Toggle do painel de detalhe. Delegação num handler só — a
+                // tabela pagina em 20 linhas e não faz sentido um listener
+                // por linha. <details> não serve aqui: o painel é uma <tr>
+                // irmã, não filha do gatilho.
+                (function () {
+                    var root = document.querySelector('.adspirit-app') || document;
+                    root.addEventListener('click', function (e) {
+                        var btn = e.target.closest('.as-detail-toggle');
+                        if (!btn) return;
+                        e.preventDefault();
+                        var row = document.getElementById(btn.getAttribute('aria-controls'));
+                        if (!row) return;
+                        var open = btn.getAttribute('aria-expanded') === 'true';
+                        btn.setAttribute('aria-expanded', open ? 'false' : 'true');
+                        if (open) row.setAttribute('hidden', 'hidden');
+                        else row.removeAttribute('hidden');
+                    });
+                })();
+                </script>
                 <?php if ($pages > 1) :
                     $base_args = array_filter(array(
                         'page' => AdSpirit_Menu::PAGE_SLUG,

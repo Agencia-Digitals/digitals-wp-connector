@@ -277,39 +277,81 @@ class AdSpirit_Payload_View {
         );
     }
 
+    /** Uma coluna do painel: eyebrow + pares rótulo/valor empilhados. */
+    private static function column($title, array $rows, $tone = '') {
+        if (empty($rows)) return '';
+        ob_start();
+        ?>
+        <div class="as-detail-col<?php echo $tone !== '' ? ' ' . esc_attr($tone) : ''; ?>">
+            <h4 class="as-detail-eyebrow"><?php echo esc_html($title); ?></h4>
+            <dl class="as-detail-list">
+                <?php foreach ($rows as $row) : ?>
+                    <div class="as-detail-item">
+                        <dt<?php echo !empty($row['key']) ? ' title="' . esc_attr($row['key']) . '"' : ''; ?>><?php
+                            echo esc_html($row['label']);
+                        ?></dt>
+                        <dd<?php echo ($row['value'] === '' ? ' class="empty"' : ''); ?>><?php
+                            echo $row['value'] === '' ? '—' : esc_html($row['value']);
+                        ?></dd>
+                    </div>
+                <?php endforeach; ?>
+            </dl>
+        </div>
+        <?php
+        return (string) ob_get_clean();
+    }
+
     /**
-     * HTML da leitura humana. Fica dentro do <details> "dados enviados" da
-     * aba Submissões, antes do JSON.
+     * Painel de detalhe de uma submissão, em largura total.
+     *
+     * Não cabe dentro da célula de Status (90px) — pares rótulo/valor
+     * espremidos ali espremem a tabela toda. Aqui o painel abre embaixo da
+     * linha, ocupando a largura inteira, com as colunas lado a lado.
+     *
+     * Ordem = hierarquia: Respostas primeiro e mais larga (é o que se quer
+     * ler), Origem depois, e o diagnóstico por último, apagado. Separação
+     * por espaço, não por caixa — uma superfície só pro painel inteiro.
+     *
+     * @param array $payload      payload da submissão
+     * @param array $extra        blocos do chamador: [['title'=>, 'rows'=>[['label','value']], 'tone'=>'muted']]
+     * @param bool  $with_json    inclui o JSON cru colapsado ao final
      */
-    public static function render(array $payload) {
+    public static function render_panel(array $payload, array $extra = array(), $with_json = true) {
         $s = self::sections($payload);
-        if (empty($s['respostas']) && empty($s['origem']) && empty($s['tecnico'])) return '';
+
+        // Diagnóstico e técnico moram na mesma coluna: são a mesma pergunta
+        // ("por que este lead está assim?"), e juntos liberam largura pro
+        // que a pessoa realmente lê.
+        $diag = '';
+        foreach ($extra as $blk) {
+            if (empty($blk['rows'])) continue;
+            $diag .= self::column(
+                isset($blk['title']) ? $blk['title'] : 'Diagnóstico',
+                $blk['rows'],
+                isset($blk['tone']) ? $blk['tone'] : 'muted'
+            );
+        }
+        $diag .= self::column('Técnico', $s['tecnico'], 'muted');
 
         ob_start();
         ?>
-        <div class="as-payload">
-            <?php
-            $blocks = array(
-                array('Respostas', $s['respostas']),
-                array('Origem',    $s['origem']),
-                array('Técnico',   $s['tecnico']),
-            );
-            foreach ($blocks as $b) :
-                list($title, $rows) = $b;
-                if (empty($rows)) continue;
-            ?>
-                <div class="as-payload-block">
-                    <div class="as-payload-title"><?php echo esc_html($title); ?></div>
-                    <dl class="as-payload-list">
-                        <?php foreach ($rows as $row) : ?>
-                            <dt title="<?php echo esc_attr($row['key'] ?? ''); ?>"><?php echo esc_html($row['label']); ?></dt>
-                            <dd<?php echo $row['value'] === '' ? ' class="empty"' : ''; ?>><?php
-                                echo $row['value'] === '' ? '—' : esc_html($row['value']);
-                            ?></dd>
-                        <?php endforeach; ?>
-                    </dl>
-                </div>
-            <?php endforeach; ?>
+        <div class="as-detail">
+            <div class="as-detail-grid">
+                <?php
+                echo self::column('Respostas', $s['respostas'], 'as-detail-col--wide');
+                echo self::column('Origem', $s['origem']);
+                echo $diag !== '' ? '<div class="as-detail-col-group">' . $diag . '</div>' : '';
+                ?>
+            </div>
+            <?php if ($with_json && !empty($payload)) : ?>
+                <details class="as-detail-json">
+                    <summary>Ver JSON</summary>
+                    <pre><?php echo esc_html((string) wp_json_encode(
+                        $payload,
+                        JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+                    )); ?></pre>
+                </details>
+            <?php endif; ?>
         </div>
         <?php
         return (string) ob_get_clean();
