@@ -173,9 +173,12 @@ class AdSpirit_Recursos {
     private static function medicao($ligado, $conectado) {
         $r = array(
             'key' => 'pixel_enabled',
-            'titulo' => 'Saber de onde vem cada visitante',
-            'o_que_faz' => 'Sem isto o lead chega sem origem: não dá pra dizer se veio de anúncio, '
-                . 'de busca ou de indicação — nem calcular quanto custou.',
+            'titulo' => 'Ligar cada lead à campanha que trouxe ele',
+            'o_que_faz' => 'Coloca no site um marcador que anota, para cada visitante, de onde ele '
+                . 'veio (anúncio, busca, indicação), por qual página entrou e quantas visitou. '
+                . 'Quando essa pessoa preenche um formulário, essa história vai junto com o lead — '
+                . 'é o que faz o AdSpirit dizer "veio do Google Ads, campanha X" em vez de só '
+                . '"veio do site", e o que permite calcular quanto custou cada lead.',
             'essencial' => true, 'sub' => false, 'ligado' => (bool) $ligado,
             'fonte' => self::FONTE_TABELA,
             'conexao' => $conectado ? 'Site conectado ao AdSpirit' : 'Site ainda não conectado',
