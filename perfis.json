@@ -30,6 +30,7 @@
       "turnstile",
       "lead-identity",
       "lead-store",
+      "payload-view",
       "lead-score",
       "generic-collector",
       "pixel-injector",
