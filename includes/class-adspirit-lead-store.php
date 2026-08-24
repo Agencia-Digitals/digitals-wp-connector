@@ -960,12 +960,13 @@ class AdSpirit_Lead_Store {
                     <thead>
                         <tr>
                             <th style="width:28px;"></th>
-                            <th style="width:120px;">Quando</th>
-                            <th style="width:170px;">Origem</th>
+                            <th style="width:100px;">Quando</th>
+                            <th style="width:150px;">Formulário</th>
+                            <th style="width:60px;">Perfil</th>
                             <th>Contato</th>
-                            <th style="width:90px;">Status</th>
-                            <th style="width:80px;">Perfil</th>
-                            <th style="width:150px;">Ação</th>
+                            <th style="width:115px;">Canal</th>
+                            <th style="width:170px;">Status</th>
+                            <th style="width:105px;">Ação</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -978,10 +979,6 @@ class AdSpirit_Lead_Store {
                         $status = (string) ($r['status'] ?? 'pending');
                         $badge = array('sent' => 'ok', 'pending' => 'warn', 'failed' => 'danger', 'spam' => 'muted', 'resolved' => 'muted');
                         $status_cls = $badge[$status] ?? 'muted';
-                        $status_label = array(
-                            'sent' => 'entregue', 'pending' => 'pendente', 'failed' => 'falhou',
-                            'spam' => 'spam', 'resolved' => 'resolvido',
-                        );
                         // Spam reenviável de propósito: falso positivo sai da
                         // quarentena pelo mesmo botão ("não era spam").
                         $can_resend = in_array($status, array('pending', 'failed', 'spam'), true);
@@ -1025,32 +1022,67 @@ class AdSpirit_Lead_Store {
                                 }
                                 ?>
                             </td>
-                            <td>
-                                <strong><?php echo esc_html((string) ($r['name'] ?? '—')); ?></strong><br>
-                                <small><?php echo esc_html((string) ($r['email'] ?? '')); ?></small>
-                                <?php if (!empty($r['phone'])) : ?><br><small><?php echo esc_html((string) $r['phone']); ?></small><?php endif; ?>
-                                <?php if (!empty($r['company'])) : ?><br><small style="opacity:.7;"><?php echo esc_html((string) $r['company']); ?></small><?php endif; ?>
-                            </td>
-                            <td>
-                                <span class="as-badge <?php echo esc_attr($status_cls); ?>"><?php echo esc_html($status_label[$status] ?? $status); ?></span>
-                                <?php $att = (int) ($r['attempts'] ?? 0); ?>
-                                <?php if ($att > 1) : ?>
-                                    <br><small style="opacity:.7;"><?php echo (int) $att; ?> tentativas</small>
-                                <?php endif; ?>
-                                <?php $lerr = (string) ($r['last_error'] ?? ''); ?>
-                                <?php if ($lerr !== '' && $status !== 'sent') : ?>
-                                    <br><small style="opacity:.7;" title="<?php echo esc_attr($lerr); ?>"><?php echo esc_html(mb_substr($lerr, 0, 60)); ?><?php echo mb_strlen($lerr) > 60 ? '…' : ''; ?></small>
-                                <?php endif; ?>
-                            </td>
                             <td><?php echo $r['profile'] !== '' ? '<span class="as-badge accent">' . esc_html((string) $r['profile']) . '</span>' : '<span style="opacity:.4;">—</span>'; ?></td>
                             <td>
                                 <?php
-                                // Detalhe abre EMBAIXO da linha, em largura
-                                // total — não cabe na célula de Status (90px).
                                 $pl = json_decode((string) ($r['payload'] ?? ''), true);
                                 $has_detail = is_array($pl) && !empty($pl);
                                 $detail_id = 'as-detail-' . (int) $r['id'];
                                 ?>
+                                <strong><?php echo esc_html((string) ($r['name'] ?? '—')); ?></strong><br>
+                                <small><?php echo esc_html((string) ($r['email'] ?? '')); ?></small>
+                                <?php if (!empty($r['phone'])) : ?><br><small><?php echo esc_html((string) $r['phone']); ?></small><?php endif; ?>
+                                <?php if (!empty($r['company'])) : ?><br><small style="opacity:.7;"><?php echo esc_html((string) $r['company']); ?></small><?php endif; ?>
+                                <?php if ($has_detail) : ?>
+                                    <?php // Abrir o detalhe é sobre ESTA pessoa — mora
+                                          // junto do contato, não na coluna de ações
+                                          // sobre a entrega. Em bloco próprio pra não
+                                          // encostar na última linha do contato. ?>
+                                    <div class="as-contact-action">
+                                        <button type="button" class="as-detail-toggle" aria-expanded="false"
+                                                aria-controls="<?php echo esc_attr($detail_id); ?>">
+                                            <span class="as-detail-chevron" aria-hidden="true"></span>Ver detalhes
+                                        </button>
+                                    </div>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <?php
+                                // Canal de origem — Google Ads, Meta, busca,
+                                // direto. Derivado do click id / UTM / referrer
+                                // que já viajam no payload.
+                                $chan = (class_exists('AdSpirit_Payload_View') && is_array($pl))
+                                    ? AdSpirit_Payload_View::channel_identity($pl)
+                                    : array('label' => '—', 'kind' => 'direct');
+                                ?>
+                                <span class="as-channel as-channel--<?php echo esc_attr($chan['kind']); ?>">
+                                    <?php echo esc_html($chan['label']); ?>
+                                </span>
+                            </td>
+                            <td>
+                                <?php
+                                // Ponto + frase, não badge: o badge é UPPERCASE
+                                // com letter-spacing, feito pra rótulo de uma
+                                // palavra. "ENVIADO AO ADSPIRIT" gritaria e não
+                                // caberia. O ponto colorido já é o padrão de
+                                // saúde do design system (as-dot na navegação).
+                                ?>
+                                <span class="as-status as-status--<?php echo esc_attr($status_cls); ?>">
+                                    <span class="as-status-dot" aria-hidden="true"></span><?php
+                                    echo esc_html(class_exists('AdSpirit_Payload_View')
+                                        ? AdSpirit_Payload_View::status_label($status)
+                                        : $status);
+                                ?></span>
+                                <?php $att = (int) ($r['attempts'] ?? 0); ?>
+                                <?php if ($att > 1) : ?>
+                                    <div class="as-status-note"><?php echo (int) $att; ?> tentativas</div>
+                                <?php endif; ?>
+                                <?php $lerr = (string) ($r['last_error'] ?? ''); ?>
+                                <?php if ($lerr !== '' && $status !== 'sent') : ?>
+                                    <div class="as-status-note" title="<?php echo esc_attr($lerr); ?>"><?php echo esc_html(mb_substr($lerr, 0, 60)); ?><?php echo mb_strlen($lerr) > 60 ? '…' : ''; ?></div>
+                                <?php endif; ?>
+                            </td>
+                            <td>
                                 <?php
                                 // Lead que chegou no CRM tem id de lá (leadId
                                 // na resposta). Em vez de espelhar qualificação,
@@ -1066,20 +1098,15 @@ class AdSpirit_Lead_Store {
                                 }
                                 ?>
                                 <div class="as-row-actions">
+                                    <?php if ($can_resend) : ?>
+                                        <button type="submit" class="button button-small" name="single" value="<?php echo (int) $r['id']; ?>" title="Reenvia ao CRM reusando o ID original (sem duplicar)">Reenviar</button>
+                                    <?php endif; ?>
                                     <?php if ($crm_lead_url !== '') : ?>
                                         <a class="as-crm-link" href="<?php echo esc_url($crm_lead_url); ?>"
                                            target="_blank" rel="noopener"
                                            title="Abre a ficha completa deste lead no AdSpirit">Ver no AdSpirit</a>
                                     <?php endif; ?>
-                                    <?php if ($has_detail) : ?>
-                                        <button type="button" class="as-detail-toggle" aria-expanded="false"
-                                                aria-controls="<?php echo esc_attr($detail_id); ?>">
-                                            <span class="as-detail-chevron" aria-hidden="true"></span>Detalhes
-                                        </button>
-                                    <?php endif; ?>
-                                    <?php if ($can_resend) : ?>
-                                        <button type="submit" class="button button-small" name="single" value="<?php echo (int) $r['id']; ?>" title="Reenvia ao CRM reusando o ID original (sem duplicar)">Reenviar</button>
-                                    <?php elseif (!$has_detail) : ?>
+                                    <?php if (!$can_resend && $crm_lead_url === '') : ?>
                                         <span style="opacity:.4;">—</span>
                                     <?php endif; ?>
                                 </div>
@@ -1087,7 +1114,7 @@ class AdSpirit_Lead_Store {
                         </tr>
                         <?php if ($has_detail) : ?>
                             <tr class="as-detail-row" id="<?php echo esc_attr($detail_id); ?>" hidden>
-                                <td colspan="7">
+                                <td colspan="8">
                                     <?php
                                     // Bloco "Entrega": histórico de tentativas ao
                                     // CRM. Vive aqui, junto do resto do

@@ -205,6 +205,92 @@ class AdSpirit_Payload_View {
         return array('form' => $form, 'engine' => $engine);
     }
 
+    /**
+     * Canal de origem do lead: Google Ads, Meta Ads, busca orgânica, direto.
+     *
+     * Ordem de confiança, do sinal mais forte pro mais fraco:
+     *   1. click id (gclid/fbclid/…) — prova de clique pago, não some com UTM mal montada
+     *   2. utm_last com medium pago
+     *   3. utm_last sem medium pago (orgânico marcado)
+     *   4. referrer (busca, social, outro site)
+     *   5. nada → direto
+     *
+     * @return array{label:string, kind:string} kind: paid|organic|social|referral|direct
+     */
+    public static function channel_identity(array $payload) {
+        $t = isset($payload['_adspirit_telemetry']) && is_array($payload['_adspirit_telemetry'])
+            ? $payload['_adspirit_telemetry'] : array();
+
+        // 1. Click id — o sinal mais confiável de mídia paga.
+        $clicks = array(
+            'gclid' => 'Google Ads', 'gbraid' => 'Google Ads', 'wbraid' => 'Google Ads',
+            'fbclid' => 'Meta Ads', 'ttclid' => 'TikTok Ads', 'li_fat_id' => 'LinkedIn Ads',
+        );
+        foreach ($clicks as $k => $label) {
+            if (!empty($t[$k])) return array('label' => $label, 'kind' => 'paid');
+        }
+
+        // 2/3. UTM da última visita (a que converteu).
+        $u = isset($t['utm_last']) && is_array($t['utm_last']) ? $t['utm_last'] : array();
+        $src = isset($u['source']) ? strtolower(trim((string) $u['source'])) : '';
+        $med = isset($u['medium']) ? strtolower(trim((string) $u['medium'])) : '';
+        if ($src !== '') {
+            $names = array(
+                'google' => 'Google', 'facebook' => 'Meta', 'instagram' => 'Instagram',
+                'meta' => 'Meta', 'fb' => 'Meta', 'ig' => 'Instagram',
+                'tiktok' => 'TikTok', 'linkedin' => 'LinkedIn', 'youtube' => 'YouTube',
+                'bing' => 'Bing', 'whatsapp' => 'WhatsApp', 'email' => 'Email',
+            );
+            $name = isset($names[$src]) ? $names[$src] : self::humanize_key($src);
+            $paid = in_array($med, array('cpc', 'ppc', 'paid', 'paidsocial', 'paid_social', 'cpm', 'display'), true);
+            if ($paid) return array('label' => $name . ' Ads', 'kind' => 'paid');
+            if (in_array($med, array('organic', 'organico'), true)) return array('label' => $name, 'kind' => 'organic');
+            if (in_array($med, array('social', 'referral'), true)) return array('label' => $name, 'kind' => 'social');
+            return array('label' => $name, 'kind' => 'organic');
+        }
+
+        // 4. Sem UTM: o referrer ainda diz de onde veio.
+        $ref = isset($t['referrer']) ? strtolower((string) $t['referrer']) : '';
+        if ($ref !== '') {
+            $hosts = array(
+                'google.'    => array('Google (busca)', 'organic'),
+                'bing.'      => array('Bing (busca)', 'organic'),
+                'duckduckgo' => array('DuckDuckGo', 'organic'),
+                'instagram.' => array('Instagram', 'social'),
+                'facebook.'  => array('Facebook', 'social'),
+                'linkedin.'  => array('LinkedIn', 'social'),
+                'youtube.'   => array('YouTube', 'social'),
+                't.co'       => array('X / Twitter', 'social'),
+                'wa.me'      => array('WhatsApp', 'social'),
+            );
+            foreach ($hosts as $needle => $info) {
+                if (strpos($ref, $needle) !== false) {
+                    return array('label' => $info[0], 'kind' => $info[1]);
+                }
+            }
+            $host = parse_url($ref, PHP_URL_HOST);
+            if ($host) return array('label' => preg_replace('/^www\./', '', $host), 'kind' => 'referral');
+        }
+
+        return array('label' => 'Direto', 'kind' => 'direct');
+    }
+
+    /**
+     * Status da submissão em linguagem de gente. "entregue" não dizia
+     * entregue PRA ONDE, e "pendente" não dizia pendente de quê.
+     */
+    public static function status_label($status) {
+        $map = array(
+            'sent'     => 'Enviado ao AdSpirit',
+            'pending'  => 'Aguardando envio',
+            'failed'   => 'Falha no envio',
+            'spam'     => 'Bloqueado como spam',
+            'resolved' => 'Resolvido à mão',
+        );
+        $s = (string) $status;
+        return isset($map[$s]) ? $map[$s] : self::humanize_key($s);
+    }
+
     /** (5) Fallback: `Numero-funcionarios` → "Numero funcionarios". */
     public static function humanize_key($key) {
         $s = str_replace(array('-', '_'), ' ', (string) $key);
