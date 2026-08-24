@@ -1045,7 +1045,17 @@ class AdSpirit_Lead_Store {
                                 <?php if (is_array($pl) && !empty($pl)) : ?>
                                     <details style="margin-top:2px;">
                                         <summary style="cursor:pointer; font-size:11px; opacity:.7;">dados enviados (<?php echo count($pl); ?> campos)</summary>
-                                        <pre style="margin:4px 0 0; padding:8px 10px; max-height:220px; overflow:auto; font-size:11px; line-height:1.5; background:var(--as-bg-subtle); border-radius:6px; white-space:pre-wrap; word-break:break-word;"><?php echo esc_html((string) wp_json_encode($pl, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)); ?></pre>
+                                        <?php
+                                        // Leitura humana primeiro; o JSON continua
+                                        // logo abaixo, como visão avançada.
+                                        if (class_exists('AdSpirit_Payload_View')) {
+                                            echo AdSpirit_Payload_View::render($pl); // já escapado no render
+                                        }
+                                        ?>
+                                        <details style="margin-top:6px;">
+                                            <summary style="cursor:pointer; font-size:11px; opacity:.55;">ver JSON</summary>
+                                            <pre style="margin:4px 0 0; padding:8px 10px; max-height:220px; overflow:auto; font-size:11px; line-height:1.5; background:var(--as-bg-subtle); border-radius:6px; white-space:pre-wrap; word-break:break-word;"><?php echo esc_html((string) wp_json_encode($pl, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)); ?></pre>
+                                        </details>
                                     </details>
                                 <?php endif; ?>
                             </td>

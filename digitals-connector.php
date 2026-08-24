@@ -104,6 +104,7 @@ adspirit_connector_safe_require('includes/class-adspirit-thank-you.php');
 // v2.6 submissions log (substituto local do TablePress)
 adspirit_connector_safe_require('includes/class-adspirit-submissions-log.php');
 // v2.11 lead store (persistência durável de submissões + reenvio)
+adspirit_connector_safe_require('includes/class-adspirit-payload-view.php');
 adspirit_connector_safe_require('includes/class-adspirit-lead-store.php');
 // v2.8 setup wizard (checklist visual de configuração)
 adspirit_connector_safe_require('includes/class-adspirit-setup-wizard.php');

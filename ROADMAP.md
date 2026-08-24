@@ -7,6 +7,20 @@ Connector" (galeria do Pedro). **Regra de ouro: nada destrutivo — mudança
 aditiva atrás de condição; ler PAREDES-MESTRAS antes de mexer; deploy CRM
 antes de release do plugin.**
 
+## Feito (2026-08-24) — submissões legíveis
+
+- [x] **Payload em leitura humana** na aba Submissões. Antes só havia o JSON
+      cru; agora `AdSpirit_Payload_View` traduz em três blocos — **Respostas**
+      (o que a pessoa preencheu, com o rótulo do formulário), **Origem**
+      (campanha, página de entrada e de conversão, clique pago, dispositivo,
+      tempo preenchendo) e **Técnico**. O JSON continua, colapsado em
+      "ver JSON" (regra: não matar o JSON).
+- Rótulo sai em cascata, do mais específico pro mais genérico: label do form
+  nativo → title da etapa do roteiro custom do qualifier → dicionário canônico
+  (`AdSpirit_Settings::canonical_fields`, que o time edita em Configurações) →
+  dicionário embutido do roteiro padrão → a própria chave humanizada. Chave
+  desconhecida nunca some da tela.
+
 ## Feito (2026-08-22) — conversão: smart default + arranque de progresso
 
 Pedido do Pedro: verificar se usamos Smart Default, Endowed Progress e Ikea

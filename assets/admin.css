@@ -804,6 +804,31 @@ button.as-card { width: 100%; text-align: left; font: inherit; cursor: pointer; 
   padding: 18px; text-align: center; color: var(--as-ink-faint); font-size: 12px;
 }
 
+/* Leitura humana do payload de uma submissão (aba Submissões).
+   Três blocos — Respostas, Origem, Técnico — em pares rótulo/valor.
+   O rótulo carrega a chave crua no title, pra quem precisa depurar. */
+.as-payload { margin-top: 6px; display: grid; gap: 10px; }
+.as-payload-block {
+  background: var(--as-bg-subtle); border-radius: 6px; padding: 8px 10px;
+}
+.as-payload-title {
+  font-size: 9.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--as-ink-faint); margin-bottom: 6px;
+}
+.as-payload-list {
+  margin: 0; display: grid; grid-template-columns: minmax(84px, 38%) 1fr;
+  gap: 3px 10px; align-items: baseline;
+}
+.as-payload-list dt {
+  margin: 0; font-size: 11px; color: var(--as-ink-faint); line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.as-payload-list dd {
+  margin: 0; font-size: 11.5px; color: var(--as-ink); line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.as-payload-list dd.empty { color: var(--as-ink-faint); }
+
 /* Sem tema escuro por prefers-color-scheme, de propósito.
    
    O wp-admin não segue o tema do sistema operacional: os esquemas dele
