@@ -146,6 +146,65 @@ class AdSpirit_Payload_View {
         return isset($map[$key]) ? $map[$key] : self::humanize_key($key);
     }
 
+    /**
+     * Identidade do formulário: QUAL formulário e em QUE motor.
+     *
+     * A coluna Origem mostrava a chave interna — "form", "qualifier",
+     * "cf7". Quem opera não tem como saber o que isso quer dizer, e dois
+     * formulários diferentes do mesmo motor ficavam indistinguíveis. Aqui
+     * `source` (o motor) e `form_id` (qual deles) viram nome de gente.
+     *
+     * @return array{form:string, engine:string} form pode vir vazio quando
+     *         o motor não expõe título — aí a coluna mostra só o motor.
+     */
+    public static function form_identity($source, $form_id = '') {
+        $src = strtolower(trim((string) $source));
+        $fid = trim((string) $form_id);
+
+        $engines = array(
+            'cf7'               => 'Contact Form 7',
+            'native'            => 'AdSpirit',
+            'qualifier'         => 'AdSpirit',
+            'qualifier_partial' => 'AdSpirit',
+            'gravity'           => 'Gravity Forms',
+            'wpforms'           => 'WPForms',
+            'elementor'         => 'Elementor',
+            'fluent'            => 'Fluent Forms',
+            'woocommerce'       => 'WooCommerce',
+            'generic'           => 'Detector automático',
+        );
+        $engine = isset($engines[$src]) ? $engines[$src] : self::humanize_key($src);
+
+        $form = '';
+        if ($src === 'qualifier' || $src === 'qualifier_partial') {
+            // O roteiro custom pode ter nome próprio; senão é o de avaliação.
+            $form = 'Avaliação de novos clientes';
+            if (class_exists('AdSpirit_Form_Qualifier') && method_exists('AdSpirit_Form_Qualifier', 'get_steps')) {
+                foreach ((array) AdSpirit_Form_Qualifier::get_steps() as $st) {
+                    if (!empty($st['isIntro']) && !empty($st['title'])) { $form = (string) $st['title']; break; }
+                }
+            }
+            if ($src === 'qualifier_partial') $form .= ' (parcial)';
+        } elseif ($src === 'native' && $fid !== '') {
+            $forms = (class_exists('AdSpirit_Form') && method_exists('AdSpirit_Form', 'get_forms'))
+                ? (array) AdSpirit_Form::get_forms() : array();
+            $form = (isset($forms[$fid]['title']) && $forms[$fid]['title'] !== '')
+                ? (string) $forms[$fid]['title'] : $fid;
+        } elseif ($src === 'cf7' && $fid !== '' && function_exists('get_the_title')) {
+            // Form do CF7 é um post; o título é o nome que o time deu.
+            $t = (string) get_the_title((int) $fid);
+            $form = $t !== '' ? $t : 'Formulário #' . $fid;
+        } elseif ($src === 'woocommerce') {
+            $form = $fid !== '' ? self::humanize_key(preg_replace('/^woo-/', '', $fid)) : 'Pedido';
+        } elseif ($fid !== '') {
+            // Gravity/WPForms/Elementor/Fluent expõem o título por APIs
+            // próprias; sem carregar cada plugin, o número já distingue.
+            $form = ctype_digit($fid) ? 'Formulário #' . $fid : self::humanize_key($fid);
+        }
+
+        return array('form' => $form, 'engine' => $engine);
+    }
+
     /** (5) Fallback: `Numero-funcionarios` → "Numero funcionarios". */
     public static function humanize_key($key) {
         $s = str_replace(array('-', '_'), ' ', (string) $key);
@@ -207,6 +266,11 @@ class AdSpirit_Payload_View {
         $push('Página onde converteu', isset($t['conversion_page']) ? $t['conversion_page'] : '');
         $push('Veio de', isset($t['referrer']) ? $t['referrer'] : '');
 
+        // Ciclo de decisão: quanto tempo entre conhecer o site e converter.
+        // Já estava no payload (first_seen_at) e nunca aparecia — é a
+        // diferença entre um lead que decidiu na hora e um que amadureceu.
+        $push('Conheceu o site', self::decision_cycle($t));
+
         // Click id: prova de mídia paga. Mostra qual plataforma, não o valor
         // (que é um hash sem serventia pra quem lê).
         $clicks = array('gclid' => 'Google Ads', 'fbclid' => 'Meta Ads', 'ttclid' => 'TikTok Ads',
@@ -232,6 +296,74 @@ class AdSpirit_Payload_View {
             $push('Páginas na visita', $n . ($n === 1 ? ' página' : ' páginas'));
         }
 
+        return $rows;
+    }
+
+    /**
+     * "na mesma visita" | "há 6 dias" — distância entre a primeira vez que
+     * o visitante foi visto e a conversão. Lead que decidiu na hora e lead
+     * que amadureceu duas semanas pedem abordagens diferentes.
+     */
+    private static function decision_cycle(array $t) {
+        $first = isset($t['first_seen_at']) ? trim((string) $t['first_seen_at']) : '';
+        if ($first === '') return '';
+        $ts = strtotime($first);
+        if (!$ts) return '';
+        $end = isset($t['last_seen_at']) ? strtotime((string) $t['last_seen_at']) : 0;
+        if (!$end) $end = time();
+        $days = (int) floor(($end - $ts) / 86400);
+        if ($days <= 0) return 'na mesma visita';
+        if ($days === 1) return 'no dia anterior';
+        return 'há ' . $days . ' dias';
+    }
+
+    /**
+     * Bloco "Comportamento": o que a pessoa fez na página antes de enviar.
+     * Vem do tracker (behavior_v1) e nunca era exibido. Só entram sinais
+     * ACIONÁVEIS — nada de despejar o objeto inteiro na tela:
+     *
+     *   rolagem      leu a página ou converteu no topo
+     *   rage_clicks  clicou repetido no mesmo ponto = algo travou (bug)
+     *   tab_switches saiu e voltou = comparou, pesquisou
+     *   copiou       copiou conteúdo = interesse alto
+     */
+    private static function behavior_rows(array $payload) {
+        $t = isset($payload['_adspirit_telemetry']) && is_array($payload['_adspirit_telemetry'])
+            ? $payload['_adspirit_telemetry'] : array();
+        $b = isset($t['behavior_v1']) && is_array($t['behavior_v1']) ? $t['behavior_v1'] : array();
+        if (empty($b)) return array();
+
+        $rows = array();
+        $push = function ($label, $value) use (&$rows) {
+            if ($value !== '' && $value !== null) $rows[] = array('label' => $label, 'value' => $value);
+        };
+
+        if (isset($b['scroll_max_pct']) && (int) $b['scroll_max_pct'] > 0) {
+            $pct = (int) $b['scroll_max_pct'];
+            $nota = $pct >= 90 ? ' (leu até o fim)' : ($pct <= 25 ? ' (só o topo)' : '');
+            $push('Rolagem da página', $pct . '%' . $nota);
+        }
+        if (!empty($b['time_active_ms'])) {
+            $push('Tempo ativo na página', self::duration((int) $b['time_active_ms']));
+        }
+        if (!empty($b['rage_clicks'])) {
+            $n = (int) $b['rage_clicks'];
+            $push('Cliques de frustração', $n . ($n === 1 ? ' vez' : ' vezes') . ' — algo pode ter travado');
+        }
+        if (!empty($b['tab_switches'])) {
+            $n = (int) $b['tab_switches'];
+            $push('Saiu e voltou', $n . ($n === 1 ? ' vez' : ' vezes'));
+        }
+        if (!empty($b['copy_events']['count'])) {
+            $n = (int) $b['copy_events']['count'];
+            $push('Copiou conteúdo', $n . ($n === 1 ? ' vez' : ' vezes'));
+        }
+        if (!empty($b['exit_intent'])) {
+            $push('Tentou sair antes de enviar', 'sim');
+        }
+        if (!empty($b['viewport']['class'])) {
+            $push('Tela', (string) $b['viewport']['class']);
+        }
         return $rows;
     }
 
@@ -264,6 +396,12 @@ class AdSpirit_Payload_View {
                 // Telemetria vira o bloco "origem"; o array cru não ajuda.
                 if ($key === '_adspirit_telemetry') continue;
                 $row['label'] = self::technical_label((string) $key);
+                // Motor do formulário também em nome de gente aqui dentro —
+                // "qualifier" cru não diz nada, igual dizia na coluna Origem.
+                if ($key === '_adspirit_form_kind' && $row['value'] !== '') {
+                    $id = self::form_identity($row['value']);
+                    $row['value'] = $id['engine'];
+                }
                 $tecnico[] = $row;
                 continue;
             }
@@ -271,9 +409,10 @@ class AdSpirit_Payload_View {
         }
 
         return array(
-            'respostas' => $respostas,
-            'origem'    => self::origin_rows($payload),
-            'tecnico'   => $tecnico,
+            'respostas'    => $respostas,
+            'origem'       => self::origin_rows($payload),
+            'comportamento'=> self::behavior_rows($payload),
+            'tecnico'      => $tecnico,
         );
     }
 
@@ -333,13 +472,18 @@ class AdSpirit_Payload_View {
         }
         $diag .= self::column('Técnico', $s['tecnico'], 'muted');
 
+        // Origem e Comportamento respondem a mesma pergunta — "como essa
+        // pessoa chegou e o que ela fez" — então dividem a coluna do meio.
+        $meio  = self::column('Origem', $s['origem']);
+        $meio .= self::column('Comportamento', $s['comportamento']);
+
         ob_start();
         ?>
         <div class="as-detail">
             <div class="as-detail-grid">
                 <?php
                 echo self::column('Respostas', $s['respostas'], 'as-detail-col--wide');
-                echo self::column('Origem', $s['origem']);
+                echo $meio !== '' ? '<div class="as-detail-col-group">' . $meio . '</div>' : '';
                 echo $diag !== '' ? '<div class="as-detail-col-group">' . $diag . '</div>' : '';
                 ?>
             </div>

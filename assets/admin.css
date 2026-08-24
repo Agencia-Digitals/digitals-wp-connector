@@ -812,6 +812,21 @@ button.as-card { width: 100%; text-align: left; font: inherit; cursor: pointer; 
 
 .as-row-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
 
+/* Origem: QUAL formulário em cima, motor embaixo. A chave interna
+   ("cf7", "qualifier") não dizia nada a quem opera. */
+.as-origin { display: flex; flex-direction: column; gap: 1px; }
+.as-origin-form { font-size: 12.5px; color: var(--as-ink); line-height: 1.3; }
+.as-origin-engine { font-size: 10.5px; color: var(--as-ink-faint); line-height: 1.3; }
+.as-origin-also { font-size: 10.5px; color: var(--as-ink-faint); margin-top: 3px; }
+
+/* Ponte pro CRM: a ficha completa mora lá, não aqui. */
+.as-crm-link {
+  font-size: 11.5px; color: var(--as-accent); text-decoration: none;
+  display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
+}
+.as-crm-link:hover { color: var(--as-accent-hover); text-decoration: underline; }
+.as-crm-link::after { content: '↗'; font-size: 10px; opacity: .75; }
+
 /* Gatilho: discreto até o hover — a ação primária da linha é Reenviar. */
 .as-detail-toggle {
   display: inline-flex; align-items: center; gap: 5px;

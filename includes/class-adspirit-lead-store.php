@@ -906,15 +906,15 @@ class AdSpirit_Lead_Store {
                 <select name="sl_source">
                     <option value="">Todas origens</option>
                     <option value="cf7" <?php selected($filters['source'], 'cf7'); ?>>Contact Form 7</option>
-                    <option value="qualifier" <?php selected($filters['source'], 'qualifier'); ?>>Qualifier</option>
-                    <option value="qualifier_partial" <?php selected($filters['source'], 'qualifier_partial'); ?>>Qualifier (parcial)</option>
-                    <option value="native" <?php selected($filters['source'], 'native'); ?>>Form AdSpirit</option>
+                    <option value="qualifier" <?php selected($filters['source'], 'qualifier'); ?>>Avaliação (AdSpirit)</option>
+                    <option value="qualifier_partial" <?php selected($filters['source'], 'qualifier_partial'); ?>>Avaliação — parcial (AdSpirit)</option>
+                    <option value="native" <?php selected($filters['source'], 'native'); ?>>Formulário do AdSpirit</option>
                     <option value="gravity" <?php selected($filters['source'], 'gravity'); ?>>Gravity Forms</option>
                     <option value="wpforms" <?php selected($filters['source'], 'wpforms'); ?>>WPForms</option>
                     <option value="elementor" <?php selected($filters['source'], 'elementor'); ?>>Elementor</option>
                     <option value="fluent" <?php selected($filters['source'], 'fluent'); ?>>Fluent Forms</option>
                     <option value="woocommerce" <?php selected($filters['source'], 'woocommerce'); ?>>WooCommerce</option>
-                    <option value="generic" <?php selected($filters['source'], 'generic'); ?>>Form desconhecido (coletor)</option>
+                    <option value="generic" <?php selected($filters['source'], 'generic'); ?>>Detector automático</option>
                 </select>
                 <select name="sl_status">
                     <option value="">Todos status</option>
@@ -961,11 +961,11 @@ class AdSpirit_Lead_Store {
                         <tr>
                             <th style="width:28px;"></th>
                             <th style="width:120px;">Quando</th>
-                            <th style="width:100px;">Origem</th>
+                            <th style="width:170px;">Origem</th>
                             <th>Contato</th>
                             <th style="width:90px;">Status</th>
                             <th style="width:80px;">Perfil</th>
-                            <th style="width:120px;">Ação</th>
+                            <th style="width:150px;">Ação</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -995,16 +995,32 @@ class AdSpirit_Lead_Store {
                             </td>
                             <td title="<?php echo esc_attr($when_title); ?>"><?php echo esc_html($when); ?></td>
                             <td>
-                                <span class="as-badge muted"><?php echo esc_html((string) ($r['source'] ?? '')); ?></span>
+                                <?php
+                                // Qual formulário, e em que motor. Antes saía a
+                                // chave interna ("form", "qualifier", "cf7"),
+                                // que não diz nada a quem opera — e dois
+                                // formulários do mesmo motor eram idênticos.
+                                $ident = class_exists('AdSpirit_Payload_View')
+                                    ? AdSpirit_Payload_View::form_identity((string) ($r['source'] ?? ''), (string) ($r['form_id'] ?? ''))
+                                    : array('form' => '', 'engine' => (string) ($r['source'] ?? ''));
+                                ?>
+                                <div class="as-origin">
+                                    <?php if ($ident['form'] !== '') : ?>
+                                        <span class="as-origin-form"><?php echo esc_html($ident['form']); ?></span>
+                                    <?php endif; ?>
+                                    <span class="as-origin-engine"><?php echo esc_html($ident['engine']); ?></span>
+                                </div>
                                 <?php
                                 // Integrações secundárias da linha (fanout etc.)
                                 // — o CRM já é o status principal ao lado.
                                 $integ_row = json_decode((string) ($r['integrations'] ?? ''), true);
                                 if (is_array($integ_row)) {
+                                    $done = array();
                                     foreach (array('fanout' => 'webhooks', 'capi' => 'Meta', 'ga4' => 'GA4') as $ik => $ilabel) {
-                                        if (!empty($integ_row[$ik])) {
-                                            echo '<br><small style="opacity:.6;">' . esc_html($ilabel) . ' ✓</small>';
-                                        }
+                                        if (!empty($integ_row[$ik])) $done[] = $ilabel;
+                                    }
+                                    if ($done) {
+                                        echo '<div class="as-origin-also">também em ' . esc_html(implode(', ', $done)) . '</div>';
                                     }
                                 }
                                 ?>
@@ -1035,7 +1051,26 @@ class AdSpirit_Lead_Store {
                                 $has_detail = is_array($pl) && !empty($pl);
                                 $detail_id = 'as-detail-' . (int) $r['id'];
                                 ?>
+                                <?php
+                                // Lead que chegou no CRM tem id de lá (leadId
+                                // na resposta). Em vez de espelhar qualificação,
+                                // temperatura e dono — que são do CRM e
+                                // duplicariam a fonte —, o plugin LINKA.
+                                $crm_lead_url = '';
+                                $lead_id_row  = (string) ($r['lead_id'] ?? '');
+                                if ($lead_id_row !== '' && class_exists('AdSpirit_Settings')) {
+                                    $core_row = AdSpirit_Settings::get_core();
+                                    if (!empty($core_row['endpoint_url'])) {
+                                        $crm_lead_url = rtrim((string) $core_row['endpoint_url'], '/') . '/leads/' . rawurlencode($lead_id_row);
+                                    }
+                                }
+                                ?>
                                 <div class="as-row-actions">
+                                    <?php if ($crm_lead_url !== '') : ?>
+                                        <a class="as-crm-link" href="<?php echo esc_url($crm_lead_url); ?>"
+                                           target="_blank" rel="noopener"
+                                           title="Abre a ficha completa deste lead no AdSpirit">Ver no AdSpirit</a>
+                                    <?php endif; ?>
                                     <?php if ($has_detail) : ?>
                                         <button type="button" class="as-detail-toggle" aria-expanded="false"
                                                 aria-controls="<?php echo esc_attr($detail_id); ?>">
