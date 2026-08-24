@@ -1054,3 +1054,34 @@ button.as-card { width: 100%; text-align: left; font: inherit; cursor: pointer; 
 /* Recurso em pausa técnica: o switch não deve parecer acionável. */
 .as-switch--pausado { cursor: not-allowed; opacity: .55; }
 .as-switch input:disabled + .as-switch-track { background: var(--as-line-strong); }
+
+/* Card de recurso: número em destaque, procedência e ação — o padrão de
+   /settings/integrations do AdSpirit trazido pro plugin. */
+.as-recurso-metrica { display: flex; align-items: baseline; gap: 8px; margin: 10px 0 4px; }
+.as-recurso-num {
+  font-size: 26px; font-weight: 300; line-height: 1; letter-spacing: -.03em;
+  color: var(--as-ink); font-variant-numeric: tabular-nums;
+}
+.as-recurso-num-rot { font-size: 12px; color: var(--as-ink-soft); }
+.as-recurso-selo--atencao ~ * .as-recurso-num { color: var(--as-warning); }
+
+/* Procedência em pares — "de onde vem" separado de "o que diz". */
+.as-recurso-meta {
+  margin: 10px 0 0; display: flex; flex-wrap: wrap; gap: 4px 26px;
+  padding-top: 9px; border-top: 1px solid var(--as-line);
+}
+.as-recurso-meta > div { min-width: 0; }
+.as-recurso-meta dt {
+  margin: 0; font-size: 9.5px; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--as-ink-faint);
+}
+.as-recurso-meta dd { margin: 1px 0 0; font-size: 11.5px; color: var(--as-ink-soft); }
+.as-recurso-meta dd.ok::before {
+  content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%;
+  background: var(--as-success); margin-right: 6px; vertical-align: middle;
+}
+.as-recurso-meta dd.nok::before {
+  content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%;
+  background: var(--as-warning); margin-right: 6px; vertical-align: middle;
+}
+.as-recurso-acao { margin: 12px 0 0; }

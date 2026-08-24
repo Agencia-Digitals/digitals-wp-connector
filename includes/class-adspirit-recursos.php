@@ -34,6 +34,16 @@ class AdSpirit_Recursos {
     const JANELA_DIAS = 30;
 
     /**
+     * De onde veio cada resposta. Dizer a procedência é o que separa um
+     * painel de diagnóstico de um painel decorativo: quem lê precisa saber
+     * se o número é medição deste site, resposta do CRM ou varredura de
+     * página — porque cada um envelhece de um jeito.
+     */
+    const FONTE_TABELA  = 'tabela de leads deste site';
+    const FONTE_CONFIG  = 'configuração do plugin';
+    const FONTE_ARQUIVO = 'arquivo servido pelo AdSpirit';
+
+    /**
      * Conta linhas da tabela de submissões por condição, na janela.
      * Devolve null quando a tabela não existe — o chamador distingue
      * "zero leads" de "não dá pra saber".
@@ -80,6 +90,9 @@ class AdSpirit_Recursos {
             'titulo' => 'Entregar os leads no AdSpirit',
             'o_que_faz' => 'Cada formulário enviado no site vira lead no AdSpirit na hora.',
             'essencial' => true, 'sub' => false, 'ligado' => (bool) $ligado,
+            'fonte' => self::FONTE_TABELA,
+            'conexao' => $conectado ? 'Site conectado ao AdSpirit' : 'Site ainda não conectado',
+            'conexao_ok' => (bool) $conectado,
         );
         if (!$ligado) {
             $r['estado'] = self::OFF;
@@ -100,11 +113,10 @@ class AdSpirit_Recursos {
         }
         if ($presos > 0) {
             $r['estado'] = self::ATENCAO;
-            $r['resumo'] = sprintf(
-                '%d lead%s entregue%s em %d dias, mas %d ainda não chegou lá.',
-                $entregues, $entregues === 1 ? '' : 's', $entregues === 1 ? '' : 's',
-                self::JANELA_DIAS, $presos
-            );
+            $r['metrica'] = array('valor' => $presos, 'rotulo' => 'lead' . ($presos === 1 ? '' : 's') . ' sem chegar no AdSpirit');
+            $r['resumo'] = sprintf('%d entregue%s em %d dias. Os presos podem ser reenviados.',
+                $entregues, $entregues === 1 ? '' : 's', self::JANELA_DIAS);
+            $r['acao'] = array('rotulo' => 'Ver e reenviar', 'tab' => 'submissions');
             return $r;
         }
         if ($entregues === 0) {
@@ -114,8 +126,9 @@ class AdSpirit_Recursos {
             return $r;
         }
         $r['estado'] = self::OK;
-        $r['resumo'] = sprintf('%d lead%s entregue%s nos últimos %d dias, sem nenhum preso.',
-            $entregues, $entregues === 1 ? '' : 's', $entregues === 1 ? '' : 's', self::JANELA_DIAS);
+        $r['metrica'] = array('valor' => $entregues,
+            'rotulo' => 'lead' . ($entregues === 1 ? '' : 's') . ' entregue' . ($entregues === 1 ? '' : 's') . ' em ' . self::JANELA_DIAS . ' dias');
+        $r['resumo'] = 'Nenhum preso na fila.';
         return $r;
     }
 
@@ -128,6 +141,7 @@ class AdSpirit_Recursos {
                 . 'o envio é capturado mesmo assim — desde que tenha e-mail ou telefone. '
                 . 'Existe pra você não descobrir tarde demais que um formulário estava jogando lead fora.',
             'essencial' => false, 'sub' => true, 'ligado' => (bool) $ligado,
+            'fonte' => self::FONTE_TABELA,
         );
         if (!$ligado) {
             $r['estado'] = self::OFF;
@@ -145,8 +159,8 @@ class AdSpirit_Recursos {
             $r['resumo'] = 'Ligado. Ainda não consigo confirmar capturas neste site.';
         } elseif ($pegos > 0) {
             $r['estado'] = self::OK;
-            $r['resumo'] = sprintf('Salvou %d lead%s em %d dias que nenhum outro caminho pegaria.',
-                $pegos, $pegos === 1 ? '' : 's', self::JANELA_DIAS);
+            $r['metrica'] = array('valor' => $pegos, 'rotulo' => 'lead' . ($pegos === 1 ? '' : 's') . ' que só ele pegou');
+            $r['resumo'] = 'Em ' . self::JANELA_DIAS . ' dias. Nenhum outro caminho teria capturado.';
         } else {
             $r['estado'] = self::ESPERA;
             $r['resumo'] = 'Ligado, de vigia. Nada precisou dele nos últimos ' . self::JANELA_DIAS
@@ -163,6 +177,9 @@ class AdSpirit_Recursos {
             'o_que_faz' => 'Sem isto o lead chega sem origem: não dá pra dizer se veio de anúncio, '
                 . 'de busca ou de indicação — nem calcular quanto custou.',
             'essencial' => true, 'sub' => false, 'ligado' => (bool) $ligado,
+            'fonte' => self::FONTE_TABELA,
+            'conexao' => $conectado ? 'Site conectado ao AdSpirit' : 'Site ainda não conectado',
+            'conexao_ok' => (bool) $conectado,
         );
         if (!$ligado) {
             $r['estado'] = self::OFF;
@@ -191,8 +208,9 @@ class AdSpirit_Recursos {
         } else {
             $pct = (int) round(($com_origem / max(1, $total)) * 100);
             $r['estado'] = $pct >= 70 ? self::OK : self::ATENCAO;
-            $r['resumo'] = sprintf('%d%% dos leads recentes (%d de %d) chegaram com a origem.',
-                $pct, $com_origem, $total);
+            $r['metrica'] = array('valor' => $pct . '%', 'rotulo' => 'dos leads chegaram com a origem');
+            $r['resumo'] = sprintf('%d de %d nos últimos %d dias.%s', $com_origem, $total, self::JANELA_DIAS,
+                $pct < 70 ? ' O rastreador pode não estar carregando em todas as páginas.' : '');
         }
         return $r;
     }

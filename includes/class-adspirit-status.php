@@ -650,7 +650,47 @@ add_action('adspirit_connector_render_tab_connection', AdSpirit_Safe_Hook::actio
                                 ?></span>
                             </div>
                             <p class="as-recurso-faz"><?php echo esc_html($r['o_que_faz']); ?></p>
+
+                            <?php // Número em destaque quando existe — é o que
+                                  // se procura primeiro num painel de saúde. ?>
+                            <?php if (!empty($r['metrica'])) : ?>
+                                <div class="as-recurso-metrica">
+                                    <span class="as-recurso-num"><?php echo esc_html($r['metrica']['valor']); ?></span>
+                                    <span class="as-recurso-num-rot"><?php echo esc_html($r['metrica']['rotulo']); ?></span>
+                                </div>
+                            <?php endif; ?>
+
                             <p class="as-recurso-estado"><?php echo esc_html($r['resumo']); ?></p>
+
+                            <?php // Procedência: quem lê precisa saber se o
+                                  // número é medição deste site, config ou
+                                  // arquivo remoto — cada um envelhece
+                                  // diferente. É o que o /settings/integrations
+                                  // do AdSpirit faz. ?>
+                            <dl class="as-recurso-meta">
+                                <?php if (isset($r['conexao'])) : ?>
+                                    <div>
+                                        <dt>Conexão</dt>
+                                        <dd class="<?php echo !empty($r['conexao_ok']) ? 'ok' : 'nok'; ?>"><?php
+                                            echo esc_html($r['conexao']);
+                                        ?></dd>
+                                    </div>
+                                <?php endif; ?>
+                                <?php if (!empty($r['fonte'])) : ?>
+                                    <div>
+                                        <dt>Fonte do dado</dt>
+                                        <dd><?php echo esc_html($r['fonte']); ?></dd>
+                                    </div>
+                                <?php endif; ?>
+                            </dl>
+
+                            <?php if (!empty($r['acao'])) : ?>
+                                <p class="as-recurso-acao">
+                                    <a class="button button-small" href="<?php
+                                        echo esc_url(admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=' . $r['acao']['tab']));
+                                    ?>"><?php echo esc_html($r['acao']['rotulo']); ?></a>
+                                </p>
+                            <?php endif; ?>
                         </div>
                     </li>
                 <?php endforeach; ?>
