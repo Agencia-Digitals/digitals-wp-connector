@@ -804,6 +804,80 @@ button.as-card { width: 100%; text-align: left; font: inherit; cursor: pointer; 
   padding: 18px; text-align: center; color: var(--as-ink-faint); font-size: 12px;
 }
 
+/* ── O que está ligado neste site (topo da aba Conexão) ──────────────
+   Cada linha é uma decisão: o que muda ligando, e se há prova de que
+   está funcionando. O selo carrega a cor; o texto carrega o porquê. */
+.adspirit-app .as-recursos { list-style: none; margin: 0 0 4px; padding: 0; display: grid; gap: 1px;
+  background: var(--as-line); border: 1px solid var(--as-line); border-radius: 10px; overflow: hidden; }
+.adspirit-app .as-recurso {
+  display: grid; grid-template-columns: auto 1fr; gap: 14px;
+  padding: 16px 18px; background: var(--as-bg); align-items: start; margin: 0;
+}
+/* Sub-item pertence ao de cima: recuo + fundo levemente rebaixado. */
+.adspirit-app .as-recurso--sub { padding-left: 42px; background: var(--as-bg-card); }
+
+.as-recurso-body { min-width: 0; }
+.as-recurso-head { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 5px; }
+.as-recurso-titulo { font-size: 14px; font-weight: 650; color: var(--as-ink); letter-spacing: -.01em; }
+.as-recurso--sub .as-recurso-titulo { font-size: 13px; font-weight: 600; }
+.as-recurso-tag {
+  font-size: 9.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--as-ink-faint); border: 1px solid var(--as-line-strong);
+  border-radius: 3px; padding: 2px 6px;
+}
+.as-recurso-tag--exp { color: var(--as-warning); border-color: var(--as-warning); }
+
+/* Selo de estado: ponto + frase, mesmo padrão do resto do painel. */
+.as-recurso-selo {
+  display: inline-flex; align-items: center; gap: 6px; margin-left: auto;
+  font-size: 11.5px; color: var(--as-ink-soft); white-space: nowrap;
+}
+.as-recurso-selo .as-status-dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; }
+.as-recurso-selo--ok      { color: var(--as-success); }
+.as-recurso-selo--ok      .as-status-dot { background: var(--as-success); box-shadow: 0 0 0 3px rgba(21,128,61,.12); }
+.as-recurso-selo--espera  .as-status-dot { background: var(--as-ink-faint); }
+.as-recurso-selo--atencao { color: var(--as-warning); }
+.as-recurso-selo--atencao .as-status-dot { background: var(--as-warning); box-shadow: 0 0 0 3px rgba(176,121,0,.14); }
+.as-recurso-selo--off     { color: var(--as-ink-faint); }
+.as-recurso-selo--off     .as-status-dot { background: transparent; border: 1.5px solid var(--as-line-strong); }
+
+.as-recurso-faz { margin: 0 0 5px; font-size: 12.5px; line-height: 1.5; color: var(--as-ink-soft); }
+.as-recurso-estado { margin: 0; font-size: 12px; line-height: 1.45; color: var(--as-ink-faint); }
+.as-recursos-salvar { display: flex; align-items: center; gap: 12px; margin: 14px 0 26px; }
+.as-recursos-dica { font-size: 11.5px; color: var(--as-ink-faint); }
+
+/* Switch: o estado tem que ser óbvio de longe — verde ligado, cinza não. */
+.as-switch { display: inline-flex; cursor: pointer; margin-top: 2px; }
+.as-switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.as-switch-track {
+  width: 38px; height: 22px; border-radius: 11px; background: var(--as-line-strong);
+  display: inline-flex; align-items: center; padding: 2px; flex: 0 0 auto;
+  transition: background .18s ease;
+}
+.as-switch-thumb {
+  width: 18px; height: 18px; border-radius: 50%; background: var(--as-bg);
+  box-shadow: 0 1px 2px rgba(15,20,25,.25); transition: transform .18s ease;
+}
+.as-switch input:checked + .as-switch-track { background: var(--as-success); }
+.as-switch input:checked + .as-switch-track .as-switch-thumb { transform: translateX(16px); }
+.as-switch input:focus-visible + .as-switch-track { outline: 2px solid var(--as-accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .as-switch-track, .as-switch-thumb { transition: none; }
+}
+
+/* Devolutiva: fora da lista de propósito — é a única chave que muda o
+   que o VISITANTE lê, e não é algo que o plugin faça por padrão. */
+.as-recurso-extra {
+  border: 1px solid var(--as-line); border-radius: 10px;
+  padding: 16px 18px; margin: 0 0 26px; background: var(--as-bg-card);
+}
+.as-recurso-extra-head { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; }
+.as-recurso-extra-head h3 { margin: 0; font-size: 14px; font-weight: 650; color: var(--as-ink); }
+.as-recurso-risco {
+  margin: 0 0 12px; font-size: 12.5px; line-height: 1.5; color: var(--as-ink-soft);
+  border-left: 2px solid var(--as-warning); padding-left: 12px;
+}
+
 /* ── Submissões: linha expansível com o detalhe do lead ──────────────
    Zebrado próprio: o `striped` do WP zebra por :nth-child, e cada linha
    de dados tem uma linha de detalhe irmã (conta no DOM mesmo fechada),

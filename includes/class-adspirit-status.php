@@ -606,10 +606,66 @@ add_action('adspirit_connector_render_tab_connection', AdSpirit_Safe_Hook::actio
 
     <?php if ($connected): ?>
         <?php
-        // A tabela de status que existia aqui saiu: os cards no topo já dizem
-        // com qual marca este site fala e o que está funcionando, sem
-        // despejar endpoint, token e secret na tela. Sobrou o que ela tinha de
-        // acionável — desconectar — e isso mora junto do resto do avançado.
+        // O QUE ESTE SITE FAZ — no topo, não escondido no "avançado".
+        // Antes eram quatro checkboxes numa linha chamada "Extras
+        // opcionais", dentro de um <details> fechado. Duas delas são o
+        // plugin em si, e nenhuma dizia se estava FUNCIONANDO — só se
+        // estava marcada.
+        if (class_exists('AdSpirit_Recursos')) :
+            $recursos = AdSpirit_Recursos::todos();
+        ?>
+        <h2 class="as-section"><span class="as-kicker-inline">Neste site</span>O que está ligado</h2>
+        <p class="as-section-help">Cada chave abaixo muda o que este site faz. O selo à direita não diz
+            só que está ligada — diz se há prova recente de que está funcionando.</p>
+
+        <?php
+        // Mesmo caminho de salvamento do resto do painel (AdSpirit_Menu),
+        // com um marcador dizendo que ESTE form tem autoridade sobre os
+        // quatro toggles — ver o guard em adspirit_connector_save_connection.
+        AdSpirit_Menu::form_open('connection');
+        ?>
+            <input type="hidden" name="_adspirit_recursos" value="1">
+            <ul class="as-recursos">
+                <?php foreach ($recursos as $r) : ?>
+                    <li class="as-recurso<?php echo $r['sub'] ? ' as-recurso--sub' : ''; ?>">
+                        <label class="as-switch" for="asr_<?php echo esc_attr($r['key']); ?>">
+                            <input type="checkbox" id="asr_<?php echo esc_attr($r['key']); ?>"
+                                   name="<?php echo esc_attr($r['key']); ?>" value="1"
+                                   <?php checked($r['ligado']); ?>>
+                            <span class="as-switch-track" aria-hidden="true"><span class="as-switch-thumb"></span></span>
+                        </label>
+                        <div class="as-recurso-body">
+                            <div class="as-recurso-head">
+                                <span class="as-recurso-titulo"><?php echo esc_html($r['titulo']); ?></span>
+                                <?php if ($r['essencial']) : ?>
+                                    <span class="as-recurso-tag">essencial</span>
+                                <?php endif; ?>
+                                <span class="as-recurso-selo as-recurso-selo--<?php echo esc_attr($r['estado']); ?>">
+                                    <span class="as-status-dot" aria-hidden="true"></span><?php
+                                    echo esc_html(AdSpirit_Recursos::rotulo($r['estado']));
+                                ?></span>
+                            </div>
+                            <p class="as-recurso-faz"><?php echo esc_html($r['o_que_faz']); ?></p>
+                            <p class="as-recurso-estado"><?php echo esc_html($r['resumo']); ?></p>
+                        </div>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+            <p class="as-recursos-salvar">
+                <button type="submit" class="button">Salvar alterações</button>
+                <span class="as-recursos-dica">A mudança vale assim que você salvar.</span>
+            </p>
+        </form>
+        <?php endif; ?>
+        <?php
+        // A devolutiva ao visitante NÃO entra na lista acima: não é algo
+        // que o plugin faz por padrão, e é a única chave aqui que muda o
+        // que a PESSOA lê no site. Fica separada, com o risco dito.
+        echo apply_filters('adspirit_connector_recursos_render_extra', '');
+        ?>
+        <?php
+        // Sobrou no avançado o que é de fato técnico — endereço, chaves e
+        // desconectar.
         ?>
         <?php
         // Edição atrás do clique: quem abre esta aba quer saber se está tudo
@@ -688,35 +744,6 @@ add_action('adspirit_connector_render_tab_connection', AdSpirit_Safe_Hook::actio
                 <p class="description">Opcional. Token <code>dos_…</code> da marca pro pixel. Mesma página do AdSpirit.</p>
             </td>
         </tr>
-        <tr>
-            <th>O que o plugin faz neste site</th>
-            <td>
-                <div class="as-toggle">
-                    <input type="checkbox" id="as_cf7" name="cf7_enabled" value="1" <?php checked($s['cf7_enabled'], '1'); ?>>
-                    <label class="t" for="as_cf7">Enviar leads dos formulários <span style="font-weight:400;color:var(--as-ink-faint)">· é pra isso que o plugin existe</span>
-                        <small>Cada envio vira lead no AdSpirit na hora. Desligado, o site continua guardando os envios aqui, mas nada sobe.</small>
-                    </label>
-                </div>
-                <div class="as-toggle as-sub">
-                    <input type="checkbox" id="as_generic" name="generic_forms_enabled" value="1" <?php checked($s['generic_forms_enabled'] ?? '0', '1'); ?>>
-                    <label class="t" for="as_generic">Capturar formulários de outros plugins <span style="font-weight:400;color:var(--as-ink-faint)">· opcional, em teste</span>
-                        <small>Rede de segurança: um formulário que o AdSpirit não conhece também entrega o lead, desde que tenha e-mail ou telefone. Os formulários conectados continuam com prioridade.</small>
-                    </label>
-                </div>
-                <div class="as-toggle">
-                    <input type="checkbox" id="as_px" name="pixel_enabled" value="1" <?php checked($s['pixel_enabled'], '1'); ?>>
-                    <label class="t" for="as_px">Medir visitas e jornada <span style="font-weight:400;color:var(--as-ink-faint)">· é o que liga lead a campanha</span>
-                        <small>Sem isso o lead chega sem origem: não dá pra saber se veio de anúncio, busca ou indicação.</small>
-                    </label>
-                </div>
-                <div class="as-toggle as-sub">
-                    <input type="checkbox" id="as_px1p" name="pixel_firstparty" value="1" <?php checked($s['pixel_firstparty'] ?? '0', '1'); ?>>
-                    <label class="t" for="as_px1p">Servir o rastreador pelo endereço deste site <span style="font-weight:400;color:var(--as-ink-faint)">· opcional</span>
-                        <small>Bloqueadores de anúncio barram scripts de outros domínios. Servindo pelo endereço deste site, menos visitantes ficam invisíveis. O código é o mesmo — só o endereço muda.</small>
-                    </label>
-                </div>
-            </td>
-        </tr>
         <?php
         // Feature 35 (lead score preview) e features futuras se plugam aqui
         // sem editar este arquivo — filter render_extra concatena <tr>s.
@@ -751,10 +778,16 @@ add_action('adspirit_connector_save_connection', AdSpirit_Safe_Hook::action(func
     if (isset($post['pixel_token'])) {
         $patch['pixel_token'] = sanitize_text_field(trim((string) $post['pixel_token']));
     }
-    $patch['cf7_enabled']   = !empty($post['cf7_enabled']) ? '1' : '0';
-    $patch['pixel_enabled'] = !empty($post['pixel_enabled']) ? '1' : '0';
-    $patch['pixel_firstparty'] = !empty($post['pixel_firstparty']) ? '1' : '0';
-    $patch['generic_forms_enabled'] = !empty($post['generic_forms_enabled']) ? '1' : '0';
+    // Checkbox desmarcada não é postada, então estes quatro só podem ser
+    // lidos por um form que os CARREGUE — senão salvar os ajustes técnicos
+    // desligaria a captura inteira em silêncio. O marcador diz quem tem
+    // autoridade pra mexer neles.
+    if (!empty($post['_adspirit_recursos'])) {
+        $patch['cf7_enabled']   = !empty($post['cf7_enabled']) ? '1' : '0';
+        $patch['pixel_enabled'] = !empty($post['pixel_enabled']) ? '1' : '0';
+        $patch['pixel_firstparty'] = !empty($post['pixel_firstparty']) ? '1' : '0';
+        $patch['generic_forms_enabled'] = !empty($post['generic_forms_enabled']) ? '1' : '0';
+    }
     delete_transient('adspirit_central_status'); // conexão mudou → re-perguntar cobertura
     // Feature 35 + futuras: filter pra cada feature contribuir patches
     // sem editar este handler.

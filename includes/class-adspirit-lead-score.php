@@ -73,7 +73,7 @@ class AdSpirit_Lead_Score {
         // $post['show_lead_score_preview']; mas pra não acoplar duro,
         // expomos um filter próprio que o handler lê.
         add_filter(
-            'adspirit_connector_connection_render_extra',
+            'adspirit_connector_recursos_render_extra',
             array($this, 'render_settings_row'),
             10,
             1
@@ -221,16 +221,33 @@ class AdSpirit_Lead_Score {
         $enabled = self::is_enabled();
         ob_start();
         ?>
-        <tr>
-            <th>Devolutiva ao fim do formulário</th>
-            <td>
-                <label>
-                    <input type="checkbox" name="<?php echo esc_attr(self::SETTING_KEY); ?>" value="1" <?php checked($enabled); ?>>
-                    Mostrar uma resposta pessoal no último passo do formulário do AdSpirit
-                </label>
-                <p class="description">Quem terminou de preencher lê uma frase sobre o próprio caso — "Você é exatamente quem buscamos", por exemplo. Serve pra fechar a experiência com sensação de avaliação de verdade, em vez de um "obrigado" seco. A pessoa <strong>nunca vê nota nem letra de perfil</strong>, e <strong>nenhum lead é criado</strong> por essa consulta. Desligado por padrão.</p>
-            </td>
-        </tr>
+        <div class="as-recurso-extra">
+            <div class="as-recurso-extra-head">
+                <h3>Devolutiva ao visitante</h3>
+                <span class="as-recurso-tag as-recurso-tag--exp">experimental</span>
+            </div>
+            <p class="as-recurso-faz">
+                No último passo do formulário do AdSpirit, quem preencheu lê uma frase sobre
+                o próprio caso — <em>"Você é exatamente quem buscamos"</em> para quem tem
+                mais aderência, <em>"Recebemos suas respostas"</em> para os demais. A pessoa
+                nunca vê nota nem letra de perfil, e nenhum lead é criado por essa consulta.
+            </p>
+            <p class="as-recurso-risco">
+                <strong>Pense antes de ligar.</strong> É a única chave do painel que muda o que a
+                pessoa LÊ no site. Uma devolutiva morna logo depois de alguém contar do próprio
+                negócio pode soar como recusa — e quem não se encaixa hoje pode se encaixar em
+                um ano. Por isso vem desligada e assim continua até você decidir.
+            </p>
+            <label class="as-toggle">
+                <input type="checkbox" name="<?php echo esc_attr(self::SETTING_KEY); ?>" value="1" <?php checked($enabled); ?>>
+                <span class="t">Mostrar a devolutiva no fim do formulário</span>
+            </label>
+            <p class="as-recurso-estado">
+                <?php echo $enabled
+                    ? 'Ligada. Todo mundo que terminar o formulário vai ler a frase.'
+                    : 'Desligada. O formulário termina com a mensagem de obrigado de sempre.'; ?>
+            </p>
+        </div>
         <?php
         return ob_get_clean();
     }
