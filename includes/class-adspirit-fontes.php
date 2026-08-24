@@ -102,8 +102,12 @@ class AdSpirit_Fontes {
 
     /**
      * Meta: lê o próprio pixel pelo Graph. Chamada de LEITURA — não cria
-     * evento, não suja o dado. Distingue token inválido (190) de pixel
-     * inexistente/sem permissão (100/803), que pedem correções diferentes.
+     * evento, não suja o dado do cliente.
+     *
+     * O que dá pra concluir daqui é menos do que parece, e o veredito é
+     * calibrado nisso (ver os casos dentro da função): 190 prova que o
+     * token morreu; 100 é o comportamento NORMAL de um token de CAPI e não
+     * prova nada contra ele.
      */
     private static function checar_meta() {
         $cfg = class_exists('AdSpirit_Settings') ? AdSpirit_Settings::get_capi_meta() : array();
@@ -125,10 +129,31 @@ class AdSpirit_Fontes {
             return array('estado' => self::OK, 'detalhe' => 'Pixel ' . $pixel
                 . (!empty($body['name']) ? ' (' . $body['name'] . ')' : '') . ' respondeu.');
         }
-        $sub = isset($body['error']['code']) ? (int) $body['error']['code'] : 0;
+        $err = isset($body['error']['code']) ? (int) $body['error']['code'] : 0;
         $msg = isset($body['error']['message']) ? (string) $body['error']['message'] : ('HTTP ' . $code);
-        if ($sub === 190) {
-            return array('estado' => self::FALHA, 'detalhe' => 'O token de acesso expirou ou foi revogado. Gere outro na Meta e atualize no AdSpirit.');
+
+        // 190 é conclusivo: o token não vale mais.
+        if ($err === 190) {
+            return array('estado' => self::FALHA,
+                'detalhe' => 'O token de acesso expirou ou foi revogado. Gere outro na Meta e atualize no AdSpirit.');
+        }
+
+        // 100 "Missing Permission" NÃO é problema. Testado contra as contas
+        // reais em 2026-08-24: token de CAPI válido, que envia conversão
+        // normalmente, recebe 100 nesta leitura — ele tem permissão de
+        // ESCREVER evento, não de LER o cadastro do pixel.
+        //
+        // A primeira versão desta checagem tratava isso como falha e teria
+        // pintado de vermelho duas contas que estão funcionando. Provar que
+        // o envio funciona exigiria mandar um evento de verdade pro pixel de
+        // produção — o que sujaria o dado do cliente pra responder uma
+        // pergunta de diagnóstico. Não vale a troca.
+        if ($err === 100) {
+            return array('estado' => self::NAO_TESTAVEL,
+                'detalhe' => 'O token existe e responde, mas só permite ENVIAR conversão — não deixa '
+                    . 'consultar o pixel daqui, o que é o normal pra um token de CAPI. Dá pra afirmar '
+                    . 'que ele não foi revogado; confirmar a entrega exige olhar os Eventos de Teste no '
+                    . 'Gerenciador da Meta.');
         }
         return array('estado' => self::FALHA, 'detalhe' => $msg);
     }
