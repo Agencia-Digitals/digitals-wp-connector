@@ -626,7 +626,13 @@ add_action('adspirit_connector_render_tab_connection', AdSpirit_Safe_Hook::actio
         ?>
             <input type="hidden" name="_adspirit_recursos" value="1">
             <ul class="as-recursos">
-                <?php foreach ($recursos as $r) : ?>
+                <?php
+                // Recurso "avançado" só entra na lista se estiver pedindo
+                // atenção. Sem problema, é infraestrutura — e infraestrutura
+                // que funciona não precisa de linha na tela.
+                foreach ($recursos as $r) :
+                    if (!empty($r['avancado']) && $r['estado'] !== AdSpirit_Recursos::ATENCAO) continue;
+                ?>
                     <li class="as-recurso<?php echo $r['sub'] ? ' as-recurso--sub' : ''; ?>">
                         <?php if ($r['essencial']) : ?>
                             <?php // Indicador, não controle: desligar isto é
