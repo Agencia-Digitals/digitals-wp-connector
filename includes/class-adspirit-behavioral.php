@@ -204,11 +204,11 @@ class AdSpirit_Behavioral {
             <details class="as-help">
                 <summary>Detalhes técnicos (pra suporte)</summary>
                 <ul>
-                    <li>Cookie de visitante: <code>adspirit_vid</code> (criado pelo pixel.js do CRM). Sem ele, nada dispara.</li>
+                    <li>Cookie de visitante: <code>adspirit_vid</code> (criado pelo pixel do AdSpirit). Sem ele, nada dispara.</li>
                     <li>Endpoint: <code>POST <?php echo esc_html((class_exists('AdSpirit_Settings') ? AdSpirit_Settings::get_core()['endpoint_url'] : '')); ?>/api/track?t=&lt;pixel_token&gt;</code>.</li>
                     <li>Evento: <code>type:"custom"</code>, <code>payload.kind:"<?php echo esc_html(self::EVENT_KIND); ?>"</code>.</li>
                     <li>Além do intervalo, também envia ao sair da página (<code>pagehide</code> / aba oculta).</li>
-                    <li>Limite no CRM: 120 resumos por visitante por hora.</li>
+                    <li>Limite no AdSpirit: 120 resumos por visitante por hora.</li>
                     <li>O resumo também fica em <code>sessionStorage["adspirit_bhv_v1"]</code> pra ser anexado ao envio do formulário.</li>
                 </ul>
             </details>

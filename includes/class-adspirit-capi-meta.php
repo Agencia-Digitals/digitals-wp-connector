@@ -229,7 +229,7 @@ class AdSpirit_Capi_Meta {
             </ul>
         </details>
 
-        <?php AdSpirit_Menu::form_close('Salvar Meta CAPI'); ?>
+        <?php AdSpirit_Menu::form_close('Salvar conversões Meta'); ?>
         <?php AdSpirit_Menu::card_close(); ?>
         <?php
     }

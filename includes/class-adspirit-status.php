@@ -58,17 +58,17 @@ class AdSpirit_Status {
             <?php if ($test_result === 'sucesso'): ?>
                 <div class="as-notice info">
                     <div class="as-notice-kicker">Teste enviado</div>
-                    <p>Lead de teste foi aceito pelo CRM (HTTP 200) e arquivado automaticamente. Confira em <a href="<?php echo esc_url($core['endpoint_url']); ?>/leads?archived=1" target="_blank">/leads</a> no CRM.</p>
+                    <p>Lead de teste foi aceito pelo CRM (HTTP 200) e arquivado automaticamente. Confira em <a href="<?php echo esc_url($core['endpoint_url']); ?>/leads?archived=1" target="_blank">/leads</a> no AdSpirit.</p>
                 </div>
             <?php elseif ($test_result === 'config_incompleta'): ?>
                 <div class="as-notice warn">
                     <div class="as-notice-kicker">Config faltando</div>
-                    <p>Conecte o plugin primeiro (aba Conexão CRM).</p>
+                    <p>Conecte o plugin primeiro, em <em>Conexão com o AdSpirit</em>.</p>
                 </div>
             <?php else: ?>
                 <div class="as-notice danger">
                     <div class="as-notice-kicker">Falha no teste</div>
-                    <p>CRM retornou: <code><?php echo esc_html($test_result); ?></code>. Veja os logs.</p>
+                    <p>O AdSpirit respondeu: <code><?php echo esc_html($test_result); ?></code>. Veja os logs.</p>
                 </div>
             <?php endif; ?>
         <?php endif; ?>
@@ -101,7 +101,7 @@ class AdSpirit_Status {
                 </ul>
             </details>
         <?php else: ?>
-        <h2 class="as-section"><span class="as-kicker-inline">Onboarding</span>Conectar o site ao CRM</h2>
+        <h2 class="as-section"><span class="as-kicker-inline">Onboarding</span>Conectar o site ao AdSpirit</h2>
         <p class="as-section-help">Checklist do que falta pra ferramenta estar 100% conectada e enviando leads.</p>
 
         <ul class="as-checklist">
@@ -398,7 +398,7 @@ class AdSpirit_Status {
                 'title'  => 'Brand slug definido',
                 'desc'   => $slug_ok
                     ? 'Slug: <code>' . esc_html($core['brand_slug']) . '</code>. Você recebe esse valor em <code>/settings/integrations/tracking</code> no painel do CRM.'
-                    : 'Falta o identificador da marca. Pegue em <em>Tracking → Plugin WordPress</em> no CRM.',
+                    : 'Falta o identificador da marca. Pegue no AdSpirit, em <em>Configurações → Rastreamento (pixel)</em>.',
                 'cta_url' => admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=connection'),
                 'cta_label' => 'Adicionar slug',
             ),
@@ -407,7 +407,7 @@ class AdSpirit_Status {
                 'title'  => 'Secret de autenticação configurado',
                 'desc'   => $secret_ok
                     ? 'Secret presente (oculto por segurança). Rotacione se suspeitar de vazamento.'
-                    : 'Gere o secret em <em>Tracking → Plugin WordPress → Gerar secret</em> no CRM. Cole aqui em <em>Conexão CRM</em>. O secret só aparece uma vez — guarde com cuidado.',
+                    : 'Gere a chave no AdSpirit, em <em>Configurações → Rastreamento (pixel)</em>, e cole aqui. Ela aparece uma única vez — guarde antes de fechar a tela.',
                 'cta_url' => admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=connection'),
                 'cta_label' => 'Colar secret',
             ),
@@ -658,14 +658,14 @@ add_action('adspirit_connector_render_tab_connection', AdSpirit_Safe_Hook::actio
             <th><label for="adspirit_endpoint_url">Endpoint URL</label></th>
             <td>
                 <input type="url" id="adspirit_endpoint_url" name="endpoint_url" value="<?php echo esc_attr($s['endpoint_url']); ?>" class="regular-text" required>
-                <p class="description">Base do CRM. Default: <code>https://crm.agenciadigitals.com.br</code>.</p>
+                <p class="description">Endereço do AdSpirit. Padrão: <code>https://crm.agenciadigitals.com.br</code>.</p>
             </td>
         </tr>
         <tr>
             <th><label for="adspirit_brand_slug">Brand slug</label></th>
             <td>
                 <input type="text" id="adspirit_brand_slug" name="brand_slug" value="<?php echo esc_attr($s['brand_slug']); ?>" class="regular-text" required pattern="[a-z0-9_-]+">
-                <p class="description">Identificador da marca no CRM (ex.: <code>agd</code>).</p>
+                <p class="description">Identificador da marca no AdSpirit (ex.: <code>agd</code>).</p>
             </td>
         </tr>
         <tr>
@@ -678,14 +678,14 @@ add_action('adspirit_connector_render_tab_connection', AdSpirit_Safe_Hook::actio
                     <input type="password" id="adspirit_secret" name="secret" value="<?php echo esc_attr($s['secret']); ?>" class="regular-text" autocomplete="off">
                 <?php endif; ?>
                 <button type="button" class="button" onclick="var e=document.getElementById('adspirit_secret');e.type=e.type==='password'?'text':'password';">Mostrar</button>
-                <p class="description">64 caracteres hex. Cola o valor gerado no CRM. Não fica visível depois — guarde.</p>
+                <p class="description">64 caracteres. Cole o valor gerado no AdSpirit — ele não aparece de novo, então guarde.</p>
             </td>
         </tr>
         <tr>
             <th><label for="adspirit_pixel_token">Pixel token</label></th>
             <td>
                 <input type="text" id="adspirit_pixel_token" name="pixel_token" value="<?php echo esc_attr($s['pixel_token']); ?>" class="regular-text">
-                <p class="description">Opcional. Token <code>dos_…</code> da marca pro pixel JS. Mesma página do CRM.</p>
+                <p class="description">Opcional. Token <code>dos_…</code> da marca pro pixel. Mesma página do AdSpirit.</p>
             </td>
         </tr>
         <tr>

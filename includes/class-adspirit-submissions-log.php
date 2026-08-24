@@ -1,7 +1,7 @@
 <?php
 /**
  * AdSpirit Submissions Log — visualização rápida das últimas N submissões
- * recebidas pelo plugin (CF7 + form qualifier).
+ * recebidas pelo plugin (Contact Form 7 + formulário de avaliação).
  *
  * Substitui o uso de TablePress como "planilha de leads" no fluxo antigo.
  * NÃO é source of truth (o CRM é) — é dashboard local pra:
@@ -66,18 +66,18 @@ class AdSpirit_Submissions_Log {
 
         ?>
         <div class="as-card">
-            <h2 class="as-section"><span class="as-kicker-inline">Diagnóstico</span>Submissões recentes</h2>
+            <h2 class="as-section"><span class="as-kicker-inline">Diagnóstico</span>Leads enviados</h2>
             <p class="as-section-help">
-                Últimas <?php echo (int) self::MAX_ENTRIES; ?> submissões recebidas pelo plugin (CF7 + form qualifier).
-                Substitui o uso do TablePress como "planilha local de leads". <strong>Source of truth é o CRM</strong> —
-                cada linha tem link pro lead correspondente.
+                Últimas <?php echo (int) self::MAX_ENTRIES; ?> submissões recebidas pelo plugin.
+                <strong>A ficha completa mora no AdSpirit</strong> — cada linha
+                tem link pro lead lá.
                 Retenção: <?php echo (int) self::TTL_DAYS; ?> dias.
             </p>
 
             <div style="display:flex; gap:16px; flex-wrap:wrap; margin:18px 0; font-size:13px;">
                 <div><strong><?php echo (int) $summary['total']; ?></strong> total</div>
-                <div><strong><?php echo (int) $summary['cf7']; ?></strong> via CF7</div>
-                <div><strong><?php echo (int) $summary['qualifier']; ?></strong> via Qualifier</div>
+                <div><strong><?php echo (int) $summary['cf7']; ?></strong> no Contact Form 7</div>
+                <div><strong><?php echo (int) $summary['qualifier']; ?></strong> na avaliação</div>
                 <div style="opacity:0.6">|</div>
                 <div>Perfil A: <strong><?php echo (int) $summary['a']; ?></strong></div>
                 <div>B: <strong><?php echo (int) $summary['b']; ?></strong></div>
@@ -95,8 +95,8 @@ class AdSpirit_Submissions_Log {
                 <select name="sl_source">
                     <option value="">Todas origens</option>
                     <option value="cf7" <?php selected($filters['source'], 'cf7'); ?>>Contact Form 7</option>
-                    <option value="qualifier" <?php selected($filters['source'], 'qualifier'); ?>>Qualifier (completo)</option>
-                    <option value="qualifier_partial" <?php selected($filters['source'], 'qualifier_partial'); ?>>Qualifier (parcial)</option>
+                    <option value="qualifier" <?php selected($filters['source'], 'qualifier'); ?>>Avaliação (completa)</option>
+                    <option value="qualifier_partial" <?php selected($filters['source'], 'qualifier_partial'); ?>>Avaliação (parcial)</option>
                 </select>
                 <select name="sl_profile">
                     <option value="">Todos perfis</option>
@@ -138,12 +138,14 @@ class AdSpirit_Submissions_Log {
                     <?php foreach ($entries as $e) :
                         $lead_url = self::lead_url($e['lead_id'] ?? '');
                         $when = isset($e['ts']) ? human_time_diff((int) $e['ts'], time()) . ' atrás' : '—';
-                        $source_label = array(
-                            'cf7' => 'CF7',
-                            'qualifier' => 'Qualifier',
-                            'qualifier_partial' => 'Qualifier (parcial)',
-                        );
-                        $src = $source_label[$e['source'] ?? 'cf7'] ?? ($e['source'] ?? '?');
+                        // Mesma tradução da tela principal — antes havia um
+                        // mapa próprio aqui, e "Qualifier" sobrevivia num
+                        // lugar depois de ter sido humanizado no outro.
+                        $src = (string) ($e['source'] ?? 'cf7');
+                        if (class_exists('AdSpirit_Payload_View')) {
+                            $id_src = AdSpirit_Payload_View::form_identity($src, (string) ($e['form_id'] ?? ''));
+                            $src = $id_src['form'] !== '' ? $id_src['form'] : $id_src['engine'];
+                        }
                         $profile = strtoupper((string) ($e['profile'] ?? ''));
                     ?>
                         <tr>
@@ -164,7 +166,7 @@ class AdSpirit_Submissions_Log {
                             <td><?php echo esc_html($e['company'] ?? ''); ?></td>
                             <td>
                                 <?php if ($lead_url) : ?>
-                                    <a href="<?php echo esc_url($lead_url); ?>" target="_blank" rel="noopener" class="button button-small">Ver no CRM ↗</a>
+                                    <a href="<?php echo esc_url($lead_url); ?>" target="_blank" rel="noopener" class="button button-small">Ver no AdSpirit ↗</a>
                                 <?php else : ?>
                                     <span style="opacity:0.4;">—</span>
                                 <?php endif; ?>

@@ -362,10 +362,10 @@ class AdSpirit_Menu {
                             <?php wp_nonce_field('adspirit_force_update_check'); ?>
                             <button type="submit" class="button" title="Limpa cache + checa o GitHub agora (não espera o ciclo de 6h)">Verificar atualizações</button>
                         </form>
-                        <a href="<?php echo esc_url(admin_url('admin.php?page=' . self::PAGE_SLUG . '&tab=connection')); ?>" class="button">Conexão CRM</a>
+                        <a href="<?php echo esc_url(admin_url('admin.php?page=' . self::PAGE_SLUG . '&tab=connection')); ?>" class="button">Conexão com o AdSpirit</a>
                     </div>
                 </div>
-                <p class="as-lede">Conecta o WordPress ao CRM AdSpirit em real-time. Tudo configurado pelo painel — sem editar código nem env do servidor.</p>
+                <p class="as-lede">Liga este site ao AdSpirit: cada lead capturado chega lá na hora. Tudo por aqui — sem mexer em código nem no servidor.</p>
             </header>
 
             <?php settings_errors(); ?>

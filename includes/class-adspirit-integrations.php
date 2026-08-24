@@ -341,7 +341,7 @@ class AdSpirit_Integrations {
                 'label' => __('AdSpirit Connector não está conectado', 'adspirit-connector'),
                 'status' => 'recommended',
                 'badge' => array('label' => 'AdSpirit', 'color' => 'orange'),
-                'description' => '<p>O plugin está instalado mas não conectado ao CRM. Vá em <a href="' . esc_url(admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=connection')) . '">AdSpirit → Conexão CRM</a>.</p>',
+                'description' => '<p>O plugin está instalado, mas ainda não conectado. Vá em <a href="' . esc_url(admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=connection')) . '">AdSpirit → Conexão</a>.</p>',
                 'test' => 'adspirit_connection',
             );
         }

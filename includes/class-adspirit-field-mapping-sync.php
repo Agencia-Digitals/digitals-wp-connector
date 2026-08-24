@@ -285,7 +285,7 @@ class AdSpirit_Field_Mapping_Sync {
         ?>
         <input type="hidden" name="sync_mapping" value="1">
         <p class="submit" style="margin-top:0;">
-            <button type="submit" class="button button-primary">Sincronizar mapeamento com CRM</button>
+            <button type="submit" class="button button-primary">Sincronizar mapeamento com o AdSpirit</button>
             <span class="as-field-help" style="margin-left:10px;">
                 Cache automático de 1h. Use o botão pra forçar refresh imediato.
             </span>

@@ -538,9 +538,9 @@ class AdSpirit_Lead_Store {
             <p>
                 <strong>AdSpirit Connector:</strong> o CRM rejeitou as credenciais do plugin
                 (HTTP <?php echo (int) ($err['code'] ?? 0); ?>). Os leads estão sendo gravados
-                localmente, mas <strong>não chegam ao CRM</strong> e o reenvio automático foi
+                localmente, mas <strong>não chegam ao AdSpirit</strong> e o reenvio automático foi
                 suspenso pra esses leads (repetir não resolve credencial errada).
-                Reconecte em <a href="<?php echo esc_url(admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=connection')); ?>">Conexão CRM</a>
+                Reconecte em <a href="<?php echo esc_url(admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=connection')); ?>">Conexão com o AdSpirit</a>
                 e use <em>Reenviar</em> na aba Submissões.
             </p>
         </div>
@@ -866,7 +866,7 @@ class AdSpirit_Lead_Store {
             <h2 class="as-section"><span class="as-kicker-inline">Diagnóstico</span>Submissões (registro durável)</h2>
             <p class="as-section-help">
                 Toda submissão é gravada aqui <strong>antes</strong> de ir pro CRM — nenhum lead se perde,
-                mesmo se uma integração falhar. <strong>Source of truth é o CRM</strong>; isto é a rede de segurança local.
+                mesmo se uma integração falhar. <strong>A ficha completa mora no AdSpirit</strong>; isto é a rede de segurança local.
                 Leads pendentes/falhos de <strong>todas as origens</strong> (CF7, qualifier, form nativo,
                 Gravity/WPForms/Elementor/Fluent e WooCommerce — exceto parciais do qualifier)
                 são <strong>reenviados automaticamente</strong> (a cada 15min,
@@ -876,7 +876,7 @@ class AdSpirit_Lead_Store {
             </p>
 
             <?php if ($notice === 'ok') : ?>
-                <div class="as-notice info"><p>Lead reenviado ao CRM com sucesso.</p></div>
+                <div class="as-notice info"><p>Lead reenviado ao AdSpirit.</p></div>
             <?php elseif ($notice === 'fail') : ?>
                 <div class="as-notice danger"><p>Falha ao reenviar — veja o status na linha.</p></div>
             <?php elseif ($notice === 'notfound' || $notice === 'badpayload') : ?>
@@ -1099,7 +1099,7 @@ class AdSpirit_Lead_Store {
                                 ?>
                                 <div class="as-row-actions">
                                     <?php if ($can_resend) : ?>
-                                        <button type="submit" class="button button-small" name="single" value="<?php echo (int) $r['id']; ?>" title="Reenvia ao CRM reusando o ID original (sem duplicar)">Reenviar</button>
+                                        <button type="submit" class="button button-small" name="single" value="<?php echo (int) $r['id']; ?>" title="Reenvia ao AdSpirit reusando o ID original — não duplica o lead">Reenviar</button>
                                     <?php endif; ?>
                                     <?php if ($crm_lead_url !== '') : ?>
                                         <a class="as-crm-link" href="<?php echo esc_url($crm_lead_url); ?>"

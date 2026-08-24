@@ -4,7 +4,7 @@
  *
  * Padrão MonsterInsights/Site Kit: quem vive no wp-admin não abre outra
  * ferramenta. O widget dá presença diária ao AdSpirit — leads do mês, por
- * origem, pendentes — com deep-link pro CRM. Read-only, fail-soft, e só
+ * origem, pendentes — com link direto pro AdSpirit. Read-only, fail-soft, e só
  * aparece pra admin com o plugin conectado.
  *
  * @package AdSpiritConnector
@@ -15,19 +15,6 @@ if (!defined('ABSPATH')) exit;
 class AdSpirit_Dashboard_Widget {
 
     private static $instance = null;
-
-    /** Rótulos amigáveis por source do Lead Store. */
-    const SOURCE_LABELS = array(
-        'cf7'               => 'Contact Form 7',
-        'qualifier'         => 'Form multi-step',
-        'qualifier_partial' => 'Multi-step (parcial)',
-        'native'            => 'Form AdSpirit',
-        'gravity'           => 'Gravity Forms',
-        'wpforms'           => 'WPForms',
-        'elementor'         => 'Elementor',
-        'fluent'            => 'Fluent Forms',
-        'woocommerce'       => 'WooCommerce',
-    );
 
     public static function instance() {
         if (null === self::$instance) self::$instance = new self();
@@ -59,7 +46,7 @@ class AdSpirit_Dashboard_Widget {
             : '';
 
         if (!is_array($data)) {
-            echo '<p>Sem dados locais de leads ainda. Assim que um form for enviado, o resumo aparece aqui.</p>';
+            echo '<p>Ainda sem leads. Assim que um formulário do site for enviado, o resumo aparece aqui.</p>';
             if ($crm_url) {
                 echo '<p><a class="button button-primary" target="_blank" rel="noopener noreferrer" href="' . esc_url($crm_url) . '">Abrir o AdSpirit</a></p>';
             }
@@ -87,7 +74,13 @@ class AdSpirit_Dashboard_Widget {
             <p style="margin:0 0 4px; color:#646970; text-transform:uppercase; font-size:11px; letter-spacing:.04em;">Por origem</p>
             <ul style="margin:0 0 12px;">
                 <?php foreach ($data['by_source'] as $row) :
-                    $label = self::SOURCE_LABELS[$row['source']] ?? $row['source']; ?>
+                    // Mesma tradução da aba Submissões — o dicionário próprio que
+                    // existia aqui dava dois nomes ao mesmo formulário.
+                    $label = (string) $row['source'];
+                    if (class_exists('AdSpirit_Payload_View')) {
+                        $ident = AdSpirit_Payload_View::form_identity($label, (string) ($row['form_id'] ?? ''));
+                        $label = $ident['form'] !== '' ? $ident['form'] : $ident['engine'];
+                    } ?>
                     <li style="display:flex; justify-content:space-between; margin:2px 0;">
                         <span><?php echo esc_html($label); ?></span>
                         <strong><?php echo (int) $row['n']; ?></strong>
@@ -98,7 +91,7 @@ class AdSpirit_Dashboard_Widget {
 
         <?php if ($data['unsent'] > 0) : ?>
             <p style="background:#fcf0f1; border-left:4px solid #b32d2e; padding:6px 10px; margin:0 0 12px;">
-                <strong><?php echo (int) $data['unsent']; ?></strong> lead(s) pendente(s)/falho(s) de envio ao CRM.
+                <strong><?php echo (int) $data['unsent']; ?></strong> lead(s) ainda não entregue(s) ao AdSpirit.
                 <?php if ($submissions_url) : ?>
                     <a href="<?php echo esc_url($submissions_url); ?>">Ver e reenviar</a>
                 <?php endif; ?>
@@ -124,7 +117,7 @@ class AdSpirit_Dashboard_Widget {
                 <a class="button button-primary" target="_blank" rel="noopener noreferrer" href="<?php echo esc_url($crm_url); ?>">Abrir o AdSpirit</a>
             <?php endif; ?>
             <?php if ($submissions_url) : ?>
-                <a class="button" href="<?php echo esc_url($submissions_url); ?>">Submissões</a>
+                <a class="button" href="<?php echo esc_url($submissions_url); ?>">Leads enviados</a>
             <?php endif; ?>
         </p>
         <?php

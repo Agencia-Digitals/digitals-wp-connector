@@ -212,7 +212,7 @@ class AdSpirit_Turnstile {
             <?php AdSpirit_Menu::card_open('Situação', 'A verificação está rodando no site', '<span class="as-badge ok">Ativo</span>'); ?>
             <p>Chave do site configurada: <code><?php echo esc_html(substr($s['site_key'], 0, 12) . '…'); ?></code></p>
             <p>Protegendo:
-                <?php if (self::applies_to_qualifier()) : ?> <strong>form de avaliação</strong><?php endif; ?>
+                <?php if (self::applies_to_qualifier()) : ?> <strong>formulário de avaliação</strong><?php endif; ?>
                 <?php if (self::applies_to_cf7()) : ?> · <strong>Contact Form 7</strong><?php endif; ?>
             </p>
             <?php AdSpirit_Menu::card_close(); ?>
@@ -245,12 +245,12 @@ class AdSpirit_Turnstile {
 
         <div class="as-toggle">
             <input type="checkbox" id="t-apply-qualifier" name="apply_qualifier" value="1" <?php checked($s['apply_qualifier'], '1'); ?>>
-            <label class="t" for="t-apply-qualifier">Proteger o form de avaliação<small>O formulário multi-etapas (<code>[adspirit_form_qualifier]</code>). Vem ligado por padrão.</small></label>
+            <label class="t" for="t-apply-qualifier">Proteger o formulário de avaliação<small>O formulário multi-etapas (<code>[adspirit_form_qualifier]</code>). Vem ligado por padrão.</small></label>
         </div>
 
         <div class="as-toggle">
             <input type="checkbox" id="t-apply-cf7" name="apply_cf7" value="1" <?php checked($s['apply_cf7'], '1'); ?>>
-            <label class="t" for="t-apply-cf7">Proteger os forms do Contact Form 7<small>Opcional, pra não interferir em formulários antigos com regras próprias.</small></label>
+            <label class="t" for="t-apply-cf7">Proteger os formulários do Contact Form 7<small>Opcional, pra não interferir em formulários antigos com regras próprias.</small></label>
         </div>
 
         <details class="as-help">

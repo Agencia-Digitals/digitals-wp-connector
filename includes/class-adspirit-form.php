@@ -613,11 +613,11 @@ class AdSpirit_Form {
 
         ?>
         <h2 class="as-section"><span class="as-kicker-inline">Form builder</span>Formulários do plugin</h2>
-        <p class="as-section-help">Monte forms multi-campo sem código. Use <code>[adspirit_form id="seu-id"]</code> na página. Cada envio é gravado na rede de segurança (aba <strong>Submissões</strong>) <strong>antes</strong> de ir pro CRM — pode publicar.</p>
+        <p class="as-section-help">Monte formulários de vários campos sem código. Use <code>[adspirit_form id="seu-id"]</code> na página. Cada envio é gravado na rede de segurança (aba <strong>Submissões</strong>) <strong>antes</strong> de ir pro AdSpirit — pode publicar.</p>
 
-        <?php AdSpirit_Menu::card_open('Seus forms', count($ids) . ' form(s)', '<a href="' . esc_url(admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=builder&new=1')) . '" class="button button-primary">+ Novo form</a>'); ?>
+        <?php AdSpirit_Menu::card_open('Seus forms', count($ids) . ' form(s)', '<a href="' . esc_url(admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=builder&new=1')) . '" class="button button-primary">+ Novo formulário</a>'); ?>
         <?php if (empty($ids)): ?>
-            <p style="margin:0; color:var(--as-ink-faint); font-size:13px;">Nenhum form ainda. Clique <strong>Novo form</strong> pra criar o primeiro.</p>
+            <p style="margin:0; color:var(--as-ink-faint); font-size:13px;">Nenhum formulário ainda. Clique <strong>Novo formulário</strong> pra criar o primeiro.</p>
         <?php else: ?>
             <div style="display:flex; flex-wrap:wrap; gap:6px;">
             <?php foreach ($forms as $fid => $f): ?>
@@ -786,7 +786,7 @@ class AdSpirit_Form {
                   '<div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">'
                   + '<label style="flex:0 0 130px;">Tipo<select name="fields['+idx+'][type]" class="ab-type" style="width:100%;">'+typeOpts+'</select></label>'
                   + '<label style="flex:1 1 180px;">Label (rótulo visível)<input type="text" name="fields['+idx+'][label]" style="width:100%;"></label>'
-                  + '<label style="flex:1 1 160px;">Nome canônico (payload)<input type="text" name="fields['+idx+'][name]" list="ab-canon-list" style="width:100%;" placeholder="ex: your-email"></label>'
+                  + '<label style="flex:1 1 160px;">Nome do campo no AdSpirit<input type="text" name="fields['+idx+'][name]" list="ab-canon-list" style="width:100%;" placeholder="ex: your-email"></label>'
                   + '<label style="flex:1 1 140px;">Placeholder<input type="text" name="fields['+idx+'][placeholder]" style="width:100%;"></label>'
                   + '<label style="flex:0 0 auto; white-space:nowrap;"><input type="checkbox" name="fields['+idx+'][required]" value="1"> Obrigatório</label>'
                   + '</div>'

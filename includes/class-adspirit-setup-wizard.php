@@ -447,7 +447,7 @@ class AdSpirit_Setup_Wizard {
         $fm = class_exists('AdSpirit_Field_Mapping') ? AdSpirit_Field_Mapping::instance() : null;
         if (!$fm || !method_exists($fm, 'form_match_status')) {
             $items[] = $this->item('ok', count($forms) . ' form(s) detectado(s)',
-                'Field mapping disponível na aba Forms.', $forms_url, 'Ver forms');
+                'Você escolhe como cada campo do formulário chega no AdSpirit.', $forms_url, 'Mapear campos');
             return array('kicker' => 'Etapa 4', 'title' => 'Forms', 'intro' => '', 'items' => $items);
         }
 
