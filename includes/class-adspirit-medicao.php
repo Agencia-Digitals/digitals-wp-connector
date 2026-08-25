@@ -158,26 +158,47 @@ class AdSpirit_Medicao {
             coloca na página o que ainda não está lá — nunca por cima de tag existente, porque
             duas medindo ao mesmo tempo dobram a conversão.
         </p>
-        <ul class="as-fontes">
-            <?php foreach ($rotulos as $chave => $nome) :
-                $t = $e[$chave];
-                $tom = $t['injeta'] ? 'ok' : (empty($t['id']) ? 'muted' : 'warn');
+        <ul class="as-cards">
+            <?php foreach ($q['linhas'] as $f) :
+                $estado = $f['check']['estado'] ?? 'nao_testavel';
+                $tom = AdSpirit_Fontes::tom($estado);
             ?>
-                <li class="as-fonte">
-                    <div class="as-fonte-head">
-                        <span class="as-fonte-nome"><?php echo esc_html($nome); ?></span>
+                <li class="as-card-fonte">
+                    <div class="as-card-topo">
+                        <span class="as-card-marca"><?php echo AdSpirit_Fontes::marca($f['marca'] ?? ''); ?></span>
                         <span class="as-status as-status--<?php echo esc_attr($tom); ?>">
                             <span class="as-status-dot" aria-hidden="true"></span><?php
-                            echo esc_html($t['injeta'] ? 'Sendo colocada pelo plugin' : 'Não colocada');
+                            echo esc_html(AdSpirit_Fontes::rotulo($estado));
                         ?></span>
                     </div>
-                    <p class="as-fonte-detalhe"><?php echo esc_html($t['motivo']); ?></p>
-                    <?php if (!empty($t['id'])) : ?>
-                        <dl class="as-recurso-meta">
-                            <div><dt>Identificador</dt><dd><?php echo esc_html($t['id']); ?></dd></div>
-                            <div><dt>Escolhido em</dt><dd>AdSpirit</dd></div>
-                        </dl>
+                    <h3 class="as-card-nome"><?php echo esc_html($f['nome']); ?></h3>
+                    <p class="as-card-papel"><?php echo esc_html($f['papel']); ?></p>
+
+                    <?php if (!empty($f['volume'])) : ?>
+                        <p class="as-card-numero">
+                            <strong><?php echo esc_html($f['volume']['numero']); ?></strong>
+                            <?php echo esc_html($f['volume']['rotulo']); ?>
+                        </p>
                     <?php endif; ?>
+
+                    <?php if (!empty($f['check']['detalhe'])) : ?>
+                        <p class="as-card-detalhe<?php echo $tom === 'danger' ? ' ruim' : ''; ?>"><?php
+                            echo esc_html($f['check']['detalhe']);
+                        ?></p>
+                    <?php elseif (!empty($f['nota_volume'])) : ?>
+                        <p class="as-card-detalhe"><?php echo esc_html($f['nota_volume']); ?></p>
+                    <?php endif; ?>
+
+                    <div class="as-card-rodape">
+                        <span><?php
+                            echo !empty($f['credencial'])
+                                ? esc_html($f['credencial'])
+                                : '<span class="vazio">sem identificação</span>';
+                        ?></span>
+                        <?php if (!empty($f['aba'])) : ?>
+                            <a href="<?php echo esc_url(add_query_arg('adspirit_tab', $f['aba'], $url)); ?>">Gerenciar &rarr;</a>
+                        <?php endif; ?>
+                    </div>
                 </li>
             <?php endforeach; ?>
         </ul>
@@ -192,6 +213,7 @@ class AdSpirit_Medicao {
      * verificar aparece como tal, com o motivo — nunca como saudável.
      */
     private function render_monitor() {
+        $url = admin_url('admin.php?page=' . (defined('AdSpirit_Menu::PAGE_SLUG') ? AdSpirit_Menu::PAGE_SLUG : 'adspirit-connector'));
         $q = AdSpirit_Fontes::quadro();
         $quando = !empty($q['verificado_em'])
             ? human_time_diff((int) $q['verificado_em'], time()) . ' atrás'

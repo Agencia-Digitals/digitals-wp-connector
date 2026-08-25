@@ -261,6 +261,8 @@ class AdSpirit_Fontes {
         $linhas = array();
 
         $linhas[] = array(
+            'marca'   => 'adspirit',
+            'aba' => 'connection',
             'nome'    => 'AdSpirit',
             'papel'   => 'Recebe os leads e a jornada de cada visitante.',
             'check'   => $rel['adspirit'] ?? array('estado' => self::NAO_TESTAVEL),
@@ -274,6 +276,8 @@ class AdSpirit_Fontes {
         );
 
         $linhas[] = array(
+            'marca'   => 'meta',
+            'aba' => 'capi-meta',
             'nome'    => 'Meta',
             'papel'   => 'Recebe as conversões pelo servidor (CAPI), pra otimizar os anúncios.',
             'check'   => $rel['meta'] ?? array('estado' => self::NAO_TESTAVEL),
@@ -285,6 +289,8 @@ class AdSpirit_Fontes {
         );
 
         $linhas[] = array(
+            'marca'   => 'google',
+            'aba' => 'ga4',
             'nome'    => 'Google Analytics 4',
             'papel'   => 'Recebe as conversões pelo servidor, junto com o que o site já mede.',
             'check'   => $rel['ga4'] ?? array('estado' => self::NAO_TESTAVEL),
@@ -296,6 +302,8 @@ class AdSpirit_Fontes {
 
         $proj = trim((string) ($clar['project_id'] ?? ''));
         $linhas[] = array(
+            'marca'   => 'clarity',
+            'aba' => 'clarity',
             'nome'    => 'Microsoft Clarity',
             'papel'   => 'Grava sessões e mapas de calor das páginas.',
             'check'   => $proj === ''
@@ -309,6 +317,32 @@ class AdSpirit_Fontes {
         );
 
         return array('linhas' => $linhas, 'verificado_em' => $rel['em'] ?? null);
+    }
+
+    /**
+     * Marca visual de cada fonte. SVG inline porque o wp-admin não deve
+     * buscar imagem de terceiro só pra desenhar um ícone — e porque assim
+     * funciona offline e sem bloqueador atrapalhar.
+     */
+    public static function marca($chave) {
+        switch ($chave) {
+            case 'google':
+                return '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">'
+                    . '<path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5a5.6 5.6 0 0 1-2.4 3.6v3h3.9c2.3-2.1 3.5-5.2 3.5-8.8z"/>'
+                    . '<path fill="#34A853" d="M12 24c3.2 0 5.9-1.1 7.9-2.9l-3.9-3a7.2 7.2 0 0 1-10.7-3.8h-4v3.1A12 12 0 0 0 12 24z"/>'
+                    . '<path fill="#FBBC05" d="M5.3 14.3a7.1 7.1 0 0 1 0-4.6V6.6h-4a12 12 0 0 0 0 10.8l4-3.1z"/>'
+                    . '<path fill="#EA4335" d="M12 4.8c1.8 0 3.4.6 4.6 1.8l3.5-3.5A12 12 0 0 0 1.3 6.6l4 3.1A7.2 7.2 0 0 1 12 4.8z"/></svg>';
+            case 'meta':
+                return '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">'
+                    . '<path fill="#0866FF" d="M24 12a12 12 0 1 0-13.9 11.9v-8.4H7.1V12h3V9.4c0-3 1.8-4.6 4.5-4.6 1.3 0 2.6.2 2.6.2v2.9h-1.5c-1.5 0-1.9.9-1.9 1.8V12h3.3l-.5 3.5h-2.8v8.4A12 12 0 0 0 24 12z"/></svg>';
+            case 'clarity':
+                return '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">'
+                    . '<path fill="#0F6CBD" d="M12 4.5C7 4.5 2.7 7.6 1 12c1.7 4.4 6 7.5 11 7.5s9.3-3.1 11-7.5c-1.7-4.4-6-7.5-11-7.5zm0 12.5a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/></svg>';
+            default: // AdSpirit
+                return '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">'
+                    . '<circle cx="12" cy="12" r="10" fill="none" stroke="#00B7B7" stroke-width="2"/>'
+                    . '<circle cx="12" cy="12" r="3.5" fill="#00B7B7"/></svg>';
+        }
     }
 
     /** Rótulo curto do veredito. */
