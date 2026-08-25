@@ -18,6 +18,7 @@
     "modulos": [
       "ambiente",
       "agente",
+      "agente-conexao",
       "form",
       "form-adapters",
       "forms-hub",

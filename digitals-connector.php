@@ -87,6 +87,7 @@ adspirit_connector_safe_require('includes/class-adspirit-lead-score.php');
 adspirit_connector_safe_require('includes/class-adspirit-field-mapping-sync.php');
 adspirit_connector_safe_require('includes/class-adspirit-ambiente.php');
 adspirit_connector_safe_require('includes/class-adspirit-agente.php');
+adspirit_connector_safe_require('includes/class-adspirit-agente-conexao.php');
 adspirit_connector_safe_require('includes/class-adspirit-fontes.php');
 adspirit_connector_safe_require('includes/class-adspirit-medicao.php');
 adspirit_connector_safe_require('includes/class-adspirit-deteccao.php');
@@ -183,6 +184,7 @@ function adspirit_connector_init() {
     if (class_exists('AdSpirit_Pixel_Conflito')) AdSpirit_Pixel_Conflito::instance();
     // Operações do agente: existem em todo site, trancadas por quem chama.
     if (class_exists('AdSpirit_Agente')) AdSpirit_Agente::instance();
+    if (class_exists('AdSpirit_Agente_Conexao')) AdSpirit_Agente_Conexao::instance();
     if (class_exists('AdSpirit_Tags')) AdSpirit_Tags::instance();
     if (class_exists('AdSpirit_Fontes')) AdSpirit_Fontes::instance();
     if (class_exists('AdSpirit_Medicao')) AdSpirit_Medicao::instance();
