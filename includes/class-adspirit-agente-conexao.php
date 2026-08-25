@@ -162,62 +162,58 @@ class AdSpirit_Agente_Conexao {
             // Um passo por cliente. Cada um pede a informação num formato
             // diferente, e mandar a pessoa "adaptar o JSON" é exatamente
             // onde ela desiste. Aqui cada aba já vem pronta pro seu.
+            $slug = sanitize_title(parse_url(home_url(), PHP_URL_HOST));
+            $bloco = array(
+                'command' => 'npx',
+                'args' => array('-y', '@automattic/mcp-wordpress-remote'),
+                'env' => array(
+                    'WP_API_URL' => $url,
+                    'WP_API_USERNAME' => $usuario,
+                    'WP_API_PASSWORD' => $senha,
+                    'OAUTH_ENABLED' => 'false',
+                ),
+            );
+            $pretty = function ($v) {
+                return wp_json_encode($v, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            };
+
+            // Um passo por cliente, e NENHUM pede terminal: cada aba entrega
+            // um bloco que se cola onde a pessoa já está. Mandar alguém
+            // "rodar um comando" é onde metade desiste — e quem não desiste
+            // erra o diretório.
             $clientes = array(
                 'claude-code' => array(
                     'nome' => 'Claude Code',
-                    'como' => 'No terminal, dentro da pasta do projeto, rode:',
-                    'bloco' => "claude mcp add-json adspirit-" . sanitize_title(parse_url(home_url(), PHP_URL_HOST)) . " '"
-                        . wp_json_encode(array(
-                            'command' => 'npx',
-                            'args' => array('-y', '@automattic/mcp-wordpress-remote'),
-                            'env' => array(
-                                'WP_API_URL' => $url,
-                                'WP_API_USERNAME' => $usuario,
-                                'WP_API_PASSWORD' => $senha,
-                                'OAUTH_ENABLED' => 'false',
-                            ),
-                        ), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "'",
-                    'depois' => 'Depois reinicie a sessão do Claude Code pra ele carregar a conexão.',
+                    'como' => 'Cole isto na conversa e peça: “conecta esse MCP”. O Claude escreve a configuração sozinho.',
+                    'bloco' => $pretty(array('mcpServers' => array('adspirit-' . $slug => $bloco))),
+                    'depois' => 'Ele grava no .mcp.json do projeto. Recarregue a sessão pra conexão subir.',
+                ),
+                'chatgpt' => array(
+                    'nome' => 'ChatGPT',
+                    'indisponivel' => true,
+                    'como' => 'Ainda não dá pra conectar o ChatGPT a este site.',
+                    'bloco' => "Endereço do servidor: {$url}\n\n"
+                        . "O ChatGPT aceita conector remoto só com OAuth ou sem autenticação nenhuma.\n"
+                        . "Este site autentica por senha de aplicativo, que o ChatGPT não suporta —\n"
+                        . "colar o endereço acima vai dar erro de autenticação.\n\n"
+                        . "Falta habilitar OAuth no WordPress. Enquanto isso, use o Claude ou o Cursor.",
+                    'depois' => 'Guarde o endereço: no dia em que o OAuth entrar, é só ele que muda de lado.',
                 ),
                 'claude-desktop' => array(
                     'nome' => 'Claude Desktop',
                     'como' => 'Em Configurações → Desenvolvedor → Editar configuração, cole dentro de "mcpServers":',
-                    'bloco' => wp_json_encode(array(
-                        'adspirit-' . sanitize_title(parse_url(home_url(), PHP_URL_HOST)) => array(
-                            'command' => 'npx',
-                            'args' => array('-y', '@automattic/mcp-wordpress-remote'),
-                            'env' => array(
-                                'WP_API_URL' => $url,
-                                'WP_API_USERNAME' => $usuario,
-                                'WP_API_PASSWORD' => $senha,
-                                'OAUTH_ENABLED' => 'false',
-                            ),
-                        ),
-                    ), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-                    'depois' => 'Salve o arquivo e feche e abra o Claude Desktop.',
+                    'bloco' => $pretty(array('adspirit-' . $slug => $bloco)),
+                    'depois' => 'Salve o arquivo, feche e abra o Claude Desktop.',
                 ),
                 'cursor' => array(
                     'nome' => 'Cursor',
-                    'como' => 'Em Settings → MCP → Add new server, use o modo JSON e cole:',
-                    'bloco' => wp_json_encode(array(
-                        'mcpServers' => array(
-                            'adspirit' => array(
-                                'command' => 'npx',
-                                'args' => array('-y', '@automattic/mcp-wordpress-remote'),
-                                'env' => array(
-                                    'WP_API_URL' => $url,
-                                    'WP_API_USERNAME' => $usuario,
-                                    'WP_API_PASSWORD' => $senha,
-                                    'OAUTH_ENABLED' => 'false',
-                                ),
-                            ),
-                        ),
-                    ), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                    'como' => 'Em Settings → MCP → Add new server, escolha o modo JSON e cole:',
+                    'bloco' => $pretty(array('mcpServers' => array('adspirit' => $bloco))),
                     'depois' => 'O servidor aparece na lista assim que você salvar.',
                 ),
                 'manual' => array(
                     'nome' => 'Outro assistente',
-                    'como' => 'Qualquer cliente que fale MCP precisa destes três valores:',
+                    'como' => 'Qualquer cliente que fale MCP por linha de comando precisa destes valores:',
                     'bloco' => "Endereço: {$url}\nUsuário:  {$usuario}\nSenha:    {$senha}",
                     'depois' => 'A autenticação é HTTP Basic com esse usuário e essa senha.',
                 ),
@@ -234,10 +230,12 @@ class AdSpirit_Agente_Conexao {
             <div class="as-wizard">
                 <div class="as-wizard-abas" role="tablist">
                     <?php $primeiro = true; foreach ($clientes as $k => $c) : ?>
-                        <button type="button" class="as-wizard-aba<?php echo $primeiro ? ' ativa' : ''; ?>"
+                        <button type="button" class="as-wizard-aba<?php echo $primeiro ? ' ativa' : ''; ?><?php
+                                    echo !empty($c['indisponivel']) ? ' indisponivel' : ''; ?>"
                                 data-alvo="wz-<?php echo esc_attr($k); ?>" role="tab"
                                 aria-selected="<?php echo $primeiro ? 'true' : 'false'; ?>"><?php
                             echo esc_html($c['nome']);
+                            if (!empty($c['indisponivel'])) echo '<span class="marca">em breve</span>';
                         ?></button>
                     <?php $primeiro = false; endforeach; ?>
                 </div>

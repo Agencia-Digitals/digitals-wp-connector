@@ -1195,3 +1195,12 @@ button.as-card { width: 100%; text-align: left; font: inherit; cursor: pointer; 
   color: var(--as-ink-soft); background: var(--as-bg-warning);
   border-left: 3px solid var(--as-warning); border-radius: 0 8px 8px 0;
 }
+
+/* Cliente ainda sem caminho de conexão: aparece, mas não promete. */
+.as-wizard-aba.indisponivel { color: var(--as-ink-faint); }
+.as-wizard-aba.indisponivel .marca {
+  margin-left: 6px; font-size: 9px; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--as-warning);
+  border: 1px solid var(--as-warning); border-radius: 3px; padding: 1px 4px;
+}
+.as-wizard-aba.indisponivel.ativa { color: var(--as-warning); }
