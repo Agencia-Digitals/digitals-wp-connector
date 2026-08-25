@@ -995,9 +995,18 @@
         return fetch(CFG.ajax_url, { method: 'POST', body: formData, credentials: 'same-origin', signal: controller.signal });
       })
       .then(function (r) {
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        var ct = r.headers.get('content-type') || '';
-        if (ct.indexOf('application/json') === -1) throw new Error('not_json');
+        // Erro com nome, não genérico. "Falha de conexão" pra tudo escondeu
+        // por dias que um firewall do site estava recusando um visitante
+        // específico — a página de bloqueio (HTML, não JSON) caía no mesmo
+        // catch de rede. Agora status e corpo viram diagnóstico.
+        if (!r.ok || (r.headers.get('content-type') || '').indexOf('application/json') === -1) {
+          return r.text().then(function (corpo) {
+            try { console.error('[AdSpirit form] resposta inesperada', r.status, corpo.slice(0, 400)); } catch (e) {}
+            var e2 = new Error('resposta_inesperada');
+            e2.httpStatus = r.status;
+            throw e2;
+          });
+        }
         return r.json();
       })
       .then(function (json) {
@@ -1030,11 +1039,23 @@
         state.currentStep = STEPS.length - 1;
         render('next');
       })
-      .catch(function () {
+      .catch(function (err) {
         clearTimeout(timeoutId);
         submitting = false;
         if (window.__adspiritQfAbortController === controller) window.__adspiritQfAbortController = null;
-        showError('Falha de conexão. Tente novamente.', null);
+        var st = err && err.httpStatus;
+        var msg;
+        if (st === 403 || st === 401) {
+          // Quase sempre firewall/segurança do site barrando ESTE visitante.
+          msg = 'O site recusou o envio (código ' + st + '). Se estiver em rede corporativa ou VPN, tente outra conexão.';
+        } else if (st) {
+          msg = 'O site respondeu com erro (código ' + st + '). Tente de novo em instantes.';
+        } else if (err && err.name === 'AbortError') {
+          msg = 'O envio demorou demais e foi cancelado. Verifique a conexão e tente de novo.';
+        } else {
+          msg = 'Falha de conexão. Tente novamente.';
+        }
+        showError(msg, null);
         if (nextBtn) {
           nextBtn.removeAttribute('disabled');
           nextBtn.querySelector('span').textContent = 'Enviar para análise';
