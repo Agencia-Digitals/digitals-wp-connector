@@ -141,6 +141,50 @@ class AdSpirit_Medicao {
     }
 
     /**
+     * Tags de navegador: o que o AdSpirit mandou colocar na página, e o
+     * que o plugin decidiu fazer com isso.
+     *
+     * A decisão importa mais que o estado: "não injetei porque a página já
+     * tem" é uma informação útil, e some se a tela mostrar só ligado/
+     * desligado.
+     */
+    private function render_tags() {
+        $e = AdSpirit_Tags::estado();
+        $rotulos = array('meta' => 'Pixel da Meta', 'ga4' => 'Google Analytics 4');
+        ?>
+        <h2 class="as-section"><span class="as-kicker-inline">No site</span>Tags de navegador</h2>
+        <p class="as-section-help">
+            O AdSpirit escolhe qual identificador é desta marca e manda pra cá. O plugin só
+            coloca na página o que ainda não está lá — nunca por cima de tag existente, porque
+            duas medindo ao mesmo tempo dobram a conversão.
+        </p>
+        <ul class="as-fontes">
+            <?php foreach ($rotulos as $chave => $nome) :
+                $t = $e[$chave];
+                $tom = $t['injeta'] ? 'ok' : (empty($t['id']) ? 'muted' : 'warn');
+            ?>
+                <li class="as-fonte">
+                    <div class="as-fonte-head">
+                        <span class="as-fonte-nome"><?php echo esc_html($nome); ?></span>
+                        <span class="as-status as-status--<?php echo esc_attr($tom); ?>">
+                            <span class="as-status-dot" aria-hidden="true"></span><?php
+                            echo esc_html($t['injeta'] ? 'Sendo colocada pelo plugin' : 'Não colocada');
+                        ?></span>
+                    </div>
+                    <p class="as-fonte-detalhe"><?php echo esc_html($t['motivo']); ?></p>
+                    <?php if (!empty($t['id'])) : ?>
+                        <dl class="as-recurso-meta">
+                            <div><dt>Identificador</dt><dd><?php echo esc_html($t['id']); ?></dd></div>
+                            <div><dt>Escolhido em</dt><dd>AdSpirit</dd></div>
+                        </dl>
+                    <?php endif; ?>
+                </li>
+            <?php endforeach; ?>
+        </ul>
+        <?php
+    }
+
+    /**
      * Monitor das fontes: conectada? funcional? gerando dado?
      *
      * O veredito vem de verificação ATIVA (o plugin bate na API de cada
@@ -224,6 +268,7 @@ class AdSpirit_Medicao {
         // pé. O mapa de "quem ajusta o quê" vem depois — é referência, não
         // diagnóstico.
         if (class_exists('AdSpirit_Fontes')) $this->render_monitor();
+        if (class_exists('AdSpirit_Tags')) $this->render_tags();
 
         AdSpirit_Menu::card_open(
             'O que este site mede',

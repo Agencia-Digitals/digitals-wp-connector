@@ -493,7 +493,43 @@ class AdSpirit_Pixel_Conflito {
             'alertas' => $alertas,
         );
         update_option(self::OPTION_RELATORIO, $relatorio, false);
+        // Fecha o ciclo: o AdSpirit passa a saber o que ESTE site já usa.
+        // É o que preenche a coluna vazia de quem nunca teve tela pra
+        // digitar, e o que faz a tela de escolha marcar "já está no site".
+        self::reportar_ao_adspirit($relatorio);
         return $relatorio;
+    }
+
+    /**
+     * Conta ao AdSpirit o que a varredura encontrou.
+     *
+     * Fail-soft e sem retry: é informação de apoio, não captura de lead.
+     * Perder uma rodada custa nada — a próxima varredura manda de novo.
+     */
+    private static function reportar_ao_adspirit($relatorio) {
+        if (!class_exists('AdSpirit_Settings')) return;
+        $core = AdSpirit_Settings::get_core();
+        if (empty($core['endpoint_url']) || empty($core['brand_slug']) || empty($core['secret'])) return;
+
+        $detectado = array_filter(array(
+            'meta_pixel' => isset($relatorio['meta_na_pagina']) ? (array) $relatorio['meta_na_pagina'] : array(),
+            'ga4'        => isset($relatorio['ga4_na_pagina']) ? (array) $relatorio['ga4_na_pagina'] : array(),
+            'gtm'        => !empty($relatorio['gtm']) ? array((string) $relatorio['gtm']) : array(),
+            'clarity'    => isset($relatorio['clarity_na_pagina']) ? (array) $relatorio['clarity_na_pagina'] : array(),
+        ));
+
+        wp_remote_post(rtrim((string) $core['endpoint_url'], '/') . '/api/wp/medicao-detectada', array(
+            'timeout'  => 6,
+            'blocking' => false, // roda em cron; ninguém espera a resposta
+            'headers'  => array(
+                'Content-Type' => 'application/json; charset=utf-8',
+                'x-cf7-secret' => (string) $core['secret'],
+            ),
+            'body' => wp_json_encode(array(
+                'brand_slug' => (string) $core['brand_slug'],
+                'detectado'  => $detectado,
+            )),
+        ));
     }
 
     public static function relatorio() {

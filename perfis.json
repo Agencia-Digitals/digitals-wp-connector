@@ -35,6 +35,7 @@
       "lead-score",
       "generic-collector",
       "pixel-injector",
+      "tags",
       "pixel-conflito",
       "pixel-proxy",
       "capi-meta",
