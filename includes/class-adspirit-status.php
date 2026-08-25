@@ -631,7 +631,19 @@ add_action('adspirit_connector_render_tab_connection', AdSpirit_Safe_Hook::actio
                 // atenção. Sem problema, é infraestrutura — e infraestrutura
                 // que funciona não precisa de linha na tela.
                 foreach ($recursos as $r) :
-                    if (!empty($r['avancado']) && $r['estado'] !== AdSpirit_Recursos::ATENCAO) continue;
+                    // Recurso "avançado" some da lista quando está tudo certo
+                    // — mas o input PRECISA continuar no form. Checkbox que
+                    // não é renderizada não é postada, e o handler leria isso
+                    // como "desmarcada", desligando a chave sem ninguém pedir.
+                    $esconder = !empty($r['avancado']) && $r['estado'] !== AdSpirit_Recursos::ATENCAO;
+                    if ($esconder) {
+                        printf(
+                            '<input type="checkbox" name="%s" value="1" %s class="as-oculto">',
+                            esc_attr($r['key']),
+                            $r['ligado'] ? 'checked' : ''
+                        );
+                        continue;
+                    }
                 ?>
                     <li class="as-recurso<?php echo $r['sub'] ? ' as-recurso--sub' : ''; ?>">
                         <?php if ($r['essencial']) : ?>
@@ -648,8 +660,7 @@ add_action('adspirit_connector_render_tab_connection', AdSpirit_Safe_Hook::actio
                             <label class="as-switch<?php echo !empty($r['indisponivel']) ? ' as-switch--pausado' : ''; ?>" for="asr_<?php echo esc_attr($r['key']); ?>">
                                 <input type="checkbox" id="asr_<?php echo esc_attr($r['key']); ?>"
                                        name="<?php echo esc_attr($r['key']); ?>" value="1"
-                                       <?php checked($r['ligado']); ?>
-                                       <?php disabled(!empty($r['indisponivel'])); ?>>
+                                       <?php checked($r['ligado']); ?>>
                                 <span class="as-switch-track" aria-hidden="true"><span class="as-switch-thumb"></span></span>
                             </label>
                         <?php endif; ?>

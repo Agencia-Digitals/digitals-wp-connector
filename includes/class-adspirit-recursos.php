@@ -70,10 +70,22 @@ class AdSpirit_Recursos {
         $s = class_exists('AdSpirit_Settings') ? AdSpirit_Settings::get_core() : array();
         $conectado = !empty($s['brand_slug']) && !empty($s['secret']) && !empty($s['endpoint_url']);
 
-        $envio_on   = ($s['cf7_enabled'] ?? '1') === '1';
-        $generic_on = ($s['generic_forms_enabled'] ?? '1') === '1';
-        $pixel_on   = ($s['pixel_enabled'] ?? '0') === '1';
-        $fp_on      = ($s['pixel_firstparty'] ?? '0') === '1';
+        // Leitura TOLERANTE. O valor pode ter sido gravado como '1', 1,
+        // true ou 'on' dependendo de por onde passou (handler, conexão
+        // automática, import de config antiga). Comparar com === '1'
+        // transformava qualquer variação em "desligado" — e uma chave
+        // ligada exibida como desligada é o pior tipo de erro num painel
+        // de diagnóstico: manda investigar o que não está quebrado.
+        $lig = function ($valor, $padrao = '1') {
+            $v = $valor === null ? $padrao : $valor;
+            if (is_bool($v)) return $v;
+            return in_array(strtolower((string) $v), array('1', 'on', 'true', 'yes', 'sim'), true);
+        };
+
+        $envio_on   = $lig($s['cf7_enabled'] ?? null);
+        $generic_on = $lig($s['generic_forms_enabled'] ?? null);
+        $pixel_on   = $lig($s['pixel_enabled'] ?? null);
+        $fp_on      = $lig($s['pixel_firstparty'] ?? null);
 
         return array(
             self::envio($envio_on, $conectado),
@@ -95,6 +107,21 @@ class AdSpirit_Recursos {
             'conexao_ok' => (bool) $conectado,
         );
         if (!$ligado) {
+            // ESTADO IMPOSSÍVEL: a chave diz desligada, mas há lead entregue
+            // recentemente — e lead só é entregue com ela ligada. Quando os
+            // dois se contradizem, o fato ganha da configuração, porque o
+            // fato aconteceu. Dizer "desligado" aqui mandaria alguém
+            // investigar o que não está quebrado.
+            $entregues_off = self::contar(" AND status = %s", array('sent'));
+            if ($entregues_off !== null && $entregues_off > 0) {
+                $r['estado'] = self::ATENCAO;
+                $r['ligado'] = false;
+                $r['metrica'] = array('valor' => $entregues_off,
+                    'rotulo' => 'lead' . ($entregues_off === 1 ? '' : 's') . ' entregue' . ($entregues_off === 1 ? '' : 's') . ' em ' . self::JANELA_DIAS . ' dias');
+                $r['resumo'] = 'A chave está desmarcada, mas houve entrega recente — então ela estava '
+                    . 'ligada até pouco tempo atrás. Marque de novo abaixo pra não parar de entregar.';
+                return $r;
+            }
             $r['estado'] = self::OFF;
             $r['resumo'] = 'Desligado. O site guarda os envios aqui, mas nada chega no AdSpirit.';
             return $r;
@@ -185,6 +212,14 @@ class AdSpirit_Recursos {
             'conexao_ok' => (bool) $conectado,
         );
         if (!$ligado) {
+            $com_origem_off = self::contar(" AND payload LIKE %s", array('%_adspirit_telemetry%'));
+            if ($com_origem_off !== null && $com_origem_off > 0) {
+                $r['estado'] = self::ATENCAO;
+                $r['ligado'] = false;
+                $r['resumo'] = 'A chave está desmarcada, mas ' . $com_origem_off . ' lead(s) recentes '
+                    . 'chegaram com origem — então ela estava ligada. Marque de novo abaixo.';
+                return $r;
+            }
             $r['estado'] = self::OFF;
             $r['resumo'] = 'Desligado. Os leads chegam sem origem e não entram na conta das campanhas.';
             return $r;
