@@ -944,7 +944,8 @@ class AdSpirit_Form_Qualifier {
                 if (method_exists('AdSpirit_Anti_Spam', 'log_block')) {
                     AdSpirit_Anti_Spam::instance()->log_block(
                         'qualifier_' . ($check['reason_code'] ?? 'unknown'),
-                        $check['reason_text'] ?? 'rejected by anti-spam'
+                        $check['reason_text'] ?? 'rejected by anti-spam',
+                        $payload_for_check
                     );
                 }
                 // Connector 3.0 — quarentena revisável (nunca descarta em

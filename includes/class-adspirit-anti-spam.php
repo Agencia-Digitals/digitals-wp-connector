@@ -334,7 +334,7 @@ class AdSpirit_Anti_Spam {
     private function reject($result, $reason_code, $reason_text) {
         // Invalida o form. CF7 mostra mensagem genérica de erro.
         $result->invalidate('honeypot-or-spam', __('Submissão rejeitada.', 'adspirit-connector'));
-        $this->log_block($reason_code, $reason_text);
+        $this->log_block($reason_code, $reason_text, $_POST);
 
         // Connector 3.0 — quarentena: bloqueio nunca descarta em silêncio.
         // Vai pra aba Submissões com status 'spam' + motivo; falso positivo
@@ -367,15 +367,46 @@ class AdSpirit_Anti_Spam {
         return isset($_SERVER['REMOTE_ADDR']) ? (string) $_SERVER['REMOTE_ADDR'] : '0.0.0.0';
     }
 
-    public function log_block($code, $message) {
+    /**
+     * Quem preencheu, a partir do payload do formulário.
+     *
+     * O registro de bloqueio guardava só o IP — e IP hoje não identifica
+     * ninguém: iCloud Private Relay e VPN trocam o endereço a cada sessão, e
+     * escritório inteiro sai pelo mesmo. Quem opera precisa reconhecer a
+     * PESSOA pra decidir se foi engano ou não.
+     *
+     * Aceita os nomes de campo dos dois formulários (o do plugin e os do
+     * CF7), porque o registro é um só.
+     */
+    public static function identificar($payload) {
+        if (!is_array($payload)) return array();
+        $achar = function (array $chaves) use ($payload) {
+            foreach ($chaves as $k) {
+                if (isset($payload[$k]) && is_string($payload[$k]) && trim($payload[$k]) !== '') {
+                    return trim((string) $payload[$k]);
+                }
+            }
+            return '';
+        };
+        $nome = $achar(array('your-name', 'nome', 'name', 'first_name'));
+        $sobrenome = $achar(array('last_name'));
+        if ($sobrenome !== '' && stripos($nome, $sobrenome) === false) $nome = trim($nome . ' ' . $sobrenome);
+        return array_filter(array(
+            'nome'     => mb_substr($nome, 0, 80),
+            'email'    => mb_substr($achar(array('your-email', 'email', 'e-mail', 'seu-email')), 0, 120),
+            'telefone' => mb_substr($achar(array('Telefone', 'telefone', 'phone', 'whatsapp', 'celular')), 0, 40),
+        ));
+    }
+
+    public function log_block($code, $message, $payload = null) {
         $log = get_option(AdSpirit_Settings::OPTION_ANTISPAM_LOG, array());
         if (!is_array($log)) $log = array();
-        array_unshift($log, array(
+        array_unshift($log, array_merge(array(
             'at'      => current_time('c'),
             'code'    => $code,
             'message' => $message,
             'ip'      => self::client_ip(),
-        ));
+        ), self::identificar($payload)));
         if (count($log) > self::LOG_MAX) {
             $log = array_slice($log, 0, self::LOG_MAX);
         }
@@ -396,90 +427,154 @@ class AdSpirit_Anti_Spam {
 
         <?php // Doutrina: o dado (o que foi bloqueado) vem antes do controle. ?>
         <?php if (empty($log)): ?>
-            <div class="as-notice info"><p>Nenhum bloqueio registrado ainda. Quando alguma camada barrar um envio, ele aparece aqui.</p></div>
+            <div class="as-notice info"><p>Nenhum bloqueio registrado ainda. Quando alguma camada barrar um envio, ele aparece aqui — com quem era.</p></div>
         <?php else: ?>
             <table class="as-table">
                 <thead>
                     <tr>
-                        <th>Quando</th>
-                        <th>Camada</th>
-                        <th>Motivo</th>
-                        <th>IP</th>
+                        <th style="width:150px;">Quando</th>
+                        <th>Quem</th>
+                        <th style="width:230px;">Por quê</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ($log as $entry): ?>
+                    <?php foreach ($log as $entry):
+                        $quando = !empty($entry['at']) ? mysql2date('d/m/Y H:i', str_replace('T', ' ', substr((string) $entry['at'], 0, 19))) : '—';
+                        $nome = trim((string) ($entry['nome'] ?? ''));
+                        $email = trim((string) ($entry['email'] ?? ''));
+                        $tel = trim((string) ($entry['telefone'] ?? ''));
+                        $tem_quem = ($nome !== '' || $email !== '' || $tel !== '');
+                    ?>
                         <tr>
-                            <td><?php echo esc_html($entry['at']); ?></td>
-                            <td><span class="as-badge muted"><?php echo esc_html($entry['code']); ?></span></td>
-                            <td><?php echo esc_html($entry['message']); ?></td>
-                            <td><code><?php echo esc_html($entry['ip']); ?></code></td>
+                            <td><?php echo esc_html($quando); ?></td>
+                            <td>
+                                <?php if ($tem_quem): ?>
+                                    <?php if ($nome !== ''): ?><strong><?php echo esc_html($nome); ?></strong><br><?php endif; ?>
+                                    <?php if ($email !== ''): ?><span><?php echo esc_html($email); ?></span><?php endif; ?>
+                                    <?php if ($tel !== ''): ?><span> · <?php echo esc_html($tel); ?></span><?php endif; ?>
+                                <?php else: ?>
+                                    <?php // Robô costuma não deixar nada preenchido — dizer isso é
+                                          // mais honesto do que mostrar um IP que não identifica
+                                          // ninguém (Private Relay e VPN trocam a cada sessão). ?>
+                                    <span class="as-muted">Sem identificação — não preencheu nada reconhecível</span>
+                                <?php endif; ?>
+                                <?php if (!empty($entry['ip'])): ?>
+                                    <br><small class="as-muted" title="IP não identifica pessoa: Private Relay, VPN e escritórios compartilham">de <?php echo esc_html($entry['ip']); ?></small>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <span class="as-badge muted"><?php echo esc_html(self::rotulo_do_motivo((string) $entry['code'])); ?></span>
+                                <?php if (!empty($entry['message'])): ?>
+                                    <br><small class="as-muted"><?php echo esc_html($entry['message']); ?></small>
+                                <?php endif; ?>
+                            </td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
             </table>
         <?php endif; ?>
 
-        <?php AdSpirit_Menu::card_open('Camadas de proteção', 'Cada camada é independente — ligue só o que quiser', $status_badge); ?>
+        <?php AdSpirit_Menu::card_open('Como o site se protege', 'A base já vem ligada. O opcional tem implicação — está escrito em cada um.', $status_badge); ?>
         <?php AdSpirit_Menu::form_open('antispam'); ?>
 
-        <div class="as-toggle">
-            <input type="checkbox" id="as-anti-enabled" name="enabled" value="1" <?php checked($c['enabled'], '1'); ?>>
-            <label class="t" for="as-anti-enabled">Proteção anti-spam ligada<small>Chave geral: desligar aqui pausa todas as camadas abaixo.</small></label>
-        </div>
+        <?php if ($c['enabled'] !== '1'): ?>
+            <div class="as-notice warn">
+                <p><strong>A proteção está desligada.</strong> Nenhum envio é filtrado, e as listas de
+                bloqueio abaixo não valem enquanto isso — a checagem para antes de chegar nelas.</p>
+            </div>
+        <?php endif; ?>
+        <?php if (!empty($c['reparado_em'])): ?>
+            <div class="as-notice info">
+                <p>A proteção base foi <strong>religada automaticamente</strong>. Ela estava inteira
+                desligada, o que a tela antiga fazia sozinha quando alguém salvava com as caixas
+                vazias. Se foi de propósito, é só desmarcar e salvar — agora fica.</p>
+            </div>
+        <?php endif; ?>
+
+        <h3 class="as-subsection">Proteção base</h3>
+        <p class="as-section-help">Não tem contrapartida: nada aqui barra uma pessoa de verdade.
+        Por isso já vem ligado.</p>
 
         <div class="as-toggle">
             <input type="checkbox" id="as-anti-honeypot" name="honeypot" value="1" <?php checked($c['honeypot'], '1'); ?>>
-            <label class="t" for="as-anti-honeypot">Campo-armadilha invisível<small>Robôs preenchem um campo que pessoas não veem — e se denunciam.</small></label>
+            <label class="t" for="as-anti-honeypot">Campo-armadilha invisível<small>Um campo que só robô enxerga. Quem preenche se denuncia. Invisível pra quem usa o site.</small></label>
         </div>
 
         <div class="as-toggle">
             <input type="checkbox" id="as-anti-timetrap" name="time_trap" value="1" <?php checked($c['time_trap'], '1'); ?>>
-            <label class="t" for="as-anti-timetrap">Barrar envios rápidos demais<small>Robô envia o formulário em menos de 1 segundo; pessoa não.</small></label>
+            <label class="t" for="as-anti-timetrap">Barrar envio instantâneo<small>Robô preenche e envia em menos de um segundo. Pessoa nenhuma faz isso.</small></label>
         </div>
         <div class="as-toggle as-sub">
-            <label class="t" for="as-anti-timetrap-min">Tempo mínimo: <input type="number" id="as-anti-timetrap-min" name="time_trap_min_s" min="1" max="30" value="<?php echo esc_attr($c['time_trap_min_s']); ?>" style="width:60px;"> segundos entre abrir a página e enviar</label>
-        </div>
-
-        <div class="as-toggle">
-            <input type="checkbox" id="as-anti-rate" name="rate_limit" value="1" <?php checked($c['rate_limit'], '1'); ?>>
-            <label class="t" for="as-anti-rate">Limitar envios repetidos do mesmo visitante<small>Bloqueia rajadas: o mesmo endereço não passa do limite por minuto.</small></label>
-        </div>
-        <div class="as-toggle as-sub">
-            <label class="t" for="as-anti-rate-max">Limite: <input type="number" id="as-anti-rate-max" name="rate_limit_max" min="1" max="20" value="<?php echo esc_attr($c['rate_limit_max']); ?>" style="width:60px;"> envios por minuto</label>
+            <label class="t" for="as-anti-timetrap-min">Mínimo de <input type="number" id="as-anti-timetrap-min" name="time_trap_min_s" min="1" max="30" value="<?php echo esc_attr($c['time_trap_min_s']); ?>" style="width:60px;"> segundos entre abrir a página e enviar</label>
         </div>
 
         <div class="as-toggle">
             <input type="checkbox" id="as-anti-ua" name="ua_check" value="1" <?php checked($c['ua_check'] ?? '1', '1'); ?>>
-            <label class="t" for="as-anti-ua">Barrar programas automatizados<small>Rejeita envios de ferramentas que não são um navegador de verdade.</small></label>
+            <label class="t" for="as-anti-ua">Recusar ferramenta automatizada<small>Envio que não vem de um navegador de verdade. Pessoa sempre vem.</small></label>
+        </div>
+
+        <h3 class="as-subsection">Opcional</h3>
+        <p class="as-section-help">Cada um resolve um problema específico e cobra alguma coisa em
+        troca. Vem desligado; ligue quando o problema aparecer.</p>
+
+        <div class="as-toggle">
+            <input type="checkbox" id="as-anti-rate" name="rate_limit" value="1" <?php checked($c['rate_limit'], '1'); ?>>
+            <label class="t" for="as-anti-rate">Limitar envios repetidos do mesmo endereço<small>Segura rajada de um robô só.
+            <strong>O que muda:</strong> conta por endereço de internet, e endereço é compartilhado — iCloud Private Relay,
+            VPN e escritório inteiro saem pelo mesmo. Duas pessoas do mesmo lugar podem colidir. Serve pra ataque, não pra rotina.</small></label>
+        </div>
+        <div class="as-toggle as-sub">
+            <label class="t" for="as-anti-rate-max">No máximo <input type="number" id="as-anti-rate-max" name="rate_limit_max" min="1" max="20" value="<?php echo esc_attr($c['rate_limit_max']); ?>" style="width:60px;"> envios por minuto, por endereço</label>
         </div>
 
         <div class="as-field">
-            <label class="as-field-label" for="blocklist_emails">Emails bloqueados</label>
-            <textarea id="blocklist_emails" name="blocklist_emails" rows="5" class="large-text"><?php echo esc_textarea($c['blocklist_emails']); ?></textarea>
-            <p class="description">Um padrão por linha. Ex.: <code>@example\.ru$</code> barra qualquer email terminado em @example.ru.</p>
+            <label class="as-field-label" for="blocklist_emails">E-mails bloqueados</label>
+            <textarea id="blocklist_emails" name="blocklist_emails" rows="4" class="large-text" placeholder="fulano@exemplo.com"><?php echo esc_textarea($c['blocklist_emails']); ?></textarea>
+            <p class="description">Um por linha. Vazio = ninguém bloqueado. Aceita expressão: <code>@exemplo\.ru$</code> barra o domínio inteiro.
+            <strong>O que muda:</strong> quem estiver aqui nunca mais vira lead — inclusive se for engano.</p>
         </div>
 
         <div class="as-field">
             <label class="as-field-label" for="blocklist_words">Palavras bloqueadas</label>
-            <textarea id="blocklist_words" name="blocklist_words" rows="5" class="large-text"><?php echo esc_textarea($c['blocklist_words']); ?></textarea>
-            <p class="description">Uma palavra por linha. Barra o envio se ela aparecer em qualquer campo do formulário.</p>
+            <textarea id="blocklist_words" name="blocklist_words" rows="4" class="large-text" placeholder="uma palavra por linha"><?php echo esc_textarea($c['blocklist_words']); ?></textarea>
+            <p class="description">Barra o envio se a palavra aparecer em qualquer campo. Pega quem troca de e-mail mas repete o texto.
+            <strong>O que muda:</strong> palavra comum demais barra cliente. Prefira o que só um ofensor escreveria.</p>
+        </div>
+
+        <div class="as-toggle" style="margin-top:18px;">
+            <input type="checkbox" id="as-anti-enabled" name="enabled" value="1" <?php checked($c['enabled'], '1'); ?>>
+            <label class="t" for="as-anti-enabled">Manter a proteção ligada<small>Desligar aqui pausa tudo acima, inclusive as listas de bloqueio. Só desligue pra investigar um problema.</small></label>
         </div>
 
         <details class="as-help">
-            <summary>Como as camadas funcionam</summary>
+            <summary>O que acontece com quem é barrado</summary>
             <ul>
-                <li>As camadas rodam em sequência — basta uma rejeitar pra barrar o envio.</li>
-                <li>Cobrem o mesmo escopo de plugins como WP Armour (com limite por IP, que eles não têm) — dá pra desativá-los.</li>
-                <li>Na lista de emails, cada linha é uma expressão regular: <code>^(test|spam)</code> barra emails começando com test ou spam.</li>
-                <li>A busca por palavras ignora maiúsculas/minúsculas e olha todos os campos do formulário.</li>
-                <li>Bloqueio não descarta: o envio vai pra quarentena em Leads enviados e pode ser resgatado se for engano.</li>
+                <li>Nada é descartado em silêncio: o envio vai pra quarentena em <strong>Leads enviados</strong>, com o motivo.</li>
+                <li>Se foi engano, o botão <strong>Reenviar</strong> resgata — o CRM recebe normalmente e não duplica.</li>
+                <li>As camadas rodam em sequência; a primeira que recusar já barra.</li>
+                <li>O registro acima guarda quem preencheu, não só o endereço — endereço não identifica ninguém hoje.</li>
             </ul>
         </details>
 
-        <?php AdSpirit_Menu::form_close('Salvar anti-spam'); ?>
+        <?php AdSpirit_Menu::form_close('Salvar'); ?>
         <?php AdSpirit_Menu::card_close(); ?>
         <?php
+    }
+
+    /** Nome do motivo em português, pra tabela não mostrar chave interna. */
+    private static function rotulo_do_motivo($code) {
+        $code = preg_replace('/^qualifier_/', '', (string) $code);
+        $mapa = array(
+            'honeypot'        => 'Caiu na armadilha',
+            'time_trap'       => 'Envio instantâneo',
+            'rate_limit'      => 'Envios repetidos',
+            'ua_check'        => 'Não era navegador',
+            'blocklist_email' => 'E-mail bloqueado',
+            'blocklist_word'  => 'Palavra bloqueada',
+            'reverse_text'    => 'Texto sem sentido',
+            'turnstile'       => 'Falhou no desafio',
+        );
+        return isset($mapa[$code]) ? $mapa[$code] : $code;
     }
 
     public function handle_save($post) {
@@ -493,6 +588,9 @@ class AdSpirit_Anti_Spam {
         $patch['ua_check']        = !empty($post['ua_check']) ? '1' : '0';
         $patch['blocklist_emails']= sanitize_textarea_field((string) ($post['blocklist_emails'] ?? ''));
         $patch['blocklist_words'] = sanitize_textarea_field((string) ($post['blocklist_words'] ?? ''));
+        // Salvar é o aceite do conserto automático: o aviso some daqui pra
+        // frente, e o que estiver marcado agora é escolha, não herança.
+        $patch['reparado_em'] = '';
         AdSpirit_Settings::update_antispam($patch);
         add_settings_error(AdSpirit_Settings::OPTION_ANTISPAM, 'saved', 'Anti-spam salvo.', 'updated');
     }

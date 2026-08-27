@@ -196,21 +196,67 @@ class AdSpirit_Settings {
     // ─────────────────────────────────────────────────────────
     // ANTI-SPAM
     // ─────────────────────────────────────────────────────────
+    /**
+     * Duas famílias, e a diferença entre elas é a única coisa que o usuário
+     * precisa entender nessa tela:
+     *
+     * BASE — o que qualquer site quer, sem contrapartida. Nasce ligada e não
+     * tem por que desligar: armadilha invisível, tempo mínimo e recusa de
+     * ferramenta automatizada não têm como barrar uma pessoa de verdade.
+     *
+     * OPCIONAL — o que depende do caso e tem implicação. Nasce DESLIGADA e a
+     * tela diz o que muda ao ligar. Limite por endereço conta por IP, e IP é
+     * compartilhado (iCloud Private Relay, escritório inteiro) — pode barrar
+     * gente de verdade. Listas de bloqueio são opt-in por natureza.
+     */
+    const ANTISPAM_BASE = array('honeypot', 'time_trap', 'ua_check');
+
     public static function antispam_defaults() {
         return array(
             'enabled'         => '1',
+            // Base
             'honeypot'        => '1',
             'time_trap'       => '1',
             'time_trap_min_s' => 2,
-            'rate_limit'      => '1',
-            'rate_limit_max'  => 3,    // 3 submits/min por IP
-            'ua_check'        => '1',  // bloqueia User-Agent vazio/suspeito (assinatura bot)
+            'ua_check'        => '1',
+            // Opcional
+            'rate_limit'      => '0',
+            'rate_limit_max'  => 5,
             'blocklist_emails'=> "",   // regex separado por linha
             'blocklist_words' => "",   // palavras separadas por linha (em qualquer field)
+            // Marca a versão do formato. Ver get_antispam().
+            'schema'          => 2,
         );
     }
+
     public static function get_antispam() {
-        return wp_parse_args(get_option(self::OPTION_ANTISPAM, array()), self::antispam_defaults());
+        $cfg = wp_parse_args(get_option(self::OPTION_ANTISPAM, array()), self::antispam_defaults());
+
+        // Conserto de uma vez só.
+        //
+        // A tela antiga gravava '0' em toda caixa desmarcada, e wp_parse_args
+        // só preenche chave AUSENTE — então um único save com as caixas
+        // vazias desligava a proteção inteira, para sempre e sem aviso.
+        // Aconteceu: dois sites nossos estavam com tudo em '0'.
+        //
+        // A assinatura do acidente é TODA a base desligada ao mesmo tempo.
+        // Desligar uma camada só é escolha plausível e fica de pé. E só
+        // acontece uma vez: gravar carimba o schema novo.
+        if ((int) ($cfg['schema'] ?? 1) < 2) {
+            $base_toda_off = true;
+            foreach (self::ANTISPAM_BASE as $k) {
+                if (($cfg[$k] ?? '1') === '1') { $base_toda_off = false; break; }
+            }
+            if ($base_toda_off) {
+                foreach (self::ANTISPAM_BASE as $k) $cfg[$k] = '1';
+                $cfg['enabled'] = '1';
+                $cfg['reparado_em'] = current_time('c');
+            }
+            $cfg['schema'] = 2;
+            update_option(self::OPTION_ANTISPAM, $cfg, false);
+        }
+
+        return $cfg;
     }
     public static function update_antispam(array $patch) {
         $current = self::get_antispam();
