@@ -962,6 +962,11 @@ class AdSpirit_Lead_Store {
                 ?>
                 <script>
                 (function () {
+                    // O script fica ANTES da tabela no HTML, então na hora em
+                    // que ele roda a caixa ainda não existe no DOM. Esperar o
+                    // documento montar é o que faz a ligação acontecer — sem
+                    // isso a caixa aparece e não faz nada.
+                    function ligar() {
                     var mestre = document.getElementById('as-marcar-todas');
                     if (!mestre) return;
                     var form = mestre.closest('form');
@@ -1002,6 +1007,13 @@ class AdSpirit_Lead_Store {
                         if (e.target && e.target.name === 'ids[]') atualizar();
                     });
                     atualizar();
+                    }
+
+                    if (document.readyState === 'loading') {
+                        document.addEventListener('DOMContentLoaded', ligar);
+                    } else {
+                        ligar();
+                    }
                 })();
                 </script>
                 <table class="wp-list-table widefat as-striped">
