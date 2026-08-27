@@ -230,7 +230,15 @@ class AdSpirit_Settings {
     }
 
     public static function get_antispam() {
-        $cfg = wp_parse_args(get_option(self::OPTION_ANTISPAM, array()), self::antispam_defaults());
+        // O schema tem que ser lido do que está GRAVADO, não do resultado do
+        // merge — wp_parse_args preenche a chave ausente com o default (2) e
+        // o conserto abaixo nunca dispararia. Justamente nas instalações
+        // antigas, que são as que precisam dele.
+        $bruto = get_option(self::OPTION_ANTISPAM, array());
+        if (!is_array($bruto)) $bruto = array();
+        $schema_gravado = (int) ($bruto['schema'] ?? 1);
+
+        $cfg = wp_parse_args($bruto, self::antispam_defaults());
 
         // Conserto de uma vez só.
         //
@@ -242,7 +250,7 @@ class AdSpirit_Settings {
         // A assinatura do acidente é TODA a base desligada ao mesmo tempo.
         // Desligar uma camada só é escolha plausível e fica de pé. E só
         // acontece uma vez: gravar carimba o schema novo.
-        if ((int) ($cfg['schema'] ?? 1) < 2) {
+        if ($schema_gravado < 2) {
             $base_toda_off = true;
             foreach (self::ANTISPAM_BASE as $k) {
                 if (($cfg[$k] ?? '1') === '1') { $base_toda_off = false; break; }
