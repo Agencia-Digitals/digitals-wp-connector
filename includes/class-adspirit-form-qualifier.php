@@ -233,6 +233,12 @@ class AdSpirit_Form_Qualifier {
                     return array('ok' => false, 'error' => sprintf('Etapa %d ficou sem opção válida — cada opção precisa de <code>label</code>.', $i + 1));
                 }
                 $clean['fieldKey'] = $field_key;
+                // Múltipla escolha na ORDEM em que a pessoa marca — a primeira
+                // é a principal. A resposta viaja como texto separado por
+                // " | ", e a principal vai junto em <fieldKey>_principal, pra
+                // a regra de direcionamento apontar pra ela sem depender de
+                // posição dentro de uma frase.
+                if (!empty($step['multi'])) $clean['multi'] = true;
                 $clean['canonical'] = self::sanitize_key_name(isset($step['canonical']) ? $step['canonical'] : $field_key);
                 $canonicals[] = $clean['canonical'];
                 $clean['choices'] = $choices;
@@ -325,11 +331,32 @@ class AdSpirit_Form_Qualifier {
      * mapeamento fixo da Digitals em handle_submit).
      */
     public static function canonical_map() {
+        return self::map_from_steps(self::get_steps());
+    }
+
+    /**
+     * De-para chave-do-form → chave canônica, a partir de um roteiro.
+     *
+     * É um WHITELIST: no submit, chave que não estiver aqui é descartada.
+     * Por isso precisa aceitar QUALQUER roteiro, não só o salvo no WP — o
+     * roteiro que vem da Central (do AdSpirit) também manda campo, e sem
+     * isto o CRM nunca conseguiria introduzir uma pergunta nova: ela
+     * apareceria na tela e a resposta sumiria no caminho.
+     */
+    public static function map_from_steps($steps) {
         $map = array();
-        foreach (self::get_steps() as $step) {
+        foreach ((array) $steps as $step) {
             if (!is_array($step)) continue;
             if (!empty($step['fieldKey'])) {
-                $map[$step['fieldKey']] = !empty($step['canonical']) ? $step['canonical'] : $step['fieldKey'];
+                $canon = !empty($step['canonical']) ? $step['canonical'] : $step['fieldKey'];
+                $map[$step['fieldKey']] = $canon;
+                // Etapa de múltipla escolha manda também a opção principal
+                // (a primeira marcada) em campo próprio. Este mapa é um
+                // WHITELIST — chave que não estiver aqui é descartada no
+                // submit, então sem esta linha a principal sumiria calada.
+                if (!empty($step['multi'])) {
+                    $map[$step['fieldKey'] . '_principal'] = $canon . '_principal';
+                }
             }
             foreach ((array) (isset($step['fields']) ? $step['fields'] : array()) as $f) {
                 if (empty($f['key'])) continue;
@@ -965,6 +992,22 @@ class AdSpirit_Form_Qualifier {
         // mesmo canônico entram concatenados na ordem do roteiro (é assim
         // que "Nome" + "Sobrenome" viram um `your-name` só).
         $custom_map = self::canonical_map();
+
+        // Roteiro veio da Central (shortcode com form="slug")? Então o de-para
+        // vem da Central também. Sem isto o site desenharia as perguntas do
+        // CRM e mapearia as respostas pelo roteiro do plugin — que é como um
+        // campo novo some sem erro nenhum.
+        $slug_central = isset($_POST['central_form'])
+            ? sanitize_key((string) $_POST['central_form'])
+            : '';
+        if ($slug_central !== '' && class_exists('AdSpirit_Central_Forms')) {
+            $form_central = AdSpirit_Central_Forms::get($slug_central);
+            if (is_array($form_central) && !empty($form_central['steps'])) {
+                $mapa_central = self::map_from_steps($form_central['steps']);
+                if (!empty($mapa_central)) $custom_map = $mapa_central;
+            }
+        }
+
         if (!empty($custom_map)) {
             $payload = array();
             foreach ($custom_map as $key => $canonical) {
@@ -1017,6 +1060,28 @@ class AdSpirit_Form_Qualifier {
             'cf7_time' => current_time('c'),
             'cf7_url' => isset($_SERVER['HTTP_REFERER']) ? esc_url_raw($_SERVER['HTTP_REFERER']) : home_url('/'),
         );
+
+        // Etapa de múltipla escolha manda <campo>_principal junto — a primeira
+        // opção marcada. O de-para acima é fixo, então a chave derivada não
+        // entra sozinha; sem estas linhas ela sumiria calada no meio do
+        // caminho, que é o pior jeito de um campo deixar de existir.
+        $de_para = array(
+            'size'       => 'Numero-funcionarios',
+            'role'       => 'cargo',
+            'market'     => 'nicho',
+            'experience' => 'ExperienciacomMarketing',
+            'revenue'    => 'revenue',
+            'investment' => 'Investimento',
+            'timing'     => 'urgencia',
+            'pain'       => 'pain',
+        );
+        foreach ($de_para as $origem => $canonico) {
+            $chave = $origem . '_principal';
+            if (!empty($sanitized[$chave])) {
+                $payload[$canonico . '_principal'] = $sanitized[$chave];
+            }
+        }
+
         return $this->dispatch_payload($payload, $is_partial, $client_sid);
     }
 

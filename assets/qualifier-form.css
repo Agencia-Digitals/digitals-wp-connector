@@ -344,6 +344,24 @@ textarea.adspirit-qf-input { min-height: 130px; resize: vertical; line-height: 1
   border-color: rgba(255, 255, 255, 0.30);
 }
 
+/* Múltipla escolha: o selo do atalho de teclado vira o número da ordem
+   assim que a pessoa marca mais de uma. Um lugar só, sem elemento novo —
+   o atalho perde a serventia no instante em que a lista vira ranking. */
+.adspirit-qf-choice-kbd.is-ordem {
+  color: #0F0F0F;
+  background: #F2F2F2;
+  border-color: #F2F2F2;
+  font-weight: 500;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Sem auto-advance, a etapa depende do botão Continuar — então o estado
+   marcado precisa ser mais evidente que numa escolha única. */
+.adspirit-qf-choices-multi .adspirit-qf-choice.selected {
+  border-color: rgba(255, 255, 255, 0.42);
+}
+
 .adspirit-qf-nav {
   margin-top: 36px;
   display: flex;

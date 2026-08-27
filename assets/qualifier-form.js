@@ -206,7 +206,12 @@
     for (var i = 0; i < STEPS.length; i++) {
       if (!stepVisible(i)) continue;
       var st = STEPS[i];
-      if (st.fieldKey) keys[st.fieldKey] = true;
+      if (st.fieldKey) {
+        keys[st.fieldKey] = true;
+        // Etapa de múltipla escolha manda também a principal, em campo
+        // próprio. Sem isto o filtro de visibilidade a descartaria.
+        if (st.multi) keys[st.fieldKey + '_principal'] = true;
+      }
       (st.fields || []).forEach(function (f) { if (f.key) keys[f.key] = true; });
     }
     return keys;
@@ -302,16 +307,57 @@
     return '<input class="adspirit-qf-input" type="' + escapeHtml(f.type) + '" data-key="' + escapeHtml(f.key) + '" placeholder="' + escapeHtml(f.placeholder) + '" value="' + escapeHtml(v) + '"' + ac + (f === ((STEPS[state.currentStep] || {}).fields || [])[0] ? ' autofocus' : '') + '>';
   }
 
+  // --- MÚLTIPLA ESCOLHA (etapa com step.multi) ---
+  //
+  // A resposta continua sendo UMA STRING no estado, com as opções separadas
+  // por " | " na ordem em que foram marcadas. É de propósito: o estado
+  // salvo, o payload do submit e as regras de showIf já tratam tudo como
+  // string, e transformar em array aqui obrigaria a mexer nos três.
+  //
+  // A ordem do clique É a ordem de prioridade — a primeira marcada é a
+  // principal. Sem numerar na tela e sem arrastar: a pessoa só clica.
+  var MULTI_SEP = ' | ';
+
+  function multiLista(v) {
+    return String(v == null ? '' : v)
+      .split(MULTI_SEP)
+      .map(function (x) { return x.trim(); })
+      .filter(Boolean);
+  }
+
+  /** Repinta as opções da etapa a partir do estado, sem redesenhar a tela
+   *  inteira (redesenhar perderia o scroll e piscaria). */
+  function pintarMulti(stepEl, step) {
+    var escolhidas = multiLista(state.responses[step.fieldKey]);
+    stepEl.querySelectorAll('.adspirit-qf-choice').forEach(function (el) {
+      var pos = escolhidas.indexOf(el.getAttribute('data-label'));
+      el.classList.toggle('selected', pos >= 0);
+      el.setAttribute('aria-pressed', pos >= 0 ? 'true' : 'false');
+      var marca = el.querySelector('.adspirit-qf-choice-kbd');
+      if (!marca) return;
+      if (pos >= 0 && escolhidas.length > 1) {
+        marca.textContent = String(pos + 1) + 'º';
+        marca.classList.add('is-ordem');
+      } else {
+        marca.textContent = marca.getAttribute('data-kbd') || '';
+        marca.classList.remove('is-ordem');
+      }
+    });
+  }
+
   function renderChoices(step) {
+    var multi = !!step.multi;
+    var escolhidas = multi ? multiLista(state.responses[step.fieldKey]) : [];
     var selected = state.responses[step.fieldKey] || '';
-    return '<div class="adspirit-qf-choices">' + step.choices.map(function (c) {
-      var sel = (c.label === selected) ? ' selected' : '';
+    return '<div class="adspirit-qf-choices' + (multi ? ' adspirit-qf-choices-multi' : '') + '">' + step.choices.map(function (c) {
+      var pos = multi ? escolhidas.indexOf(c.label) : -1;
+      var sel = multi ? (pos >= 0 ? ' selected' : '') : ((c.label === selected) ? ' selected' : '');
       return '<div class="adspirit-qf-choice' + sel + '" data-label="' + escapeHtml(c.label) + '">' +
         '<div class="adspirit-qf-choice-content">' +
           '<div class="adspirit-qf-choice-label">' + escapeHtml(c.label) + '</div>' +
           (c.meta ? '<div class="adspirit-qf-choice-meta">' + escapeHtml(c.meta) + '</div>' : '') +
         '</div>' +
-        '<span class="adspirit-qf-choice-kbd">' + escapeHtml(c.kbd) + '</span>' +
+        '<span class="adspirit-qf-choice-kbd" data-kbd="' + escapeHtml(c.kbd) + '">' + escapeHtml(c.kbd) + '</span>' +
       '</div>';
     }).join('') + '</div>';
   }
@@ -711,6 +757,21 @@
         var step = STEPS[state.currentStep];
         if (!step.fieldKey) return;
         var label = el.getAttribute('data-label');
+        if (step.multi) {
+          // Alterna mantendo a ORDEM: marcar põe no fim, desmarcar tira do
+          // meio e as seguintes sobem. Nada de auto-advance — a pessoa ainda
+          // pode querer marcar uma segunda.
+          var lista = multiLista(state.responses[step.fieldKey]);
+          var i = lista.indexOf(label);
+          if (i >= 0) lista.splice(i, 1); else lista.push(label);
+          state.responses[step.fieldKey] = lista.join(MULTI_SEP);
+          // A principal viaja em campo próprio: assim a regra de
+          // direcionamento aponta pra ela sem depender de posição em texto.
+          state.responses[step.fieldKey + '_principal'] = lista[0] || '';
+          saveState();
+          pintarMulti(stepEl, step);
+          return;
+        }
         stepEl.querySelectorAll('.adspirit-qf-choice').forEach(function (c) { c.classList.remove('selected'); });
         el.classList.add('selected');
         state.responses[step.fieldKey] = label;
@@ -765,7 +826,12 @@
       }
     }
     if (step.choices && !state.responses[step.fieldKey]) {
-      return { ok: false, msg: 'Selecione uma opção pra continuar' };
+      return {
+        ok: false,
+        msg: step.multi
+          ? 'Selecione pelo menos uma opção pra continuar'
+          : 'Selecione uma opção pra continuar',
+      };
     }
     return { ok: true };
   }
@@ -1206,6 +1272,16 @@
       ? stepEl.querySelector('.adspirit-qf-choice[data-label="' + (window.CSS && CSS.escape ? CSS.escape(choice.label) : choice.label) + '"]')
       : null;
     if (el) { el.click(); }
+    else if (step.multi) {
+      // Mesmo caminho do clique, pra o atalho de teclado não virar uma
+      // segunda regra de negócio que diverge da primeira.
+      var lista = multiLista(state.responses[step.fieldKey]);
+      var j = lista.indexOf(choice.label);
+      if (j >= 0) lista.splice(j, 1); else lista.push(choice.label);
+      state.responses[step.fieldKey] = lista.join(MULTI_SEP);
+      state.responses[step.fieldKey + '_principal'] = lista[0] || '';
+      saveState();
+    }
     else {
       state.responses[step.fieldKey] = choice.label;
       saveState();
