@@ -72,6 +72,11 @@ class AdSpirit_Central_Forms {
                 'steps'         => $steps,
                 'destino'       => isset($f['destino']) && is_array($f['destino']) ? $f['destino'] : array(),
                 'routing_rules' => isset($f['routing_rules']) && is_array($f['routing_rules']) ? $f['routing_rules'] : array(),
+                // O AdSpirit diz qual formulário este site deve desenhar
+                // quando o shortcode não nomeia nenhum. Só vale com roteiro
+                // utilizável — marcar um form vazio não pode apagar o
+                // formulário do site.
+                'is_default'    => !empty($f['is_default']) && !empty($steps),
             );
         }
         set_transient(self::TRANSIENT, $catalog, 900);
@@ -85,6 +90,29 @@ class AdSpirit_Central_Forms {
         if ($slug === '') return null;
         $catalog = self::catalog();
         return isset($catalog[$slug]) ? $catalog[$slug] : null;
+    }
+
+    /**
+     * O formulário que o AdSpirit mandou este site desenhar, ou null.
+     *
+     * Existe pra trocar o formulário de um site sem editar página nenhuma —
+     * a decisão de QUAL formulário o site usa é config de marca, e config de
+     * marca mora no AdSpirit, não dentro do HTML de uma página.
+     *
+     * Precedência preservada: quem chama isto só consulta DEPOIS de não achar
+     * roteiro salvo no próprio WordPress. Site que configurou o formulário na
+     * mão não é sobrescrito de longe.
+     *
+     * O filtro `adspirit_central_form_padrao` devolve o controle ao site:
+     * retornar null aqui congela o formulário local, aconteça o que
+     * acontecer no CRM.
+     */
+    public static function default_form() {
+        $encontrado = null;
+        foreach (self::catalog() as $slug => $form) {
+            if (!empty($form['is_default'])) { $encontrado = $slug; break; }
+        }
+        return apply_filters('adspirit_central_form_padrao', $encontrado);
     }
 
     private static function lastgood() {

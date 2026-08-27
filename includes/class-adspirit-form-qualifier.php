@@ -391,6 +391,23 @@ class AdSpirit_Form_Qualifier {
         );
         $core = class_exists('AdSpirit_Settings') ? AdSpirit_Settings::get_core() : array();
         // Central de Forms: resolve o form pedido no shortcode (fail-soft).
+        //
+        // Shortcode sem nome de form pergunta ao AdSpirit qual formulário este
+        // site deve desenhar. É o que permite trocar o formulário de um site
+        // sem editar página nenhuma — a decisão é config de marca, e config de
+        // marca não mora dentro do HTML de uma página.
+        //
+        // A precedência de sempre continua de pé: roteiro salvo NESTE
+        // WordPress vence o do AdSpirit. Site que configurou o formulário na
+        // mão não é sobrescrito de longe, e nada muda pra quem nunca marcou
+        // formulário nenhum no CRM.
+        if ($central_slug === ''
+            && class_exists('AdSpirit_Central_Forms')
+            && empty(self::get_steps())) {
+            $padrao = AdSpirit_Central_Forms::default_form();
+            if (is_string($padrao) && $padrao !== '') $central_slug = $padrao;
+        }
+
         $central_form = null;
         $central_steps = null;
         if ($central_slug !== '' && class_exists('AdSpirit_Central_Forms')) {
