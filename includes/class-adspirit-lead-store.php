@@ -947,6 +947,10 @@ class AdSpirit_Lead_Store {
                         <button type="submit" name="resolve" value="1" class="button" title="Tira do aviso de pendentes sem apagar do histórico — pra lead já tratado por fora, teste ou duplicado">Marcar como resolvido</button>
                     <?php endif; ?>
                     <a class="button-link" href="<?php echo esc_url(add_query_arg(array('page' => AdSpirit_Menu::PAGE_SLUG, 'tab' => 'submissions', 'sl_status' => 'problemas'), admin_url('admin.php'))); ?>">Ver só os problemas</a>
+                    <?php // O reenvio processa no máximo 20 por vez. Marcar 60
+                          // e ver 20 acontecerem é o tipo de silêncio que faz
+                          // alguém achar que a ferramenta engoliu o resto. ?>
+                    <span id="as-contagem" style="color:#666;"></span>
                 </p>
                 <?php
                 // `striped` do WP sai de propósito: ele zebra por
@@ -956,10 +960,58 @@ class AdSpirit_Lead_Store {
                 // passa a ser marcada no PHP, que sabe qual linha é qual.
                 $alt = false;
                 ?>
+                <script>
+                (function () {
+                    var mestre = document.getElementById('as-marcar-todas');
+                    if (!mestre) return;
+                    var form = mestre.closest('form');
+                    var contagem = document.getElementById('as-contagem');
+                    var TETO = 20; // o mesmo do handler, em array_slice
+
+                    function caixas() {
+                        return Array.prototype.slice.call(
+                            form.querySelectorAll('input[name="ids[]"]')
+                        );
+                    }
+
+                    function atualizar() {
+                        var todas = caixas();
+                        var marcadas = todas.filter(function (c) { return c.checked; });
+                        // Meio-marcado quando a seleção é parcial: sem isto a
+                        // caixa do topo mente sobre o estado da lista.
+                        mestre.checked = todas.length > 0 && marcadas.length === todas.length;
+                        mestre.indeterminate = marcadas.length > 0 && marcadas.length < todas.length;
+
+                        if (!contagem) return;
+                        if (marcadas.length === 0) {
+                            contagem.textContent = '';
+                        } else if (marcadas.length > TETO) {
+                            contagem.textContent = marcadas.length + ' marcadas — o reenvio processa '
+                                + TETO + ' por vez, o resto fica pra próxima rodada';
+                        } else {
+                            contagem.textContent = marcadas.length
+                                + (marcadas.length === 1 ? ' marcada' : ' marcadas');
+                        }
+                    }
+
+                    mestre.addEventListener('change', function () {
+                        caixas().forEach(function (c) { c.checked = mestre.checked; });
+                        atualizar();
+                    });
+                    form.addEventListener('change', function (e) {
+                        if (e.target && e.target.name === 'ids[]') atualizar();
+                    });
+                    atualizar();
+                })();
+                </script>
                 <table class="wp-list-table widefat as-striped">
                     <thead>
                         <tr>
-                            <th style="width:28px;"></th>
+                            <th style="width:28px;">
+                                <input type="checkbox" id="as-marcar-todas"
+                                       title="Marcar todas as linhas desta página"
+                                       aria-label="Marcar todas as linhas desta página">
+                            </th>
                             <th style="width:100px;">Quando</th>
                             <th style="width:150px;">Formulário</th>
                             <th style="width:60px;">Perfil</th>
