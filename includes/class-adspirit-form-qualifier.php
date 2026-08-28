@@ -343,6 +343,75 @@ class AdSpirit_Form_Qualifier {
      * isto o CRM nunca conseguiria introduzir uma pergunta nova: ela
      * apareceria na tela e a resposta sumiria no caminho.
      */
+    /**
+     * Converte as respostas cruas do formulário (first_name, phone, size…)
+     * pras chaves canônicas que o CRM espera (your-name, Telefone,
+     * Numero-funcionarios…).
+     *
+     * Existe porque a QUARENTENA guarda o payload como veio do navegador —
+     * o que é o certo pra investigar depois — e o reenvio despachava esse
+     * mesmo payload cru pro CRM, que respondia "submission has neither email
+     * nor phone" mesmo com o telefone ali na tela. Resgatar um falso positivo
+     * ficava impossível.
+     *
+     * Usa o mesmo de-para do envio normal: o do roteiro quando existe, o fixo
+     * da Digitals quando não.
+     */
+    public static function para_canonico(array $fields, $central_slug = '') {
+        // Já está no formato canônico? Não mexe.
+        if (isset($fields['your-email']) || isset($fields['Telefone'])) return $fields;
+
+        $map = self::canonical_map();
+        if ($central_slug !== '' && class_exists('AdSpirit_Central_Forms')) {
+            $cf = AdSpirit_Central_Forms::get_sem_rede($central_slug);
+            if (is_array($cf) && !empty($cf['steps'])) {
+                $m = self::map_from_steps($cf['steps']);
+                if (!empty($m)) $map = $m;
+            }
+        }
+
+        if (!empty($map)) {
+            $out = array();
+            foreach ($map as $chave => $canonico) {
+                $v = isset($fields[$chave]) ? trim((string) $fields[$chave]) : '';
+                if ($v === '') continue;
+                $out[$canonico] = (isset($out[$canonico]) && $out[$canonico] !== '')
+                    ? $out[$canonico] . ' ' . $v
+                    : $v;
+            }
+            if (!empty($out)) return $out;
+        }
+
+        // De-para fixo da Digitals — mesmo do handle_submit.
+        $g = function ($k) use ($fields) {
+            return isset($fields[$k]) ? trim((string) $fields[$k]) : '';
+        };
+        $presenca = $g('site');
+        $insta = $g('instagram');
+        if ($insta !== '') $presenca = $presenca === '' ? $insta : $presenca . ' · ' . $insta;
+        if ($presenca === '') $presenca = $g('social');
+
+        $out = array(
+            'your-name' => trim($g('first_name') . ' ' . $g('last_name')),
+            'your-email' => $g('email'),
+            'Telefone' => $g('phone'),
+            'site-empresa' => $presenca,
+            'instagram' => $insta,
+            'empresa' => $g('company'),
+            'cargo' => $g('role'),
+            'Numero-funcionarios' => $g('size'),
+            'nicho' => $g('market'),
+            'ExperienciacomMarketing' => $g('experience'),
+            'revenue' => $g('revenue'),
+            'Investimento' => $g('investment'),
+            'urgencia' => $g('timing'),
+            'pain' => $g('pain'),
+            'motivo' => $g('motivo'),
+            'motivo_principal' => $g('motivo_principal'),
+        );
+        return array_filter($out, function ($v) { return $v !== ''; });
+    }
+
     public static function map_from_steps($steps) {
         $map = array();
         foreach ((array) $steps as $step) {

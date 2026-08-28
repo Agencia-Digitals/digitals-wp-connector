@@ -697,6 +697,13 @@ class AdSpirit_Lead_Store {
         // P0-3: passa pelo mesmo registrador do dispatch/retry — attempts e
         // last_error ficam verdadeiros também no reenvio manual (e um 2xx
         // aqui limpa o aviso de credenciais).
+        // Mesma conversão do reenvio em lote — ver o comentário lá.
+        if (class_exists('AdSpirit_Form_Qualifier')) {
+            $payload = AdSpirit_Form_Qualifier::para_canonico(
+                $payload,
+                (string) ($row['form_id'] ?? '')
+            );
+        }
         $result = self::dispatch_to_crm((string) $row['submission_id'], $payload);
         self::mark_crm_attempt((string) $row['submission_id'], $result);
 
@@ -764,6 +771,16 @@ class AdSpirit_Lead_Store {
             if (!$row || !in_array((string) ($row['status'] ?? ''), array('pending', 'failed', 'spam'), true)) continue;
             $payload = json_decode((string) $row['payload'], true);
             if (!is_array($payload)) { $fail++; continue; }
+            // A quarentena guarda o payload como veio do navegador (certo pra
+            // investigar). O CRM espera as chaves canônicas — sem converter,
+            // o resgate de um falso positivo respondia "submission has
+            // neither email nor phone" com o telefone ali na tela.
+            if (class_exists('AdSpirit_Form_Qualifier')) {
+                $payload = AdSpirit_Form_Qualifier::para_canonico(
+                    $payload,
+                    (string) ($row['form_id'] ?? '')
+                );
+            }
             $result = self::dispatch_to_crm((string) $row['submission_id'], $payload);
             self::mark_crm_attempt((string) $row['submission_id'], $result);
             if (!empty($result['ok'])) { $ok++; } else { $fail++; }
