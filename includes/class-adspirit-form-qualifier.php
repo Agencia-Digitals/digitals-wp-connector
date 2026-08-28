@@ -1019,7 +1019,7 @@ class AdSpirit_Form_Qualifier {
             ? sanitize_key((string) $_POST['central_form'])
             : '';
         if ($slug_central !== '' && class_exists('AdSpirit_Central_Forms')) {
-            $form_central = AdSpirit_Central_Forms::get($slug_central);
+            $form_central = AdSpirit_Central_Forms::get_sem_rede($slug_central);
             if (is_array($form_central) && !empty($form_central['steps'])) {
                 $mapa_central = self::map_from_steps($form_central['steps']);
                 if (!empty($mapa_central)) $custom_map = $mapa_central;
@@ -1147,7 +1147,7 @@ class AdSpirit_Form_Qualifier {
         $payload['_adspirit_form_kind'] = 'comercial';
         $central_slug = isset($_POST['central_form']) ? sanitize_key((string) $_POST['central_form']) : '';
         if ($central_slug !== '' && class_exists('AdSpirit_Central_Forms')) {
-            $cf = AdSpirit_Central_Forms::get($central_slug);
+            $cf = AdSpirit_Central_Forms::get_sem_rede($central_slug);
             if (is_array($cf)) {
                 $payload['_adspirit_form_id'] = $central_slug;
                 $kind = $cf['finalidade'];

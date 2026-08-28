@@ -79,8 +79,20 @@ class AdSpirit_Central_Forms {
                 'is_default'    => !empty($f['is_default']) && !empty($steps),
             );
         }
+        // O formulário do site mudou? Então a página guardada em cache está
+        // errada, e o visitante continuaria recebendo a versão antiga até o
+        // cache vencer — que num site com cache de dias é uma eternidade.
+        //
+        // Foi exatamente o que aconteceu na estreia: o AdSpirit já mandava o
+        // formulário novo, o CRM já respondia certo, e mesmo assim ninguém
+        // via a pergunta nova. Quem testava com um parâmetro na URL furava o
+        // cache e via o certo — o que atrasou o diagnóstico.
+        $anterior = self::lastgood();
         set_transient(self::TRANSIENT, $catalog, 900);
         update_option(self::LASTGOOD, $catalog, false);
+        if (self::assinatura($anterior) !== self::assinatura($catalog)) {
+            self::limpar_cache_das_paginas();
+        }
         return $catalog;
     }
 
@@ -90,6 +102,28 @@ class AdSpirit_Central_Forms {
         if ($slug === '') return null;
         $catalog = self::catalog();
         return isset($catalog[$slug]) ? $catalog[$slug] : null;
+    }
+
+    /**
+     * Igual ao get(), mas SEM ir à rede: só o que já está em cache ou na
+     * última cópia boa.
+     *
+     * Existe pro caminho do ENVIO. Ali o catálogo é consultado pra saber de
+     * onde vêm as respostas, e o cache vence a cada 15 minutos — o azarado que
+     * enviar o formulário no minuto seguinte ao vencimento pagava uma chamada
+     * ao CRM DENTRO da submissão, além da que já existe pra gravar o lead.
+     * Duas chamadas de rede em sequência num request de visitante é como um
+     * envio vira 502 sem nada estar quebrado.
+     *
+     * Ler desatualizado aqui não custa nada: o roteiro que desenhou a tela é o
+     * mesmo que a última cópia boa descreve.
+     */
+    public static function get_sem_rede($slug) {
+        $slug = sanitize_key((string) $slug);
+        if ($slug === '') return null;
+        $cache = get_transient(self::TRANSIENT);
+        $catalogo = (is_array($cache) && !isset($cache['miss'])) ? $cache : self::lastgood();
+        return isset($catalogo[$slug]) ? $catalogo[$slug] : null;
     }
 
     /**
@@ -113,6 +147,36 @@ class AdSpirit_Central_Forms {
             if (!empty($form['is_default'])) { $encontrado = $slug; break; }
         }
         return apply_filters('adspirit_central_form_padrao', $encontrado);
+    }
+
+    /**
+     * Resumo do que importa pro SITE: qual formulário é o padrão e qual o
+     * conteúdo dele. Muda isso, a página precisa ser redesenhada.
+     *
+     * Não compara o catálogo inteiro de propósito: um campo administrativo
+     * que muda no CRM (nome interno, finalidade) não deveria derrubar o cache
+     * do site inteiro.
+     */
+    private static function assinatura($catalogo) {
+        if (!is_array($catalogo)) return '';
+        $partes = array();
+        foreach ($catalogo as $slug => $f) {
+            if (!is_array($f)) continue;
+            $partes[] = $slug
+                . ':' . (!empty($f['is_default']) ? '1' : '0')
+                . ':' . md5(wp_json_encode(isset($f['steps']) ? $f['steps'] : array()));
+        }
+        sort($partes);
+        return implode('|', $partes);
+    }
+
+    /** Derruba a página guardada, pra a troca aparecer pro visitante. */
+    private static function limpar_cache_das_paginas() {
+        wp_cache_flush();
+        do_action('litespeed_purge_all');
+        if (function_exists('rocket_clean_domain')) rocket_clean_domain();
+        if (function_exists('w3tc_flush_all')) w3tc_flush_all();
+        if (function_exists('wp_cache_clear_cache')) wp_cache_clear_cache();
     }
 
     private static function lastgood() {
