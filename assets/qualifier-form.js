@@ -335,7 +335,10 @@
       el.setAttribute('aria-pressed', pos >= 0 ? 'true' : 'false');
       var marca = el.querySelector('.adspirit-qf-choice-kbd');
       if (!marca) return;
-      if (pos >= 0 && escolhidas.length > 1) {
+      // Número desde a PRIMEIRA marcada. Só a partir da segunda era sutil
+      // demais: quem marca uma e olha pra tela não recebe nenhum sinal de
+      // que dava pra marcar mais — e de que a ordem importa.
+      if (pos >= 0) {
         marca.textContent = String(pos + 1) + 'º';
         marca.classList.add('is-ordem');
       } else {
@@ -352,12 +355,17 @@
     return '<div class="adspirit-qf-choices' + (multi ? ' adspirit-qf-choices-multi' : '') + '">' + step.choices.map(function (c) {
       var pos = multi ? escolhidas.indexOf(c.label) : -1;
       var sel = multi ? (pos >= 0 ? ' selected' : '') : ((c.label === selected) ? ' selected' : '');
+      // Numa etapa de várias, o selo nasce como caixa de marcar em vez de
+      // letra de atalho. Depois de treze telas de escolha única que avançam
+      // sozinhas, a diferença precisa ser visível ANTES do primeiro clique —
+      // senão a pessoa clica uma, espera avançar, e acha que travou.
+      var marcaInicial = multi ? (pos >= 0 ? String(pos + 1) + 'º' : '☐') : c.kbd;
       return '<div class="adspirit-qf-choice' + sel + '" data-label="' + escapeHtml(c.label) + '">' +
         '<div class="adspirit-qf-choice-content">' +
           '<div class="adspirit-qf-choice-label">' + escapeHtml(c.label) + '</div>' +
           (c.meta ? '<div class="adspirit-qf-choice-meta">' + escapeHtml(c.meta) + '</div>' : '') +
         '</div>' +
-        '<span class="adspirit-qf-choice-kbd" data-kbd="' + escapeHtml(c.kbd) + '">' + escapeHtml(c.kbd) + '</span>' +
+        '<span class="adspirit-qf-choice-kbd' + (multi && pos >= 0 ? ' is-ordem' : '') + '" data-kbd="' + escapeHtml(multi ? '☐' : c.kbd) + '">' + escapeHtml(marcaInicial) + '</span>' +
       '</div>';
     }).join('') + '</div>';
   }

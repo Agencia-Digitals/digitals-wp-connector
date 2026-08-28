@@ -347,7 +347,11 @@ textarea.adspirit-qf-input { min-height: 130px; resize: vertical; line-height: 1
 /* Múltipla escolha: o selo do atalho de teclado vira o número da ordem
    assim que a pessoa marca mais de uma. Um lugar só, sem elemento novo —
    o atalho perde a serventia no instante em que a lista vira ranking. */
-.adspirit-qf-choice-kbd.is-ordem {
+.adspirit-qf-choice-kbd.is-ordem,
+/* A regra de "marcado" acima pinta o selo de branco e tem especificidade
+   MAIOR — e ela vale justamente quando o número aparece. O resultado era
+   número branco sobre pílula branca: o selo parecia vazio. */
+.adspirit-qf-choice.selected .adspirit-qf-choice-kbd.is-ordem {
   color: #0F0F0F;
   background: #F2F2F2;
   border-color: #F2F2F2;
@@ -360,6 +364,28 @@ textarea.adspirit-qf-input { min-height: 130px; resize: vertical; line-height: 1
    marcado precisa ser mais evidente que numa escolha única. */
 .adspirit-qf-choices-multi .adspirit-qf-choice.selected {
   border-color: rgba(255, 255, 255, 0.42);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* A lista de várias é mais longa que as outras — nove alternativas de uma
+   frase cada empurram o botão pra fora da tela, e a pessoa fica sem saber
+   como seguir. O Continuar passa a ficar colado no rodapé nessa etapa. */
+.adspirit-qf-step:has(.adspirit-qf-choices-multi) .adspirit-qf-nav {
+  position: sticky;
+  bottom: 0;
+  margin-top: 20px;
+  padding: 12px 0 14px;
+  background: linear-gradient(to top, #0F0F0F 62%, rgba(15, 15, 15, 0));
+  z-index: 3;
+}
+
+/* Opção com frase longa: duas linhas cabem melhor com o texto respirando
+   e o selo alinhado ao topo, não ao meio de um bloco de duas linhas. */
+.adspirit-qf-choices-multi .adspirit-qf-choice {
+  align-items: flex-start;
+}
+.adspirit-qf-choices-multi .adspirit-qf-choice-kbd {
+  margin-top: 1px;
 }
 
 .adspirit-qf-nav {
