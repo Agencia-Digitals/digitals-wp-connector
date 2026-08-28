@@ -127,39 +127,49 @@ class AdSpirit_Status {
         <?php endif; ?>
 
         <h2 class="as-section"><span class="as-kicker-inline">Últimos 30 dias</span>Leads deste site</h2>
+        <?php
+        // Número que descreve um problema tem que levar até ele. Antes o
+        // painel dizia "2 falhas de envio" e parava aí: a pessoa via o
+        // problema e não tinha o que clicar.
+        $subs = function ($status = '') {
+            $args = array('page' => AdSpirit_Menu::PAGE_SLUG, 'tab' => 'submissions');
+            if ($status !== '') $args['sl_status'] = $status;
+            return admin_url('admin.php?' . http_build_query($args));
+        };
+        ?>
         <div class="as-metric-grid">
-            <div class="as-metric">
+            <a class="as-metric as-metric-link" href="<?php echo esc_url($subs('sent')); ?>">
                 <div class="label">Leads enviados</div>
                 <div class="value"><?php echo esc_html($metrics['cf7_sent_30d']); ?></div>
                 <div class="sub"><?php echo esc_html($metrics['cf7_sent_24h']); ?> nas últimas 24h</div>
-            </div>
-            <div class="as-metric">
+            </a>
+            <a class="as-metric as-metric-link" href="<?php echo esc_url($subs('problemas')); ?>">
                 <div class="label">Falhas de envio</div>
                 <div class="value <?php echo $metrics['cf7_failed_30d'] > 0 ? 'danger' : ''; ?>"><?php echo esc_html($metrics['cf7_failed_30d']); ?></div>
                 <div class="sub"><?php echo esc_html($metrics['cf7_failed_24h']); ?> nas últimas 24h</div>
-            </div>
+            </a>
             <div class="as-metric">
                 <div class="label">Taxa de sucesso</div>
                 <div class="value"><?php echo esc_html($metrics['success_rate']); ?>%</div>
                 <div class="sub"><?php echo $metrics['cf7_sent_30d'] + $metrics['cf7_failed_30d']; ?> tentativas</div>
             </div>
-            <div class="as-metric">
+            <a class="as-metric as-metric-link" href="<?php echo esc_url($subs('spam')); ?>">
                 <div class="label">Bloqueados como spam</div>
                 <div class="value"><?php echo esc_html($metrics['antispam_blocked_30d']); ?></div>
                 <div class="sub"><?php echo esc_html($metrics['antispam_blocked_24h']); ?> nas últimas 24h</div>
-            </div>
-            <div class="as-metric">
+            </a>
+            <a class="as-metric as-metric-link" href="<?php echo esc_url($subs('')); ?>">
                 <div class="label">Último lead</div>
                 <div class="value text"><?php echo esc_html($metrics['last_cf7_at_human'] ?: 'nunca'); ?></div>
                 <div class="sub"><?php echo esc_html($metrics['last_cf7_at_iso'] ?: ''); ?></div>
-            </div>
+            </a>
             <?php // Doutrina: tile de erro SÓ quando há erro — "nenhum" é ruído. ?>
             <?php if (!empty($metrics['last_error'])): ?>
-            <div class="as-metric">
+            <a class="as-metric as-metric-link" href="<?php echo esc_url($subs('problemas')); ?>">
                 <div class="label">Último erro</div>
                 <div class="value text danger" style="font-size:13px;">
                     <?php echo esc_html($metrics['last_error']); ?>
-                </div>
+                </a>
             </div>
             <?php endif; ?>
         </div>
@@ -180,13 +190,23 @@ class AdSpirit_Status {
             <tbody>
                 <?php foreach ($recent_leads as $rl) :
                     $rl_status = (string) ($rl['status'] ?? '');
+                    // A linha leva ATÉ o lead. Antes a lista mostrava "Spam"
+                    // e não dava pra abrir e ver quem era — a pessoa via o
+                    // problema e tinha que ir procurar noutra tela.
+                    $rl_busca = (string) ($rl['email'] ?: ($rl['phone'] ?: ($rl['name'] ?: '')));
+                    $rl_url = admin_url('admin.php?' . http_build_query(array_filter(array(
+                        'page' => AdSpirit_Menu::PAGE_SLUG,
+                        'tab' => 'submissions',
+                        'sl_search' => $rl_busca,
+                        'sl_status' => in_array($rl_status, array('sent', 'failed', 'spam', 'pending'), true) ? $rl_status : '',
+                    ))));
                     $rl_cls = $rl_status === 'sent' ? 'ok' : ($rl_status === 'spam' ? 'muted' : ($rl_status === 'failed' ? 'danger' : 'warn'));
                     $rl_label = $rl_status === 'sent' ? 'Entregue' : ($rl_status === 'spam' ? 'Spam' : ($rl_status === 'failed' ? 'Falhou' : 'Pendente'));
                 ?>
-                <tr>
+                <tr class="as-row-link" onclick="window.location='<?php echo esc_js($rl_url); ?>'">
                     <td style="white-space:nowrap;"><?php echo !empty($rl['created_at']) ? esc_html(get_date_from_gmt((string) $rl['created_at'], 'd/m H:i')) : '—'; ?></td>
                     <td>
-                        <?php echo esc_html((string) ($rl['name'] ?: ($rl['email'] ?: $rl['phone'] ?: '—'))); ?>
+                        <a href="<?php echo esc_url($rl_url); ?>" title="Abrir este lead na lista de envios"><?php echo esc_html((string) ($rl['name'] ?: ($rl['email'] ?: $rl['phone'] ?: '—'))); ?></a>
                         <?php if (!empty($rl['name']) && !empty($rl['email'])) : ?><br><small style="opacity:.7;"><?php echo esc_html((string) $rl['email']); ?></small><?php endif; ?>
                     </td>
                     <td><small><?php echo esc_html((string) ($rl['source'] ?? '')); ?></small></td>

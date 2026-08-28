@@ -388,11 +388,26 @@ class AdSpirit_Quickwins {
      * Detecta texto suspeito: alta entropia + sem stopwords PT-BR.
      * Usado pelo anti-spam como camada 6.
      */
+    /**
+     * Texto que parece gerado por robô: sem nenhuma palavra comum do
+     * português e com variedade de caracteres alta demais pra prosa.
+     *
+     * O piso de 12 caracteres era baixo demais e produziu FALSO POSITIVO em
+     * lead de verdade: "Bruno Lopes 38991764098" tem 23 caracteres, nenhuma
+     * stopword (nome e telefone não têm) e variedade alta — a regra dizia
+     * bot. Aconteceu com um lead perfil A, e o envio parcial dele foi
+     * barrado. Um nome com um telefone do lado é a situação MAIS comum de
+     * um formulário, não a mais suspeita.
+     *
+     * Duas travas: só julga texto com corpo de frase (60+ caracteres), e
+     * exige variedade bem mais alta. Quem chama também precisa mandar só
+     * campo de texto livre — ver a chamada no anti-spam.
+     */
     public static function is_suspicious_text($text) {
         $text = trim((string) $text);
         if ($text === '') return false;
-        // Texto muito curto não conta
-        if (mb_strlen($text) < 12) return false;
+        // Abaixo disso não há prosa pra julgar: é nome, telefone, empresa.
+        if (mb_strlen($text) < 60) return false;
         // Stopwords PT-BR comuns — qualquer uma presente = humano OK
         $stopwords = array(
             ' de ', ' do ', ' da ', ' dos ', ' das ', ' e ', ' o ', ' a ', ' os ', ' as ',
@@ -408,7 +423,9 @@ class AdSpirit_Quickwins {
         $chars = mb_str_split(strtolower($text));
         $unique = count(array_unique($chars));
         $entropy_ratio = $unique / max(1, count($chars));
-        // Random-ish texto bot: ratio alto (>0.55) + sem stopwords
-        return $entropy_ratio > 0.55;
+        // Prosa em português repete muita letra; 0.55 ainda pegava texto
+        // humano curto e legítimo. Acima de 0.72 já é quase só string
+        // aleatória.
+        return $entropy_ratio > 0.72;
     }
 }

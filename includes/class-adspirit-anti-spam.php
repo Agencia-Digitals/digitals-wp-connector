@@ -180,11 +180,7 @@ class AdSpirit_Anti_Spam {
 
         // (5) Reverse text trap — texto sem stopwords PT-BR + entropia alta
         if (($cfg['reverse_trap'] ?? '1') === '1' && class_exists('AdSpirit_Quickwins')) {
-            $all_text = '';
-            foreach ($_POST as $k => $v) {
-                if (strpos($k, '_adspirit_') === 0) continue; // ignora nossos meta
-                if (is_string($v)) $all_text .= ' ' . $v;
-            }
+            $all_text = self::texto_livre($_POST);
             if (AdSpirit_Quickwins::is_suspicious_text($all_text)) {
                 $this->reject($result, 'reverse_text', 'Texto com alta entropia + sem palavras comuns — provável bot.');
                 return $result;
@@ -291,11 +287,7 @@ class AdSpirit_Anti_Spam {
 
         // (5) Reverse text trap
         if (($cfg['reverse_trap'] ?? '1') === '1' && class_exists('AdSpirit_Quickwins')) {
-            $all_text = '';
-            foreach ($payload as $k => $v) {
-                if (strpos((string) $k, '_adspirit_') === 0) continue;
-                if (is_string($v)) $all_text .= ' ' . $v;
-            }
+            $all_text = self::texto_livre((array) $payload);
             if (AdSpirit_Quickwins::is_suspicious_text($all_text)) {
                 return array('valid' => false, 'reason_code' => 'reverse_text', 'reason_text' => 'Texto suspeito (alta entropia).');
             }
@@ -329,6 +321,42 @@ class AdSpirit_Anti_Spam {
         }
 
         return array('valid' => true, 'reason_code' => null, 'reason_text' => null);
+    }
+
+    /**
+     * Só o texto que uma PESSOA escreveu livremente — nunca identidade.
+     *
+     * A checagem de entropia recebia o payload inteiro concatenado, então
+     * nome + telefone viravam "texto sem palavras comuns e com variedade
+     * alta" e um lead real era barrado como bot. Nome próprio, e-mail,
+     * telefone, empresa e site não são prosa: não há o que avaliar neles, e
+     * avaliá-los só produz falso positivo.
+     */
+    private static function texto_livre(array $post) {
+        $identidade = array(
+            'your-name', 'name', 'nome', 'first_name', 'last_name', 'sobrenome',
+            'your-email', 'email', 'e-mail', 'seu-email',
+            'telefone', 'phone', 'whatsapp', 'celular', 'tel',
+            'empresa', 'company', 'organizacao', 'cnpj',
+            'site', 'site-empresa', 'website', 'url', 'instagram', 'social',
+            'cargo', 'role',
+        );
+        $normaliza = function ($k) {
+            $k = strtolower((string) $k);
+            return str_replace(array('-', '_', ' '), '', $k);
+        };
+        $ident = array_map($normaliza, $identidade);
+        $texto = '';
+        foreach ($post as $k => $v) {
+            if (strpos((string) $k, '_adspirit_') === 0) continue;
+            if (!is_string($v)) continue;
+            if (in_array($normaliza($k), $ident, true)) continue;
+            // Valor quase todo numérico é telefone/documento, não frase.
+            $digitos = preg_replace('/\D/', '', $v);
+            if ($v !== '' && mb_strlen($digitos) >= mb_strlen($v) * 0.6) continue;
+            $texto .= ' ' . $v;
+        }
+        return trim($texto);
     }
 
     private function reject($result, $reason_code, $reason_text) {
