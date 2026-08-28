@@ -944,9 +944,25 @@
       // leitura (telemetry.js); o do qualifier/parcial não fazia.
       var vid = t.visitor_id || qfReadCookie('_dosvi') || qfReadCookie('adspirit_vid') || '';
       var sid = t.session_id || qfReadCookie('_dossi') || qfReadCookie('adspirit_sid') || '';
+      // 2026-08-28 — mesma correção aplicada no telemetry.js. O snapshot do
+      // collector é do init; as tags do Meta/Google gravam estes cookies
+      // depois. Sem re-ler no submit, o lead nasce sem sinal de match e o
+      // CAPI do Google recusa ("user_identifiers vazio"). Medido: `fbp` em
+      // 3% das conversões da Digitals antes deste conserto.
+      var COOKIE_DE = { fbp: '_fbp', fbc: '_fbc', ga: '_ga', gid: '_gid', gcl_au: '_gcl_au' };
+      var fbclid = '';
+      try {
+        // O fbclid vive no JSON de last-touch gravado pelo snippet ungated.
+        fbclid = (JSON.parse(qfReadCookie('adspirit_lt') || '{}') || {}).fbclid
+              || (JSON.parse(qfReadCookie('adspirit_ft') || '{}') || {}).fbclid || '';
+      } catch (e) {}
       ['visitor_id', 'session_id', 'fbp', 'fbc', 'ga', 'gid', 'gcl_au',
        'locale', 'timezone', 'color_scheme', 'screen', 'viewport', 'connection_type'].forEach(function (name) {
-        var v = name === 'visitor_id' ? vid : name === 'session_id' ? sid : t[name];
+        var v = name === 'visitor_id' ? vid
+              : name === 'session_id' ? sid
+              : (t[name] || (COOKIE_DE[name] ? qfReadCookie(COOKIE_DE[name]) : ''));
+        // Sem cookie `_fbc`, a Meta manda derivar do fbclid: fb.1.<ts>.<id>.
+        if (name === 'fbc' && !v && fbclid) v = 'fb.1.' + Date.now() + '.' + fbclid;
         fd.append('_adspirit_t_' + name, String(v || ''));
       });
       fd.append('_adspirit_t_time_on_page_ms', String(t.start_ts ? (Date.now() - t.start_ts) : 0));

@@ -164,6 +164,25 @@
             t.wbraid = ci.wbraid || ''; t.li_fat_id = ci.li_fat_id || ''; t.ttclid = ci.ttclid || '';
             if (!t.visitor_id) t.visitor_id = readCookie('_dosvi') || readCookie('adspirit_vid') || '';
             if (!t.session_id) t.session_id = readCookie('_dossi') || readCookie('adspirit_sid') || '';
+            // 2026-08-28 — A MESMA corrida do visitor_id, um nível acima e
+            // nunca corrigida: o snapshot destes cookies é tirado no init do
+            // collector, mas as tags do Meta/Google gravam `_fbp`, `_gcl_au` e
+            // `_ga` MILISSEGUNDOS depois. Quem converte na primeira visita
+            // saía sem nenhum sinal de match.
+            //
+            // Medido em produção (28/08): `fbp` chegava em 8 de 263 conversões
+            // da Digitals — 3%. Era a causa do CAPI do Google recusar com
+            // "user_identifiers vazio + sem gclid — Google exige >=1 sinal", e
+            // do match do Meta cair pra e-mail/telefone puros.
+            if (!t.fbp) t.fbp = readCookie('_fbp');
+            if (!t.fbc) t.fbc = readCookie('_fbc');
+            if (!t.ga) t.ga = readCookie('_ga');
+            if (!t.gid) t.gid = readCookie('_gid');
+            if (!t.gcl_au) t.gcl_au = readCookie('_gcl_au');
+            // Sem cookie `_fbc` (clique que caiu numa página sem o pixel, ou
+            // bloqueio de terceiros), a Meta manda DERIVAR do fbclid da URL.
+            // Formato oficial: fb.1.<timestamp>.<fbclid>.
+            if (!t.fbc && t.fbclid) t.fbc = 'fb.1.' + Date.now() + '.' + t.fbclid;
             fields.forEach(function (name) {
               var el = form.querySelector('input[name="_adspirit_t_' + name + '"]');
               if (el) el.value = String(t[name] || '');
