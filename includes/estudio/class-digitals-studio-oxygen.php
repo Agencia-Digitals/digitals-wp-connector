@@ -26,7 +26,7 @@ if (!defined('ABSPATH')) { exit; }
 
 class Digitals_Studio_Oxygen {
 
-    const VERSION = '0.5.0';
+    const VERSION = '0.6.0';
     const BACKUP_MARKER = '_agd_occ_converted_at';
     const SETTINGS_OPTION = 'agd_occ_settings';
     const SELECTORS_OPTION = 'oxygen_oxy_selectors_json_string';
@@ -430,6 +430,193 @@ class Digitals_Studio_Oxygen {
             'execute_callback' => [$this, 'ability_diagnose'],
             'permission_callback' => $perm,
         ]);
+
+        // ── Edição de conteúdo ────────────────────────────────────────────
+        // As abilities acima leem e migram. Estas três editam o conteúdo do
+        // construtor — o que faltava pra operar o site inteiro daqui. Valem em
+        // Oxygen clássico (ct_builder_shortcodes) e no 6 (_oxygen_data): a peça
+        // é a mesma, string guardada em post meta. Toda escrita tira uma foto
+        // antes; restore-content desfaz. Mesma tranca das outras (estúdio +
+        // Digitals) — no site do cliente nada disso existe.
+        wp_register_ability('digitals-studio/read-content', [
+            'category' => 'digitals-studio',
+            'meta' => [
+                'public' => true, 'show_in_rest' => true, 'mcp' => ['public' => true],
+                'annotations' => ['readonly' => true, 'destructive' => false, 'idempotent' => true],
+            ],
+            'label' => 'Ler o conteúdo cru do construtor',
+            'description' => 'Devolve o valor cru de cada meta do construtor deste post (ct_builder_shortcodes, _ct_builder_shortcodes, _ct_builder_json, _oxygen_data) com o tamanho de cada um. É o que se lê ANTES de editar, pra montar um find/replace que casa com a forma guardada (URLs costumam vir com a barra escapada). Somente leitura.',
+            'input_schema' => ['type' => 'object', 'required' => ['post_id'], 'properties' => [
+                'post_id' => ['type' => 'integer'],
+            ]],
+            'execute_callback' => [$this, 'ability_read_content'],
+            'permission_callback' => $perm,
+        ]);
+
+        wp_register_ability('digitals-studio/edit-content', [
+            'category' => 'digitals-studio',
+            'meta' => [
+                'public' => true, 'show_in_rest' => true, 'mcp' => ['public' => true],
+                'annotations' => ['readonly' => false, 'destructive' => false, 'idempotent' => false],
+            ],
+            'label' => 'Editar o conteúdo do construtor (find/replace)',
+            'description' => 'Troca uma string por outra dentro da meta do construtor de um post, com foto de segurança antes de gravar. find/replace em vez de reescrever a árvore inteira: erra pra menos, nunca corrompe o post. Recusa se não achar o find, ou se o número de ocorrências não bater com expected_count (guarda contra troca em massa sem querer). Limpa os caches (Oxygen, object, LiteSpeed). Devolve o token da foto pra desfazer com restore-content.',
+            'input_schema' => ['type' => 'object', 'required' => ['post_id', 'find', 'replace'], 'properties' => [
+                'post_id' => ['type' => 'integer'],
+                'find' => ['type' => 'string', 'description' => 'Trecho exato a procurar, na forma como está guardado (veja read-content).'],
+                'replace' => ['type' => 'string', 'description' => 'O que entra no lugar.'],
+                'meta_key' => ['type' => 'string', 'description' => 'Opcional. Qual meta editar. Vazio = detecta sozinho (ct_builder_shortcodes, senão _ct_builder_shortcodes, senão _oxygen_data).'],
+                'expected_count' => ['type' => 'integer', 'description' => 'Opcional. Quantas ocorrências espero trocar. Se não bater, recusa e não grava.'],
+            ]],
+            'execute_callback' => [$this, 'ability_edit_content'],
+            'permission_callback' => $perm,
+        ]);
+
+        wp_register_ability('digitals-studio/restore-content', [
+            'category' => 'digitals-studio',
+            'meta' => [
+                'public' => true, 'show_in_rest' => true, 'mcp' => ['public' => true],
+                'annotations' => ['readonly' => false, 'destructive' => false, 'idempotent' => true],
+            ],
+            'label' => 'Desfazer uma edição de conteúdo',
+            'description' => 'Restaura a meta do construtor a partir de uma foto tirada por edit-content. Sem token, lista as fotos disponíveis do post (as 10 últimas) em vez de restaurar. Limpa os caches.',
+            'input_schema' => ['type' => 'object', 'required' => ['post_id'], 'properties' => [
+                'post_id' => ['type' => 'integer'],
+                'token' => ['type' => 'string', 'description' => 'Token devolvido por edit-content. Vazio = só lista as fotos.'],
+            ]],
+            'execute_callback' => [$this, 'ability_restore_content'],
+            'permission_callback' => $perm,
+        ]);
+    }
+
+    /* ========================= Edição de conteúdo ========================= */
+
+    /** Metas onde algum construtor guarda a árvore, da mais "ao vivo" à menos. */
+    private static $content_metas = ['ct_builder_shortcodes', '_ct_builder_shortcodes', '_ct_builder_json', '_oxygen_data'];
+    const EDIT_BACKUPS = '_agd_edit_backups';
+
+    public function ability_read_content($input) {
+        $post_id = isset($input['post_id']) ? (int) $input['post_id'] : 0;
+        if (!$post_id || !get_post($post_id)) { return ['erro' => 'post não encontrado', 'post_id' => $post_id]; }
+        $out = ['post_id' => $post_id, 'title' => get_the_title($post_id), 'metas' => []];
+        foreach (self::$content_metas as $k) {
+            $v = get_post_meta($post_id, $k, true);
+            if (!is_string($v) || $v === '') { continue; }
+            $out['metas'][$k] = ['bytes' => strlen($v), 'value' => $v];
+        }
+        if (empty($out['metas'])) { $out['aviso'] = 'nenhuma meta de construtor neste post'; }
+        return $out;
+    }
+
+    /** Qual meta editar: a explícita, senão a primeira não-vazia da lista. */
+    private function pick_content_meta($post_id, $meta_key) {
+        if (is_string($meta_key) && $meta_key !== '') {
+            return in_array($meta_key, self::$content_metas, true) ? $meta_key : null;
+        }
+        foreach (self::$content_metas as $k) {
+            $v = get_post_meta($post_id, $k, true);
+            if (is_string($v) && $v !== '') { return $k; }
+        }
+        return null;
+    }
+
+    public function ability_edit_content($input) {
+        $post_id = isset($input['post_id']) ? (int) $input['post_id'] : 0;
+        if (!$post_id || !get_post($post_id)) { return ['erro' => 'post não encontrado', 'post_id' => $post_id]; }
+        $find = isset($input['find']) ? (string) $input['find'] : '';
+        if ($find === '') { return ['erro' => 'find vazio']; }
+        $replace = isset($input['replace']) ? (string) $input['replace'] : '';
+
+        $meta_key = $this->pick_content_meta($post_id, $input['meta_key'] ?? '');
+        if ($meta_key === null) { return ['erro' => 'meta de construtor não encontrada (meta_key inválida ou post sem árvore)']; }
+
+        $atual = (string) get_post_meta($post_id, $meta_key, true);
+        $ocorrencias = substr_count($atual, $find);
+        if ($ocorrencias === 0) {
+            return ['erro' => 'find não encontrado nessa meta', 'meta_key' => $meta_key, 'dica' => 'rode read-content: a forma guardada pode ter a barra escapada (\\/) ou aspas HTML.'];
+        }
+        if (isset($input['expected_count']) && (int) $input['expected_count'] !== $ocorrencias) {
+            return ['erro' => 'expected_count não bate — nada gravado', 'esperado' => (int) $input['expected_count'], 'encontrado' => $ocorrencias, 'meta_key' => $meta_key];
+        }
+
+        // Foto antes de gravar. Guarda valor + meta_key + hora; mantém as 10
+        // últimas por post. O token é a hora em microssegundos.
+        $token = (string) round(microtime(true) * 1000);
+        $fotos = get_post_meta($post_id, self::EDIT_BACKUPS, true);
+        if (!is_array($fotos)) { $fotos = []; }
+        $fotos[$token] = ['meta_key' => $meta_key, 'value' => $atual, 'quando' => current_time('mysql'), 'find' => $find];
+        if (count($fotos) > 10) { $fotos = array_slice($fotos, -10, null, true); }
+        update_post_meta($post_id, self::EDIT_BACKUPS, $fotos);
+
+        $novo = str_replace($find, $replace, $atual);
+        update_post_meta($post_id, $meta_key, wp_slash($novo));
+
+        return [
+            'ok' => true,
+            'post_id' => $post_id,
+            'meta_key' => $meta_key,
+            'trocas' => $ocorrencias,
+            'bytes_antes' => strlen($atual),
+            'bytes_depois' => strlen($novo),
+            'backup_token' => $token,
+            'caches' => $this->limpar_caches_do_post($post_id),
+            'nota' => 'confira no front-end; desfaz com restore-content e este token.',
+        ];
+    }
+
+    public function ability_restore_content($input) {
+        $post_id = isset($input['post_id']) ? (int) $input['post_id'] : 0;
+        if (!$post_id || !get_post($post_id)) { return ['erro' => 'post não encontrado', 'post_id' => $post_id]; }
+        $fotos = get_post_meta($post_id, self::EDIT_BACKUPS, true);
+        if (!is_array($fotos) || !$fotos) { return ['erro' => 'sem fotos pra este post']; }
+
+        $token = isset($input['token']) ? (string) $input['token'] : '';
+        if ($token === '') {
+            $lista = [];
+            foreach ($fotos as $t => $f) { $lista[] = ['token' => $t, 'meta_key' => $f['meta_key'], 'quando' => $f['quando'], 'find' => $f['find'] ?? '']; }
+            return ['fotos' => $lista, 'nota' => 'passe um token pra restaurar.'];
+        }
+        if (!isset($fotos[$token])) { return ['erro' => 'token não encontrado', 'token' => $token]; }
+
+        $f = $fotos[$token];
+        update_post_meta($post_id, $f['meta_key'], wp_slash($f['value']));
+        return [
+            'ok' => true,
+            'post_id' => $post_id,
+            'meta_key' => $f['meta_key'],
+            'restaurado_de' => $f['quando'],
+            'caches' => $this->limpar_caches_do_post($post_id),
+        ];
+    }
+
+    /**
+     * Limpa o que possa servir a versão velha depois de uma edição: cache de
+     * post, CSS gerado do Oxygen (6 via Breakdance; clássico é arquivo por
+     * página em uploads/oxygen/css) e o cache de página do LiteSpeed. Melhor
+     * esforço — cada peça só roda se existir neste ambiente.
+     */
+    private function limpar_caches_do_post($post_id) {
+        $feito = [];
+        clean_post_cache($post_id);
+        $feito[] = 'post_cache';
+        if (function_exists('Breakdance\\Render\\clearAllCssCachesAndDeleteCachedFiles')) {
+            \Breakdance\Render\clearAllCssCachesAndDeleteCachedFiles();
+            $feito[] = 'css_oxygen6';
+        }
+        // Oxygen clássico guarda o CSS por página; apagar força regeneração.
+        $up = wp_upload_dir();
+        foreach (["/oxygen/css/{$post_id}.css", "/oxygen/css/post-{$post_id}.css"] as $rel) {
+            $p = ($up['basedir'] ?? '') . $rel;
+            if ($p && file_exists($p)) { @unlink($p); $feito[] = 'css_classico'; }
+        }
+        if (has_action('litespeed_purge_all')) {
+            do_action('litespeed_purge_all');
+            $feito[] = 'litespeed';
+        } elseif (has_action('litespeed_purge_post')) {
+            do_action('litespeed_purge_post', $post_id);
+            $feito[] = 'litespeed_post';
+        }
+        return $feito;
     }
 
     /* ============================ Leitura do legado ============================ */
