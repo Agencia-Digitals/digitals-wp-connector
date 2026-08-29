@@ -487,6 +487,50 @@ class Digitals_Studio_Oxygen {
             'execute_callback' => [$this, 'ability_restore_content'],
             'permission_callback' => $perm,
         ]);
+
+        // ── SEO por post ──────────────────────────────────────────────────
+        // O Rank Math guarda o foco/título/descrição em post meta que ele NÃO
+        // expõe no REST — então nem o wp/v2 nem as abilities dele escrevem por
+        // post. Esta operação escreve só essas chaves conhecidas (não é setter
+        // de meta genérico), no mesmo gate estúdio+Digitals.
+        wp_register_ability('digitals-studio/set-seo', [
+            'category' => 'digitals-studio',
+            'meta' => [
+                'public' => true, 'show_in_rest' => true, 'mcp' => ['public' => true],
+                'annotations' => ['readonly' => false, 'destructive' => false, 'idempotent' => true],
+            ],
+            'label' => 'Definir SEO (Rank Math) de um post',
+            'description' => 'Grava palavra-chave de foco, título e/ou meta descrição do Rank Math num post. Só os campos enviados são tocados; os demais ficam. Lê de volta o que gravou.',
+            'input_schema' => ['type' => 'object', 'required' => ['post_id'], 'properties' => [
+                'post_id' => ['type' => 'integer'],
+                'focus_keyword' => ['type' => 'string', 'description' => 'Palavra-chave de foco. Várias, separe por vírgula (a primeira é a principal).'],
+                'title' => ['type' => 'string', 'description' => 'Opcional: título SEO.'],
+                'description' => ['type' => 'string', 'description' => 'Opcional: meta descrição.'],
+            ]],
+            'execute_callback' => [$this, 'ability_set_seo'],
+            'permission_callback' => $perm,
+        ]);
+    }
+
+    /* ============================== SEO por post ========================== */
+
+    public function ability_set_seo($input) {
+        $post_id = isset($input['post_id']) ? (int) $input['post_id'] : 0;
+        if (!$post_id || !get_post($post_id)) { return ['erro' => 'post não encontrado', 'post_id' => $post_id]; }
+        $mapa = [
+            'focus_keyword' => 'rank_math_focus_keyword',
+            'title' => 'rank_math_title',
+            'description' => 'rank_math_description',
+        ];
+        $gravado = [];
+        foreach ($mapa as $campo => $meta_key) {
+            if (!isset($input[$campo]) || !is_string($input[$campo])) { continue; }
+            update_post_meta($post_id, $meta_key, sanitize_text_field($input[$campo]));
+            $gravado[$campo] = get_post_meta($post_id, $meta_key, true);
+        }
+        if (empty($gravado)) { return ['erro' => 'nada pra gravar — envie focus_keyword, title ou description']; }
+        clean_post_cache($post_id);
+        return ['ok' => true, 'post_id' => $post_id, 'gravado' => $gravado];
     }
 
     /* ========================= Edição de conteúdo ========================= */
