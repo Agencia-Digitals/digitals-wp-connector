@@ -26,7 +26,7 @@ if (!defined('ABSPATH')) { exit; }
 
 class Digitals_Studio_Oxygen {
 
-    const VERSION = '0.6.0';
+    const VERSION = '0.6.1';
     const BACKUP_MARKER = '_agd_occ_converted_at';
     const SETTINGS_OPTION = 'agd_occ_settings';
     const SELECTORS_OPTION = 'oxygen_oxy_selectors_json_string';
@@ -647,12 +647,13 @@ class Digitals_Studio_Oxygen {
             \Breakdance\Render\clearAllCssCachesAndDeleteCachedFiles();
             $feito[] = 'css_oxygen6';
         }
-        // Oxygen clássico guarda o CSS por página; apagar força regeneração.
-        $up = wp_upload_dir();
-        foreach (["/oxygen/css/{$post_id}.css", "/oxygen/css/post-{$post_id}.css"] as $rel) {
-            $p = ($up['basedir'] ?? '') . $rel;
-            if ($p && file_exists($p)) { @unlink($p); $feito[] = 'css_classico'; }
-        }
+        // NÃO apagar o CSS por página do Oxygen clássico
+        // (uploads/oxygen/css/{id}.css): ao contrário do que se supunha, o
+        // clássico NÃO regenera esse arquivo ao renderizar a página — só no
+        // save do builder. Apagar deixava um 404 que o LiteSpeed herdava ao
+        // recombinar o CSS. Edição de conteúdo (URL, texto, alt) não muda o
+        // CSS, então o arquivo continua válido. Quem edita estilo regenera
+        // pelo próprio Oxygen. Incidente 2026-08-29.
         if (has_action('litespeed_purge_all')) {
             do_action('litespeed_purge_all');
             $feito[] = 'litespeed';
