@@ -47,8 +47,28 @@ class AdSpirit_Agente_Conexao {
             AdSpirit_Safe_Hook::action(array($this, 'criar'), 'agente_criar'));
         add_action('admin_post_adspirit_agente_revogar',
             AdSpirit_Safe_Hook::action(array($this, 'revogar'), 'agente_revogar'));
-        add_action('adspirit_connector_render_tab_logs',
+        // Aba própria (2.65): estava escondida dentro de Diagnóstico, onde
+        // ninguém acha. Conectar o assistente é tarefa de primeira classe,
+        // não nota de rodapé de log.
+        add_filter('adspirit_connector_tabs',
+            AdSpirit_Safe_Hook::filter(array($this, 'registrar_aba'), 'agente_aba'));
+        add_action('adspirit_connector_render_tab_agente',
             AdSpirit_Safe_Hook::action(array($this, 'render'), 'agente_conexao_render'), 4);
+    }
+
+    /** Registra a aba. Só onde o agente pode operar — no site do cliente a
+     *  tela não existe, do mesmo jeito que as operações não existem. */
+    public function registrar_aba($abas) {
+        if (!is_array($abas)) return $abas;
+        if (!self::pode()) return $abas;
+        $abas['agente'] = 'Assistente';
+        return $abas;
+    }
+
+    /** Existe credencial ativa? É o que o chip da navegação lê. */
+    public static function conectado() {
+        if (!self::suportado()) return false;
+        return count(self::existentes(get_current_user_id())) > 0;
     }
 
     /** O WordPress deste site suporta senha de aplicativo? */
@@ -83,7 +103,7 @@ class AdSpirit_Agente_Conexao {
         if (!self::pode()) wp_die('Sem permissão.');
         check_admin_referer('adspirit_agente_criar');
         $back = add_query_arg(
-            array('page' => AdSpirit_Menu::PAGE_SLUG, 'tab' => 'logs'),
+            array('page' => AdSpirit_Menu::PAGE_SLUG, 'tab' => 'agente'),
             admin_url('admin.php')
         );
         if (!self::suportado()) {
@@ -126,7 +146,7 @@ class AdSpirit_Agente_Conexao {
         }
         delete_transient(self::TRANSIENT_NOVA);
         wp_safe_redirect(add_query_arg(
-            array('page' => AdSpirit_Menu::PAGE_SLUG, 'tab' => 'logs', 'agente' => 'revogada'),
+            array('page' => AdSpirit_Menu::PAGE_SLUG, 'tab' => 'agente', 'agente' => 'revogada'),
             admin_url('admin.php')
         ));
         exit;

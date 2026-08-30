@@ -129,6 +129,8 @@ class AdSpirit_Menu {
             'mailchimp'    => array('label' => 'Mailchimp',             'desc' => 'Inscreve leads numa lista do Mailchimp.'),
             'connection'   => array('label' => 'Conexão com o AdSpirit','desc' => 'Endereço, marca e chave de acesso — o coração do plugin.'),
             'logs'         => array('label' => 'Diagnóstico',           'desc' => 'Registros de envio, bloqueios e erros — pra suporte sem SSH.'),
+            'agente'       => array('label' => 'Assistente',            'desc' => 'Deixa a equipe da Digitals diagnosticar e ajustar este site pelo Claude, sem pedir acesso ao painel.'),
+            'studio'       => array('label' => 'Studio',                'desc' => 'Ferramentas de construção: Oxygen, conversão e CSS global. Só em endereço nosso.'),
         ));
     }
 
@@ -158,14 +160,32 @@ class AdSpirit_Menu {
         //    menu (antes só se chegava pelos primeiros passos);
         //  · CONEXÃO vira grupo próprio, antes de Tracking — é a porta de
         //    entrada da integração, não um item perdido no Início.
+        // Reorganização 2026-08-30 (Pedro): agrupar pelo SIGNIFICADO da
+        // tarefa, não por proximidade de módulo. Três problemas concretos
+        // que esta versão corrige:
+        //
+        //  · O Assistente vivia escondido dentro de Diagnóstico — tarefa de
+        //    primeira classe tratada como nota de rodapé de log. Vira grupo.
+        //  · "Medição do site" não estava em grupo nenhum e caía no "Mais"
+        //    automático, que é onde as coisas somem. Agora abre o grupo de
+        //    medição, com as conversões dentro.
+        //  · "Visão geral" dividia grupo com a lista de leads, então o que
+        //    deveria gritar ao abrir competia com aprofundamento. Vira
+        //    grupo próprio, com o Diagnóstico como o "avançado" dele.
+        //
+        // Studio ganha grupo em vez de cair no "Mais" (só aparece em
+        // endereço nosso, porque a aba só é registrada lá).
         return apply_filters('adspirit_connector_tab_groups', array(
-            'inicio'      => array('label' => 'Leads',                   'tabs' => array('overview', 'submissions')),
+            'visao'       => array('label' => 'Visão geral',             'tabs' => array('overview', 'logs')),
+            'inicio'      => array('label' => 'Leads',                   'tabs' => array('submissions')),
             'formularios' => array('label' => 'Formulários',             'tabs' => array('formularios', 'forms', 'ab-tests')),
             // "Primeiros passos" mora aqui (Pedro 08-20): é sobre conectar,
             // não sobre leads.
             'conexao'     => array('label' => 'Conexão com o AdSpirit',  'tabs' => array('connection', 'setup')),
-            'tracking'    => array('label' => 'Tracking',                'tabs' => array('capi-meta', 'ga4', 'behavioral', 'clarity', 'cross-domain')),
-            'avancado'    => array('label' => 'Configurações avançadas', 'tabs' => array('cf7-scope', 'antispam', 'turnstile', 'webhook-out', 'customerio', 'mailchimp', 'lgpd', 'logs')),
+            'medicao'     => array('label' => 'Medição',                 'tabs' => array('medicao', 'capi-meta', 'ga4', 'behavioral', 'clarity', 'cross-domain')),
+            'agente'      => array('label' => 'Assistente',              'tabs' => array('agente')),
+            'studio'      => array('label' => 'Studio',                  'tabs' => array('studio')),
+            'avancado'    => array('label' => 'Configurações avançadas', 'tabs' => array('cf7-scope', 'antispam', 'turnstile', 'webhook-out', 'customerio', 'mailchimp', 'lgpd')),
         ));
     }
 
@@ -205,11 +225,19 @@ class AdSpirit_Menu {
             $safe = class_exists('AdSpirit_Safe_Bootstrap') && AdSpirit_Safe_Bootstrap::is_safe_mode();
             $auth_err = (bool) get_option('adspirit_connector_crm_auth_error');
 
+            // O assistente tem chip como qualquer outra conexão do plugin:
+            // ou tem credencial ativa, ou não tem. Não é aviso de erro —
+            // site sem assistente conectado é estado normal.
+            $agente_on = class_exists('AdSpirit_Agente_Conexao')
+                && AdSpirit_Agente_Conexao::conectado();
+
             return array(
+                'visao'       => array('state' => !$connected ? 'off' : ($unsent > 0 ? 'warn' : 'ok'), 'hint' => $unsent > 0 ? $unsent . ' lead(s) aguardando entrega' : 'Leads fluindo normalmente'),
                 'inicio'      => array('state' => !$connected ? 'off' : ($unsent > 0 ? 'warn' : 'ok'), 'hint' => $unsent > 0 ? $unsent . ' lead(s) aguardando entrega' : 'Leads fluindo normalmente'),
                 'conexao'     => array('state' => $connected ? 'ok' : 'warn', 'hint' => $connected ? 'Conectado ao AdSpirit' : 'Falta conectar ao AdSpirit'),
-                'tracking' => array('state' => $measuring ? 'ok' : 'off', 'hint' => $measuring ? 'Medição ativa' : 'Nenhuma medição configurada'),
-                'avancado' => array('state' => ($safe || $auth_err) ? 'warn' : ($integrating ? 'ok' : 'off'), 'hint' => $safe ? 'Modo de segurança ativo' : ($auth_err ? 'Chave rejeitada pelo AdSpirit' : ($integrating ? 'Integrações ativas' : 'Tudo quieto'))),
+                'medicao'     => array('state' => $measuring ? 'ok' : 'off', 'hint' => $measuring ? 'Medição ativa' : 'Nenhuma medição configurada'),
+                'agente'      => array('state' => $agente_on ? 'ok' : 'off', 'hint' => $agente_on ? 'Assistente conectado a este site' : 'Assistente sem credencial'),
+                'avancado'    => array('state' => ($safe || $auth_err) ? 'warn' : ($integrating ? 'ok' : 'off'), 'hint' => $safe ? 'Modo de segurança ativo' : ($auth_err ? 'Chave rejeitada pelo AdSpirit' : ($integrating ? 'Integrações ativas' : 'Tudo quieto'))),
             );
         }, array(), 'menu_group_health');
     }
