@@ -298,6 +298,25 @@ class AdSpirit_Medicao {
             ''
         );
 
+        // Este quadro lista o que o CONNECTOR gerencia. Se o site também usa
+        // Tag Manager ou Site Kit, existe medição que não passa por aqui e
+        // que esta tela não enxerga — dizer isso antes da tabela evita a
+        // leitura errada de "não configurado" como "não está medindo".
+        // (Incidente 29/08: diagnóstico concluiu GA4/Clarity desligados num
+        // site que media tudo pelo GTM.)
+        $rel = class_exists('AdSpirit_Pixel_Conflito')
+            ? get_option(AdSpirit_Pixel_Conflito::OPTION_RELATORIO, array())
+            : array();
+        if (is_array($rel) && !empty($rel['varredura_cega'])) {
+            $fontes = !empty($rel['cega_por']) && is_array($rel['cega_por'])
+                ? implode(', ', array_map('sanitize_text_field', $rel['cega_por']))
+                : 'Tag Manager';
+            echo '<div class="as-notice info" style="margin-bottom:12px"><p><strong>Este site também mede por fora do connector.</strong> '
+               . 'Detectamos ' . esc_html($fontes) . '. O que passa por ali é injetado depois, pelo navegador, '
+               . 'e não aparece nesta tela — então "não configurado" abaixo significa <em>não configurado aqui</em>, '
+               . 'e não que o canal esteja desligado. Confira no Tag Manager antes de ligar algo em duplicado.</p></div>';
+        }
+
         echo '<table class="widefat striped"><tbody>';
         foreach ($this->ferramentas() as $f) {
             $link = esc_url(add_query_arg('adspirit_tab', $f['aba'], $url));

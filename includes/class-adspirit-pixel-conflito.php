@@ -487,6 +487,25 @@ class AdSpirit_Pixel_Conflito {
             'clarity_na_pagina' => $clarity_na_pagina,
             'google_ads_na_pagina' => $google_ads_na_pagina,
             'meta_na_pagina' => $na_pagina,
+            // ── O ponto cego, declarado ────────────────────────────────
+            // Esta varredura lê o HTML que o servidor entrega. Tag Manager
+            // e Site Kit injetam DEPOIS, com JavaScript — o que passa por
+            // eles é invisível aqui.
+            //
+            // Sem este campo, lista vazia se lê como "canal desligado", e
+            // não é: é "não dá pra ver daqui". O erro é caro — em 29/08 um
+            // diagnóstico concluiu que GA4 e Clarity estavam desligados num
+            // site que media tudo pelo GTM, e a conclusão só caiu quando a
+            // página foi aberta num navegador de verdade.
+            //
+            // Quem consome o relatório (tela, AdSpirit, agente) deve tratar
+            // lista vazia COM cegueira como "indeterminado", nunca como
+            // ausência.
+            'varredura_cega' => (bool) $gtm_id || !empty($plugins),
+            'cega_por' => array_values(array_filter(array_merge(
+                $gtm_id ? array('Tag Manager (' . $gtm_id . ')') : array(),
+                (array) $plugins
+            ))),
             'plugins' => $plugins,
             'snippets' => $snippets,
             'trecho_pra_desligar' => $trecho_pra_desligar,

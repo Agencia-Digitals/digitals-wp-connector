@@ -230,7 +230,7 @@ class AdSpirit_Agente {
                 'conectado' => class_exists('AdSpirit_Connect') ? AdSpirit_Connect::is_connected() : null,
                 'modo_config' => class_exists('AdSpirit_Config_Sync') ? AdSpirit_Config_Sync::modo() : '',
             ),
-            'medicao' => class_exists('AdSpirit_Pixel_Conflito') ? AdSpirit_Pixel_Conflito::relatorio() : array(),
+            'medicao' => class_exists('AdSpirit_Pixel_Conflito') ? self::marcar_cegueira(AdSpirit_Pixel_Conflito::relatorio()) : array(),
             'plugins_ativos' => $plugins,
         );
     }
@@ -239,7 +239,29 @@ class AdSpirit_Agente {
         if (!class_exists('AdSpirit_Pixel_Conflito')) {
             return array('erro' => 'Módulo de conflito de pixel não está disponível.');
         }
-        return AdSpirit_Pixel_Conflito::instance()->verificar();
+        return self::marcar_cegueira(AdSpirit_Pixel_Conflito::instance()->verificar());
+    }
+
+    /**
+     * Anexa ao relatório uma frase que quem lê NÃO pode ignorar.
+     *
+     * A varredura lê o HTML do servidor; Tag Manager e Site Kit injetam
+     * depois, no navegador. Lista vazia significa "não vi daqui", não
+     * "está desligado" — e essa diferença já custou um diagnóstico errado
+     * (29/08: GA4 e Clarity dados como desligados num site que media tudo
+     * pelo GTM). Campos crus podem ser lidos por olho apressado ou por
+     * agente; a ressalva vai em texto, junto do dado.
+     */
+    private static function marcar_cegueira($relatorio) {
+        if (!is_array($relatorio) || empty($relatorio['varredura_cega'])) return $relatorio;
+        $fontes = !empty($relatorio['cega_por']) && is_array($relatorio['cega_por'])
+            ? implode(', ', $relatorio['cega_por'])
+            : 'Tag Manager';
+        $relatorio['ATENCAO'] = 'Esta varredura lê o HTML do servidor e NÃO enxerga o que ' . $fontes
+            . ' injeta pelo navegador. Portanto lista vazia (ga4_na_pagina, clarity_na_pagina, etc.) '
+            . 'significa INDETERMINADO, nunca "desligado". Para afirmar que um canal está desligado, '
+            . 'é preciso abrir a página num navegador de verdade ou conferir dentro do Tag Manager.';
+        return $relatorio;
     }
 
     public function desligar_trecho() {
