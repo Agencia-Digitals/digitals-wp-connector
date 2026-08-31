@@ -179,6 +179,25 @@ class AdSpirit_Agente {
             'permission_callback' => $perm,
         ));
 
+        wp_register_ability(self::CATEGORIA . '/desempenho', array(
+            'category' => self::CATEGORIA,
+            'meta' => $this->meta(false),
+            'label' => 'Desempenho da página',
+            'description' => 'Lê e ajusta as otimizações de saída deste site: adiar o vídeo de fundo (com imagem de capa) e travar a geometria do herói pra não haver salto de layout. Sem `acao`, só devolve o estado. Nada disso toca o conteúdo salvo do construtor — atua no HTML de saída, e desligar volta tudo ao original.',
+            'input_schema' => array(
+                'type' => 'object',
+                'default' => new stdClass(),
+                'properties' => array(
+                    'acao' => array('type' => 'string', 'enum' => array('ler', 'ajustar'), 'description' => 'Padrão: ler.'),
+                    'adiar_video' => array('type' => 'boolean'),
+                    'travar_hero' => array('type' => 'boolean'),
+                    'poster_url' => array('type' => 'string', 'description' => 'Imagem mostrada enquanto o vídeo não chega. Idealmente o primeiro quadro dele, pra troca não dar salto.'),
+                ),
+            ),
+            'execute_callback' => array($this, 'desempenho'),
+            'permission_callback' => $perm,
+        ));
+
         wp_register_ability(self::CATEGORIA . '/historico', array(
             'category' => self::CATEGORIA,
             'meta' => $this->meta(true),
@@ -271,6 +290,41 @@ class AdSpirit_Agente {
      * pelo GTM). Campos crus podem ser lidos por olho apressado ou por
      * agente; a ressalva vai em texto, junto do dado.
      */
+    /** Lê/ajusta as otimizações de saída (ver AdSpirit_Performance). */
+    public function desempenho($input) {
+        if (!class_exists('AdSpirit_Performance')) {
+            return array('ok' => false, 'erro' => 'Módulo de desempenho não disponível nesta versão.');
+        }
+        $cfg = AdSpirit_Performance::config();
+        $acao = isset($input['acao']) ? (string) $input['acao'] : 'ler';
+
+        if ($acao !== 'ajustar') {
+            return array('ok' => true, 'config' => $cfg);
+        }
+
+        $patch = array();
+        foreach (array('adiar_video', 'travar_hero') as $k) {
+            if (array_key_exists($k, $input)) $patch[$k] = !empty($input[$k]) ? '1' : '0';
+        }
+        if (array_key_exists('poster_url', $input)) {
+            $u = trim((string) $input['poster_url']);
+            // Vazio limpa; qualquer outra coisa precisa ser URL de verdade —
+            // poster quebrado é pior que poster nenhum (fica um ícone de
+            // imagem falhada em cima do herói).
+            if ($u !== '' && !filter_var($u, FILTER_VALIDATE_URL)) {
+                return array('ok' => false, 'erro' => 'poster_url não é uma URL válida.');
+            }
+            $patch['poster_url'] = $u === '' ? '' : esc_url_raw($u);
+        }
+        if (!$patch) return array('ok' => false, 'erro' => 'Nada pra ajustar.');
+
+        update_option(AdSpirit_Performance::OPTION, array_merge($cfg, $patch), false);
+        if (has_action('litespeed_purge_all')) do_action('litespeed_purge_all');
+
+        $this->registrar_acao('desempenho', wp_json_encode($patch));
+        return array('ok' => true, 'config' => AdSpirit_Performance::config());
+    }
+
     /** Nome da opção → rótulo, pra não repetir string solta. */
     private static function listas_de_bloqueio() {
         return array(
