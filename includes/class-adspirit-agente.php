@@ -160,6 +160,25 @@ class AdSpirit_Agente {
             'permission_callback' => $perm,
         ));
 
+        wp_register_ability(self::CATEGORIA . '/anti-spam', array(
+            'category' => self::CATEGORIA,
+            'meta' => $this->meta(false),
+            'label' => 'Anti-spam: listas de bloqueio e proteção de volume',
+            'description' => 'Lê e edita a defesa anti-spam deste site: listas de bloqueio (telefone, e-mail por regex, palavra) e o limite de envios por IP, que é o que segura ataque de volume. Sem `acao`, só devolve o estado atual. Existe porque isso não deveria exigir wp-admin — em vários sites ele está escondido por plugin de segurança, e a mesma pessoa costuma atacar mais de um site.',
+            'input_schema' => array(
+                'type' => 'object',
+                'default' => new stdClass(),
+                'properties' => array(
+                    'acao' => array('type' => 'string', 'enum' => array('ler', 'adicionar', 'remover', 'proteger'), 'description' => 'Padrão: ler. `proteger` liga/desliga o limite por IP.'),
+                    'tipo' => array('type' => 'string', 'enum' => array('telefone', 'email', 'palavra'), 'description' => 'Qual lista mexer.'),
+                    'valor' => array('type' => 'string', 'description' => 'O que adicionar ou remover.'),
+                    'limite_por_ip' => array('type' => 'integer', 'description' => 'Com acao=proteger: envios por minuto por IP. 0 desliga o limite.'),
+                ),
+            ),
+            'execute_callback' => array($this, 'blocklist'),
+            'permission_callback' => $perm,
+        ));
+
         wp_register_ability(self::CATEGORIA . '/historico', array(
             'category' => self::CATEGORIA,
             'meta' => $this->meta(true),
@@ -252,6 +271,126 @@ class AdSpirit_Agente {
      * pelo GTM). Campos crus podem ser lidos por olho apressado ou por
      * agente; a ressalva vai em texto, junto do dado.
      */
+    /** Nome da opção → rótulo, pra não repetir string solta. */
+    private static function listas_de_bloqueio() {
+        return array(
+            'telefone' => array('chave' => 'blocklist_phones', 'rotulo' => 'telefones'),
+            'email'    => array('chave' => 'blocklist_emails', 'rotulo' => 'e-mails'),
+            'palavra'  => array('chave' => 'blocklist_words',  'rotulo' => 'palavras'),
+        );
+    }
+
+    /**
+     * Lê e edita a lista de bloqueio do anti-spam.
+     *
+     * Guarda uma linha por entrada (é o formato que o anti-spam já lê) e
+     * deduplica sem mexer na ordem — quem abrir a tela depois encontra o que
+     * espera. Adicionar o que já existe não é erro: é no-op, e o retorno diz
+     * isso, pra quem chama não ficar em dúvida se funcionou.
+     */
+    public function blocklist($input) {
+        if (!class_exists('AdSpirit_Settings')) {
+            return array('ok' => false, 'erro' => 'Configurações não disponíveis.');
+        }
+        $listas = self::listas_de_bloqueio();
+        $cfg = AdSpirit_Settings::get_antispam();
+
+        $ler_tudo = function () use ($listas, &$cfg) {
+            $out = array();
+            foreach ($listas as $tipo => $meta) {
+                $bruto = isset($cfg[$meta['chave']]) ? (string) $cfg[$meta['chave']] : '';
+                $itens = array_values(array_filter(array_map('trim', preg_split('/\r?\n/', $bruto))));
+                $out[$tipo] = $itens;
+            }
+            return $out;
+        };
+
+        $acao = isset($input['acao']) ? (string) $input['acao'] : 'ler';
+        if ($acao === 'ler' || $acao === '') {
+            return array(
+                'ok' => true,
+                'listas' => $ler_tudo(),
+                'protecao_de_volume' => array(
+                    'ligado' => ($cfg['rate_limit'] ?? '0') === '1',
+                    'limite_por_ip_por_minuto' => (int) ($cfg['rate_limit_max'] ?? 0),
+                ),
+            );
+        }
+
+        // Limite por IP: a defesa contra volume. Vinha desligada por padrão,
+        // o que deixa o site exposto a alguém que submete em looping — o
+        // custo não é só lead sujo, é carga no servidor.
+        if ($acao === 'proteger') {
+            $limite = isset($input['limite_por_ip']) ? (int) $input['limite_por_ip'] : 5;
+            if ($limite < 0) return array('ok' => false, 'erro' => 'limite_por_ip não pode ser negativo.');
+            AdSpirit_Settings::update_antispam($limite === 0
+                ? array('rate_limit' => '0')
+                : array('rate_limit' => '1', 'rate_limit_max' => $limite));
+            $cfg = AdSpirit_Settings::get_antispam();
+            $this->registrar_acao('anti-spam', $limite === 0 ? 'limite por IP desligado' : "limite por IP: {$limite}/min");
+            return array(
+                'ok' => true,
+                'mudou' => true,
+                'limite_por_ip' => $limite === 0 ? 0 : (int) $cfg['rate_limit_max'],
+                'ligado' => ($cfg['rate_limit'] ?? '0') === '1',
+            );
+        }
+
+        $tipo = isset($input['tipo']) ? (string) $input['tipo'] : '';
+        $valor = isset($input['valor']) ? trim((string) $input['valor']) : '';
+        if (!isset($listas[$tipo])) {
+            return array('ok' => false, 'erro' => 'tipo deve ser telefone, email ou palavra.');
+        }
+        if ($valor === '') {
+            return array('ok' => false, 'erro' => 'valor vazio.');
+        }
+
+        $chave = $listas[$tipo]['chave'];
+        $atual = isset($cfg[$chave]) ? (string) $cfg[$chave] : '';
+        $itens = array_values(array_filter(array_map('trim', preg_split('/\r?\n/', $atual))));
+
+        // Telefone é comparado por dígitos no anti-spam; guardar normalizado
+        // evita duas linhas ("11 96043-9444" e "11960439444") pra mesma pessoa.
+        $comparavel = ($tipo === 'telefone')
+            ? preg_replace('/\D+/', '', $valor)
+            : strtolower($valor);
+        if ($tipo === 'telefone') {
+            if (strlen($comparavel) < 8) {
+                return array('ok' => false, 'erro' => 'Telefone precisa de ao menos 8 dígitos.');
+            }
+            $valor = $comparavel;
+        }
+
+        $existe = false;
+        foreach ($itens as $i) {
+            $c = ($tipo === 'telefone') ? preg_replace('/\D+/', '', $i) : strtolower($i);
+            if ($c === $comparavel) { $existe = true; break; }
+        }
+
+        if ($acao === 'adicionar') {
+            if ($existe) {
+                return array('ok' => true, 'mudou' => false, 'nota' => 'Já estava na lista.', 'listas' => $ler_tudo());
+            }
+            $itens[] = $valor;
+        } elseif ($acao === 'remover') {
+            if (!$existe) {
+                return array('ok' => true, 'mudou' => false, 'nota' => 'Não estava na lista.', 'listas' => $ler_tudo());
+            }
+            $itens = array_values(array_filter($itens, function ($i) use ($tipo, $comparavel) {
+                $c = ($tipo === 'telefone') ? preg_replace('/\D+/', '', $i) : strtolower($i);
+                return $c !== $comparavel;
+            }));
+        } else {
+            return array('ok' => false, 'erro' => 'acao deve ser ler, adicionar ou remover.');
+        }
+
+        AdSpirit_Settings::update_antispam(array($chave => implode("\n", $itens)));
+        $cfg = AdSpirit_Settings::get_antispam();
+
+        $this->registrar_acao('anti-spam', $acao . ' ' . $listas[$tipo]['rotulo'] . ': ' . $valor);
+        return array('ok' => true, 'mudou' => true, 'listas' => $ler_tudo());
+    }
+
     private static function marcar_cegueira($relatorio) {
         if (!is_array($relatorio) || empty($relatorio['varredura_cega'])) return $relatorio;
         $fontes = !empty($relatorio['cega_por']) && is_array($relatorio['cega_por'])
