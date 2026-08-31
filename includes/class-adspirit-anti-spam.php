@@ -187,7 +187,18 @@ class AdSpirit_Anti_Spam {
             }
         }
 
-        // (6) Blocklist
+        // (6) Blocklist — telefone primeiro: é o identificador que sobra
+        // quando a pessoa varia nome, empresa, texto e até o e-mail.
+        if (!empty($cfg['blocklist_phones'])) {
+            foreach (self::telefones_do_payload($_POST) as $tel) {
+                $casou = self::telefone_bloqueado($tel, $cfg['blocklist_phones']);
+                if ($casou !== false) {
+                    $this->reject($result, 'blocklist_phone', 'Telefone na blocklist: ' . $casou);
+                    return $result;
+                }
+            }
+        }
+
         if (!empty($cfg['blocklist_emails']) || !empty($cfg['blocklist_words'])) {
             $email = isset($_POST['your-email']) ? strtolower(trim((string) $_POST['your-email'])) : '';
             $patterns = preg_split('/\r?\n/', trim((string) $cfg['blocklist_emails']));
@@ -294,6 +305,14 @@ class AdSpirit_Anti_Spam {
         }
 
         // (6) Blocklist
+        if (!empty($cfg['blocklist_phones'])) {
+            foreach (self::telefones_do_payload($payload) as $tel) {
+                $casou = self::telefone_bloqueado($tel, $cfg['blocklist_phones']);
+                if ($casou !== false) {
+                    return array('valid' => false, 'reason_code' => 'blocklist_phone', 'reason_text' => 'Telefone bloqueado: ' . $casou);
+                }
+            }
+        }
         if (!empty($cfg['blocklist_emails'])) {
             $em = strtolower(trim((string) $email));
             $patterns = preg_split('/\r?\n/', trim((string) $cfg['blocklist_emails']));
@@ -332,6 +351,36 @@ class AdSpirit_Anti_Spam {
      * telefone, empresa e site não são prosa: não há o que avaliar neles, e
      * avaliá-los só produz falso positivo.
      */
+    /**
+     * O telefone informado casa com alguém da lista de bloqueio?
+     *
+     * Compara só dígitos e pelo FIM do número: o mesmo aparelho chega como
+     * "11960439444", "+55 11 96043-9444" ou "(11) 96043-9444", e exigir
+     * igualdade exata deixaria passar as três variações. Oito dígitos é o
+     * mínimo pra não confundir gente diferente.
+     */
+    private static function telefone_bloqueado($valor, $lista) {
+        $so_digitos = preg_replace('/\D+/', '', (string) $valor);
+        if (strlen($so_digitos) < 8) return false;
+        foreach (preg_split('/\r?\n/', trim((string) $lista)) as $alvo) {
+            $alvo = preg_replace('/\D+/', '', trim($alvo));
+            if (strlen($alvo) < 8) continue;
+            $n = min(strlen($alvo), strlen($so_digitos));
+            if (substr($alvo, -$n) === substr($so_digitos, -$n)) return $alvo;
+        }
+        return false;
+    }
+
+    /** Onde um telefone pode chegar, entre os nomes de campo que usamos. */
+    private static function telefones_do_payload(array $dados) {
+        $out = array();
+        foreach ($dados as $k => $v) {
+            if (!is_string($v) || $v === '') continue;
+            if (preg_match('/telefone|phone|whatsapp|celular|^tel$/i', (string) $k)) $out[] = $v;
+        }
+        return $out;
+    }
+
     private static function texto_livre(array $post) {
         $identidade = array(
             'your-name', 'name', 'nome', 'first_name', 'last_name', 'sobrenome',
@@ -556,6 +605,11 @@ class AdSpirit_Anti_Spam {
         </div>
 
         <div class="as-field">
+            <label class="as-field-label" for="blocklist_phones">Telefones bloqueados</label>
+            <textarea id="blocklist_phones" name="blocklist_phones" rows="3" class="large-text" placeholder="11960439444"><?php echo esc_textarea($c['blocklist_phones'] ?? ''); ?></textarea>
+            <p class="as-field-help">Um por linha. Compara só os dígitos e pelo fim do número, então tanto faz DDI, parênteses ou tra&ccedil;o. Pega tamb&eacute;m a captura parcial, que costuma vir s&oacute; com nome e telefone.</p>
+        </div>
+        <div class="as-field">
             <label class="as-field-label" for="blocklist_emails">E-mails bloqueados</label>
             <textarea id="blocklist_emails" name="blocklist_emails" rows="4" class="large-text" placeholder="fulano@exemplo.com"><?php echo esc_textarea($c['blocklist_emails']); ?></textarea>
             <p class="description">Um por linha. Vazio = ninguém bloqueado. Aceita expressão: <code>@exemplo\.ru$</code> barra o domínio inteiro.
@@ -614,6 +668,7 @@ class AdSpirit_Anti_Spam {
         $patch['rate_limit']      = !empty($post['rate_limit']) ? '1' : '0';
         $patch['rate_limit_max']  = max(1, intval($post['rate_limit_max'] ?? 3));
         $patch['ua_check']        = !empty($post['ua_check']) ? '1' : '0';
+        $patch['blocklist_phones']= sanitize_textarea_field((string) ($post['blocklist_phones'] ?? ''));
         $patch['blocklist_emails']= sanitize_textarea_field((string) ($post['blocklist_emails'] ?? ''));
         $patch['blocklist_words'] = sanitize_textarea_field((string) ($post['blocklist_words'] ?? ''));
         // Salvar é o aceite do conserto automático: o aviso some daqui pra

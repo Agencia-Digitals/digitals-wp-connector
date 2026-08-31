@@ -224,6 +224,12 @@ class AdSpirit_Settings {
             'rate_limit_max'  => 5,
             'blocklist_emails'=> "",   // regex separado por linha
             'blocklist_words' => "",   // palavras separadas por linha (em qualquer field)
+            // Telefone é o que sobra quando o resto varia: quem insiste em
+            // encher o formulário troca nome, empresa e texto, e às vezes nem
+            // deixa e-mail (captura parcial). O número costuma repetir.
+            // Comparado só por dígitos, casando pelo FIM — assim 11960439444,
+            // +5511960439444 e (11) 96043-9444 são a mesma pessoa.
+            'blocklist_phones'=> "",   // um por linha
             // Marca a versão do formato. Ver get_antispam().
             'schema'          => 2,
         );
