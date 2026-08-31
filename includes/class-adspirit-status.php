@@ -234,9 +234,8 @@ class AdSpirit_Status {
             if (($c['at'] ?? 0) >= $cwindow) $recent_crashes++;
         }
         ?>
-        <?php if (!$env['cf7_installed'] || $env['wp_armour'] || $safe_mode || $recent_crashes > 0): ?>
+        <?php if ($env['wp_armour'] || $safe_mode || $recent_crashes > 0): ?>
             <div class="as-notice warn"><p>
-                <?php if (!$env['cf7_installed']): ?>Contact Form 7 não está instalado. <?php endif; ?>
                 <?php if ($env['wp_armour']): ?>WP Armour é redundante — o anti-spam embutido cobre tudo; pode desinstalar. <?php endif; ?>
                 <?php if ($safe_mode): ?>Plugin em modo de segurança (features desligadas, site intocado). <?php endif; ?>
                 <?php if ($recent_crashes > 0): ?><?php echo (int) $recent_crashes; ?> erro(s) capturado(s) nas últimas 24h — <a href="<?php echo esc_url(admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=logs')); ?>">ver diagnóstico</a>.<?php endif; ?>
@@ -252,7 +251,8 @@ class AdSpirit_Status {
                     <?php if ($env['cf7_installed']): ?>
                         <span class="as-badge ok">Ativo</span> v<?php echo esc_html($env['cf7_version']); ?>
                     <?php else: ?>
-                        <span class="as-badge danger">Não instalado</span>
+                        <span class="as-badge">Não instalado</span>
+                        <span class="as-field-help">Opcional — o formulário do AdSpirit captura sem ele.</span>
                     <?php endif; ?>
                 </td>
             </tr>
@@ -395,14 +395,25 @@ class AdSpirit_Status {
         }
 
         return array(
+            // O CF7 deixou de ser obrigatório: o formulário multi-step do
+            // AdSpirit tem endpoint próprio (admin-ajax) e não depende dele.
+            // Site que migrou e desativou o plugin estava vendo uma FALHA
+            // vermelha mandando reinstalar — conselho errado, e que assusta
+            // justamente quem fez a coisa certa (Digitals, 31/08).
+            //
+            // Vira informativo: só diz o que existe. Falha de verdade é não
+            // ter NENHUM caminho de captura, e isso o próprio item de
+            // formulários já cobre.
             array(
-                'status' => $cf7_installed ? 'done' : 'fail',
-                'title'  => 'Contact Form 7 instalado e ativo',
+                'status' => 'done',
+                'title'  => $cf7_installed
+                    ? 'Formulários do site'
+                    : 'Formulário multi-step do AdSpirit',
                 'desc'   => $cf7_installed
-                    ? 'Plugin CF7 detectado. Hooks de submissão prontos.'
-                    : 'Instale e ative o plugin <a href="' . esc_url(admin_url('plugin-install.php?s=contact+form+7&tab=search')) . '">Contact Form 7</a>. Sem ele, o envio de leads não funciona.',
-                'cta_url' => admin_url('plugin-install.php?s=contact+form+7&tab=search'),
-                'cta_label' => 'Instalar CF7',
+                    ? 'Contact Form 7 ativo e o formulário do AdSpirit disponível — os dois entregam lead.'
+                    : 'O formulário multi-step do AdSpirit captura por conta própria. O Contact Form 7 não é necessário.',
+                'cta_url' => admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=formularios'),
+                'cta_label' => 'Ver formulários',
             ),
             array(
                 'status' => $endpoint_ok ? 'done' : 'todo',
