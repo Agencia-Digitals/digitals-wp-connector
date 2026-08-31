@@ -61,6 +61,7 @@ class AdSpirit_Performance {
             // derrubar o módulo inteiro.
             'adiar_video' => '1',
             'travar_hero' => '1',
+            'limpar_shortcode_orfao' => '1',
         );
         $c = get_option(self::OPTION, array());
         return array_merge($padrao, is_array($c) ? $c : array());
@@ -94,6 +95,7 @@ class AdSpirit_Performance {
             $cfg = self::config();
             if ($cfg['adiar_video'] === '1') $html = $this->adiar_video($html);
             if ($cfg['travar_hero'] === '1') $html = $this->travar_hero($html);
+            if ($cfg['limpar_shortcode_orfao'] === '1') $html = $this->limpar_shortcode_orfao($html);
             return $html;
         } catch (\Throwable $e) {
             if (class_exists('AdSpirit_Crash_Tracker')) {
@@ -174,6 +176,40 @@ JS;
         $pos = strripos($html, '</body>');
         if ($pos === false) return $html . $js;
         return substr($html, 0, $pos) . $js . substr($html, $pos);
+    }
+
+    /**
+     * Some com shortcode que ficou órfão quando um plugin foi desativado.
+     *
+     * Shortcode sem plugin que o atenda não some: o WordPress imprime o
+     * texto cru. Na desativação do Contact Form 7 (31/08) a home passou a
+     * exibir `[contact-form-7 id="..." title="Leads principal"]` como frase,
+     * logo abaixo da chamada do formulário — bem no lugar onde o visitante
+     * decide se preenche.
+     *
+     * Some com o texto, não com o bloco: o elemento que o continha fica no
+     * lugar, então o espaçamento da página não muda. E não toca no conteúdo
+     * salvo — quem reativar o plugin volta a ver o formulário, sem precisar
+     * desfazer nada aqui.
+     *
+     * Deliberadamente restrito a shortcodes conhecidos e sem efeito colateral
+     * (formulário). Não é um "limpador de shortcode" genérico: sumir com algo
+     * que alguém queria ver é pior do que o problema.
+     */
+    private function limpar_shortcode_orfao($html) {
+        if (strpos($html, '[') === false) return $html;
+        $orfaos = apply_filters('adspirit_shortcodes_orfaos', array(
+            'contact-form-7', 'contact-form', 'wpcf7',
+        ));
+        $mudou = false;
+        foreach ($orfaos as $tag) {
+            // Só remove se o shortcode NÃO estiver registrado — plugin ativo
+            // significa que ele deve renderizar normalmente.
+            if (shortcode_exists($tag)) continue;
+            $novo = preg_replace('/\[' . preg_quote($tag, '/') . '\b[^\]]*\]/i', '', $html);
+            if (is_string($novo) && $novo !== $html) { $html = $novo; $mudou = true; }
+        }
+        return $html;
     }
 
     /**
