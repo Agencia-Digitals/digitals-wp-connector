@@ -1,0 +1,242 @@
+<title>Auditoria de Avisos do Connector</title>
+<style>
+  :root{
+    --paper:#f7f5f1; --card:#fffefb; --ink:#1a1917; --ink-2:#4b4840; --ink-3:#7b776d;
+    --line:#e6e2d9; --line-2:#d5d0c4; --accent:#3c6e9f; --accent-soft:#e8eff6;
+    --ok:#3d7a52; --ok-soft:#e6f0e9; --warn:#96661a; --warn-soft:#f6ecdb; --bad:#a4433a; --bad-soft:#f6e5e3;
+    --mono:"SFMono-Regular",ui-monospace,Menlo,monospace;
+    --sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    --serif:"Newsreader",Georgia,serif;
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --paper:#121211; --card:#1b1a18; --ink:#efece5; --ink-2:#c2beb4; --ink-3:#8a867b;
+    --line:#2b2a26; --line-2:#3a382f; --accent:#8ab4dd; --accent-soft:#1e2833;
+    --ok:#7db894; --ok-soft:#18261c; --warn:#d0a45c; --warn-soft:#2b2314; --bad:#df8880; --bad-soft:#2d1b18;
+  }}
+  :root[data-theme="dark"]{
+    --paper:#121211; --card:#1b1a18; --ink:#efece5; --ink-2:#c2beb4; --ink-3:#8a867b;
+    --line:#2b2a26; --line-2:#3a382f; --accent:#8ab4dd; --accent-soft:#1e2833;
+    --ok:#7db894; --ok-soft:#18261c; --warn:#d0a45c; --warn-soft:#2b2314; --bad:#df8880; --bad-soft:#2d1b18;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.62;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:900px;margin:0 auto;padding:56px 24px 96px}
+  .eyebrow{font-size:11.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--accent);font-weight:650}
+  h1{font-family:var(--serif);font-weight:500;font-size:39px;line-height:1.12;letter-spacing:-.012em;margin:.35em 0 .25em;text-wrap:balance}
+  .lede{color:var(--ink-2);font-size:16.5px;max-width:66ch}
+  h2{font-family:var(--serif);font-weight:500;font-size:25px;margin:54px 0 4px;padding-top:24px;border-top:1px solid var(--line)}
+  h2 .n{color:var(--ink-3);font-size:19px;margin-right:10px}
+  .sub{color:var(--ink-3);font-size:13.5px;margin:0 0 18px}
+  p{margin:.55em 0} a{color:var(--accent)}
+  code{font-family:var(--mono);font-size:.85em;background:var(--accent-soft);padding:.1em .42em;border-radius:5px}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:24px 0}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:15px 16px}
+  .stat .n{font-family:var(--serif);font-size:30px;line-height:1;font-variant-numeric:tabular-nums}
+  .stat .l{font-size:11.5px;color:var(--ink-3);margin-top:7px;line-height:1.35}
+  .stat.bad .n{color:var(--bad)} .stat.warn .n{color:var(--warn)} .stat.ok .n{color:var(--ok)}
+  .row{background:var(--card);border:1px solid var(--line);border-radius:14px;margin:12px 0;overflow:hidden}
+  .row .hd{display:flex;gap:12px;align-items:baseline;padding:15px 18px 4px}
+  .row h3{font-size:15.5px;font-weight:650;margin:0;flex:1}
+  .row .bd{padding:0 18px 16px}
+  .tag{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:3px 8px;border-radius:6px;white-space:nowrap}
+  .tag.corrigido{background:var(--ok-soft);color:var(--ok)}
+  .tag.aberto{background:var(--bad-soft);color:var(--bad)}
+  .tag.risco{background:var(--warn-soft);color:var(--warn)}
+  .ev{font-size:13.2px;color:var(--ink-2);border-left:3px solid var(--line-2);padding:3px 0 3px 12px;margin:9px 0}
+  .fix{font-size:14px;margin-top:9px}
+  .fix b{color:var(--ink)}
+  .quando{font-size:11.5px;color:var(--ink-3);white-space:nowrap}
+  .tablewrap{overflow-x:auto;margin:14px 0;border:1px solid var(--line);border-radius:13px;background:var(--card)}
+  table{border-collapse:collapse;width:100%;font-size:13px;min-width:560px}
+  th,td{text-align:left;padding:10px 13px;border-bottom:1px solid var(--line);vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  th{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:650}
+  .regra{background:var(--accent-soft);border-left:3px solid var(--accent);border-radius:0 12px 12px 0;padding:16px 20px;margin:20px 0}
+  .regra b{color:var(--ink)}
+  footer{margin-top:64px;padding-top:20px;border-top:1px solid var(--line);color:var(--ink-3);font-size:12.5px}
+  @media(max-width:640px){.stats{grid-template-columns:repeat(2,1fr)}h1{font-size:31px}}
+</style>
+
+<div class="wrap">
+<div class="eyebrow">AdSpirit Connector · auditoria de avisos · 01/09/2026</div>
+<h1>Alarme só quando existe ação a tomar</h1>
+<p class="lede">O painel dava a sensação permanente de configuração incompleta num site que mede
+17.429 eventos por mês. Esta é a varredura das duas direções: onde o plugin <b>avisa demais</b>
+e onde ele <b>não avisa o que deveria</b> — com o critério pra decidir isso valendo pros sites
+de hoje e pros próximos.</p>
+
+<div class="stats">
+  <div class="stat bad"><div class="n">6</div><div class="l">avisos que podiam mentir</div></div>
+  <div class="stat ok"><div class="n">4</div><div class="l">já corrigidos e no ar</div></div>
+  <div class="stat warn"><div class="n">5</div><div class="l">problemas reais sem aviso</div></div>
+  <div class="stat"><div class="n">12</div><div class="l">superfícies de aviso no plugin</div></div>
+</div>
+
+<div class="regra">
+<b>A régua que separa as duas coisas.</b> Um aviso só se justifica quando existe <b>uma ação
+que a pessoa pode tomar</b> e <b>algo piora se ela não tomar</b>. Configuração diferente da
+nossa não é defeito; recurso ausente que não se aplica àquele site não é pendência; e suspeita
+sobre algo já resolvido é ruído. Do outro lado: se alguma coisa está custando lead ou dinheiro
+agora, tem que gritar — mesmo que ninguém tenha pedido.
+</div>
+
+<h2><span class="n">1</span>Onde ele avisava demais</h2>
+<p class="sub">Todos verificados contra o estado real do site, não contra a leitura do código.</p>
+
+<div class="row">
+  <div class="hd"><h3>Pixel gerido fora do connector saía como erro</h3><span class="tag corrigido">corrigido · 2.72.0</span></div>
+  <div class="bd">
+    <div class="ev">Erro vermelho num site com <b>17.429 eventos/30d</b> e o último registrado
+    <b>42 segundos</b> antes da checagem. O connector fica de fora <b>de propósito</b> quando
+    outra fonte já injeta — não havia nada quebrado.</div>
+    <div class="fix">São dois casos distintos e só um é problema: connector <em>também</em>
+    injetando conta em dobro e custa dinheiro de campanha; só a cópia de fora é uma escolha
+    válida. O segundo virou nota. <b>Afeta todo site que já media antes de conhecer o AdSpirit</b> —
+    ou seja, quase todo cliente novo.</div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="hd"><h3>“Forms com campos mapeados” pendente pra sempre</h3><span class="tag corrigido">corrigido · 2.72.0</span></div>
+  <div class="bd">
+    <div class="ev">A checagem só olhava formulário do Contact Form 7. Site que migrou pro
+    multi-step e desinstalou o CF7 ficava com a pendência <b>eternamente</b>, com botão convidando
+    a mapear o que não existe.</div>
+    <div class="fix">Sem formulário externo não há o que mapear — o formulário do AdSpirit entrega
+    os campos já com o nome canônico. <b>Afeta todo site que usar só o nosso formulário</b>, que é
+    o rumo de todos.</div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="hd"><h3>Contact Form 7 tratado como obrigatório</h3><span class="tag corrigido">corrigido · 2.71.0</span></div>
+  <div class="bd">
+    <div class="ev">Falha vermelha dizendo “sem ele, o envio de leads não funciona”, com botão pra
+    reinstalar — dada a quem tinha acabado de migrar corretamente. Eram <b>três</b> lugares
+    repetindo a mesma mentira: o checklist, o aviso do topo e o selo do ambiente.</div>
+    <div class="fix">O multi-step tem endpoint próprio e zero dependência de CF7. Virou informativo.</div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="hd"><h3>“Plugins que podem injetar medição” com o pixel já identificado</h3><span class="tag corrigido">corrigido · 2.72.0</span></div>
+  <div class="bd">
+    <div class="ev">Listava Site Kit e Insert Headers and Footers como suspeitos mesmo depois de o
+    pixel ter sido encontrado e identificado. Palpite sobre assunto encerrado.</div>
+    <div class="fix">Agora só aparece quando <b>nenhum</b> pixel foi encontrado — aí a lista vira
+    pista de onde procurar, que é o único momento em que ela ajuda.</div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="hd"><h3>“Nenhum form CF7 criado. Crie um em Contact → Forms”</h3><span class="tag aberto">aberto</span></div>
+  <div class="bd">
+    <div class="ev">Na aba de mapeamento, quando não há CF7 instalado. Mesmo defeito de raiz dos
+    anteriores: manda criar um formulário de um plugin que o site não usa mais e não precisa.</div>
+    <div class="fix"><b>Deve virar</b> a mesma frase honesta que a tela já usa embaixo: “os
+    formulários do AdSpirit já entregam com o nome certo; esta tela serve pra conectar formulários
+    de outros plugins”.</div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="hd"><h3>Selo vermelho de “Não instalado” para recurso opcional</h3><span class="tag corrigido">corrigido · 2.71.0</span></div>
+  <div class="bd">
+    <div class="ev">Vermelho é a cor de “está quebrado”. Usá-la pra dizer “este recurso opcional
+    não está presente” treina a pessoa a ignorar vermelho — que é o pior efeito possível.</div>
+    <div class="fix">Virou selo neutro com a nota de que é opcional.</div>
+  </div>
+</div>
+
+<h2><span class="n">2</span>Onde ele deveria avisar e não avisa</h2>
+<p class="sub">Estes são os que custam lead ou dinheiro em silêncio. Nenhum está coberto hoje.</p>
+
+<div class="row">
+  <div class="hd"><h3>Lead legítimo preso na quarentena do anti-spam</h3><span class="tag risco">o mais grave</span></div>
+  <div class="bd">
+    <div class="ev">O plugin <b>conta</b> os bloqueios (métrica “nas últimas 24h”) mas <b>nunca
+    alerta</b>. Aconteceu de verdade nesta semana: um lead perfil A foi barrado por análise de
+    texto e só apareceu porque você reparou — não porque o plugin avisou.</div>
+    <div class="fix"><b>Deveria avisar</b> quando há lead em quarentena aguardando revisão, com
+    link direto. Bloqueio é decisão automática sobre dinheiro entrando; não pode ser silenciosa.</div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="hd"><h3>Site parado em versão antiga, sem saber</h3><span class="tag risco">frota</span></div>
+  <div class="bd">
+    <div class="ev">Quatro sites rodam versões anteriores à 2.28, que é onde nasceu o
+    auto-update — <b>eles nunca vão se atualizar sozinhos</b> e não têm como saber disso.
+    San Pietro está na 2.19 e mandou lead hoje.</div>
+    <div class="fix"><b>Deveria avisar</b> quando a versão instalada está muito atrás da
+    publicada, com o caminho pra atualizar. Hoje o silêncio é indistinguível de “está tudo em dia”.</div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="hd"><h3>A medição parou de chegar</h3><span class="tag risco">dinheiro</span></div>
+  <div class="bd">
+    <div class="ev">Se o token do CAPI vencer ou a configuração quebrar, os eventos simplesmente
+    param. O AdSpirit sabe (guarda o último evento recebido); <b>o plugin não pergunta</b>, e a
+    tela do site continua verde.</div>
+    <div class="fix"><b>Deveria avisar</b> quando o AdSpirit não recebe evento há X dias de um
+    site que costumava mandar. É a diferença entre perder um dia e perder um mês de otimização.</div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="hd"><h3>Envio de lead falhando em série</h3><span class="tag risco">lead</span></div>
+  <div class="bd">
+    <div class="ev">Há contagem de falhas (24h/7d/30d) e o e-mail diário só dispara quando ficam
+    <b>zero</b> leads em 24h. Falha parcial — metade entregando, metade não — passa despercebida,
+    e é o cenário mais comum quando algo está meio quebrado.</div>
+    <div class="fix"><b>Deveria avisar</b> por proporção, não por zero absoluto: “20% dos envios
+    falharam nas últimas 24h” é acionável; “nenhum lead hoje” chega tarde.</div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="hd"><h3>Consentimento bloqueando toda a medição</h3><span class="tag risco">silencioso</span></div>
+  <div class="bd">
+    <div class="ev">Com o banner de cookies, nada dispara antes do aceite. Se o banner quebrar,
+    ficar escondido atrás de outro elemento, ou a taxa de aceite despencar, a medição cai junto —
+    <b>sem nenhum sinal</b>, porque do ponto de vista do código está tudo funcionando.</div>
+    <div class="fix"><b>Deveria acompanhar</b> a taxa de aceite e avisar quando ela cai fora do
+    normal daquele site.</div>
+  </div>
+</div>
+
+<h2><span class="n">3</span>O padrão por trás de tudo</h2>
+<p>Os seis avisos falsos têm a mesma origem: o plugin nasceu supondo <b>um</b> jeito certo de
+configurar — o dele — e trata desvio como defeito. Os cinco silêncios têm a origem oposta: ele
+observa bem o que está <b>dentro</b> do WordPress e não pergunta nada sobre o que acontece
+<b>depois</b> que o dado sai dali.</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Tipo de sinal</th><th>Como decidir</th><th>Exemplo</th></tr></thead>
+<tbody>
+<tr><td><b>Erro</b> (vermelho)</td><td>Está custando lead ou dinheiro <em>agora</em>, e há o que fazer</td><td>Pixel duplicado contando visita em dobro</td></tr>
+<tr><td><b>Aviso</b> (âmbar)</td><td>Vai custar se ninguém agir, mas ainda não custou</td><td>Lead em quarentena esperando revisão</td></tr>
+<tr><td><b>Nota</b> (neutra)</td><td>Explica um estado válido ou um limite da nossa leitura</td><td>Pixel gerido pelo Tag Manager</td></tr>
+<tr><td><b>Silêncio</b></td><td>Nada a fazer, ou não se aplica a este site</td><td>CF7 ausente em site que só usa o nosso formulário</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2><span class="n">4</span>O que fica pra fazer</h2>
+<p>Quatro dos seis avisos falsos já estão corrigidos e publicados (2.71.0 e 2.72.0). Sobram, em
+ordem de retorno:</p>
+<p><b>1.</b> Alerta de lead em quarentena — é o único da lista que pode estar custando um cliente
+neste momento.<br>
+<b>2.</b> Aviso de versão atrasada — resolve a frota inteira, inclusive os quatro sites órfãos.<br>
+<b>3.</b> Alerta de medição parada — precisa do AdSpirit responder “último evento em”, que ele já sabe.<br>
+<b>4.</b> Falha de envio por proporção, no lugar do gatilho de zero absoluto.<br>
+<b>5.</b> “Nenhum form CF7 criado” — o último dos avisos falsos, cosmético.<br>
+<b>6.</b> Taxa de aceite do consentimento — o mais sutil, e o que exige mais desenho.</p>
+
+<footer>
+Varredura de 12 superfícies de aviso em 12 módulos, cruzada com o estado ao vivo de
+agenciadigitals.com.br e com o histórico de leads no AdSpirit · 01/09/2026.
+</footer>
+</div>
