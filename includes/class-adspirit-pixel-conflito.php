@@ -294,15 +294,26 @@ class AdSpirit_Pixel_Conflito {
         // nos sites antigos: o pixel já estava colado à mão (ou por plugin) e
         // ninguém percebe que o connector passou a colar de novo.
         if ($de_fora > 0) {
+            // Duas situações muito diferentes caíam como ERRO, e só uma é:
+            //
+            //   · connector TAMBÉM injetando ($assinadas > 0) → conta em
+            //     dobro. Isso é erro e custa dinheiro de campanha.
+            //   · só a cópia de fora → a medição funciona, o connector fica
+            //     de fora de propósito. Não há nada quebrado.
+            //
+            // Marcar o segundo como erro é o que faz o painel parecer que
+            // tem sempre algo errado — foi exatamente a queixa do Pedro em
+            // 01/09, num site com 17 mil eventos em 30 dias e o último há
+            // 42 segundos.
             $alertas[] = array(
-                'nivel' => 'erro',
+                'nivel' => $assinadas > 0 ? 'erro' : 'nota',
                 'texto' => $assinadas > 0
                     ? sprintf('O pixel do AdSpirit aparece %d vezes na home: %d pelo connector e %d colada à mão. Cada visita conta em dobro.', $total_pixel, $assinadas, $de_fora)
-                    : sprintf('Há %d pixel(s) do AdSpirit colado(s) fora do connector nesta página.', $de_fora),
+                    : sprintf('O pixel desta marca é injetado por fora do connector (%d ocorrência(s)). A medição funciona; o connector fica de fora pra não duplicar.', $de_fora),
                 'acao' => $onde_esta
                     ? ($destino_diferente
                         ? 'Está em ' . $onde_esta . ', e aponta pra um destino que não é o atual — provavelmente sobrou de uma configuração antiga. O connector continua injetando a dele pra não deixar a marca sem medição, mas apague essa aí: enquanto existir, cada visita conta duas vezes.'
-                        : 'Está em ' . $onde_esta . '. Desative ou apague de lá — enquanto a cópia existir, o connector não injeta a dele, pra não contar em dobro.')
+                        : 'Está em ' . $onde_esta . '. Não precisa mexer: enquanto essa cópia existir, o connector não injeta a dele. Se quiser passar a gestão pro AdSpirit, desative lá e o connector assume.')
                     : 'Procure no tema, num bloco de código do builder ou num plugin de headers. Enquanto a cópia de fora existir, o connector para de injetar a dele — melhor não medir do que medir em dobro.',
             );
         }
@@ -462,11 +473,16 @@ class AdSpirit_Pixel_Conflito {
                         : 'Pixel diferente do que o AdSpirit usa. Só confira se é proposital.',
                 );
             }
-        } elseif ($plugins) {
+        } elseif ($plugins && $total_pixel === 0) {
+            // Só vale avisar quando NÃO se achou pixel nenhum na página: aí a
+            // lista de plugins é pista de onde procurar. Com pixel já
+            // identificado, repetir "estes plugins podem injetar" é palpite
+            // sobre algo já resolvido — e é ruído que faz o painel parecer
+            // permanentemente inacabado (queixa do Pedro, 01/09).
             $alertas[] = array(
                 'nivel' => 'nota',
-                'texto' => 'Plugins ativos que também podem injetar medição: ' . implode(', ', $plugins) . '.',
-                'acao' => 'Cada um deles pode estar colando pixel próprio. Vale conferir antes de duplicar aqui.',
+                'texto' => 'Nenhum pixel encontrado na página. Plugins ativos que costumam injetar medição: ' . implode(', ', $plugins) . '.',
+                'acao' => 'Se a medição deveria estar rodando, comece procurando por eles.',
             );
         }
 

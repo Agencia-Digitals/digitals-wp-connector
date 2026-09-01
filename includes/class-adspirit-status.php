@@ -381,6 +381,13 @@ class AdSpirit_Status {
                 break;
             }
         }
+        // Sem formulário EXTERNO no site não há o que mapear: o formulário do
+        // AdSpirit entrega cada campo já com o nome canônico, por construção.
+        // Antes, um site que migrou pro multi-step e desinstalou o CF7 ficava
+        // com "Forms com campos mapeados" pendente pra sempre — pendência que
+        // não existe, e que faz o painel inteiro parecer inacabado.
+        if (empty($forms)) $any_mapped = true;
+
         // Default mapping (sem custom) também conta — se o form CF7 já usa
         // os nomes canônicos, está implicitamente mapeado.
         if (!$any_mapped && !empty($forms)) {
@@ -446,7 +453,9 @@ class AdSpirit_Status {
                 'status' => $any_mapped ? 'done' : 'todo',
                 'title'  => 'Forms com campos mapeados',
                 'desc'   => $any_mapped
-                    ? 'Pelo menos um form tem mapeamento configurado. Verifique outros forms se houver.'
+                    ? (empty($forms)
+                        ? 'O formulário do AdSpirit entrega os campos já com o nome certo — não há o que mapear.'
+                        : 'Pelo menos um form tem mapeamento configurado. Verifique outros forms se houver.')
                     : 'Cada cliente tem um perfil diferente. Mapeie os campos do form pra que o CRM reconheça nome, email, telefone, etc.',
                 'cta_url' => admin_url('admin.php?page=' . AdSpirit_Menu::PAGE_SLUG . '&tab=forms'),
                 'cta_label' => 'Mapear campos',
