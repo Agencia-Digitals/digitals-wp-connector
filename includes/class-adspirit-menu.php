@@ -211,6 +211,13 @@ class AdSpirit_Menu {
             $unsent = (class_exists('AdSpirit_Lead_Store') && $connected)
                 ? AdSpirit_Lead_Store::count_unsent() : 0;
 
+            // Quarentena: bloqueio de spam é decisão automática sobre lead
+            // entrando, e era silenciosa. Um perfil A já ficou preso ali e
+            // só apareceu porque alguém reparou na lista (28/08).
+            $quarentena = (class_exists('AdSpirit_Lead_Store') && $connected
+                && method_exists('AdSpirit_Lead_Store', 'count_quarantined'))
+                ? AdSpirit_Lead_Store::count_quarantined() : 0;
+
             $capi = get_option('adspirit_connector_capi_meta', array());
             $ga4  = get_option('adspirit_connector_ga4', array());
             $measuring = (!empty($core['pixel_enabled']) && $core['pixel_enabled'] === '1')
@@ -231,9 +238,26 @@ class AdSpirit_Menu {
             $agente_on = class_exists('AdSpirit_Agente_Conexao')
                 && AdSpirit_Agente_Conexao::conectado();
 
+            // Entrega travada é mais urgente que revisão pendente: lead que
+            // não chegou está perdido agora; lead em quarentena está parado,
+            // mas guardado. Por isso a entrega vence na frase.
+            if (!$connected) {
+                $estadoLeads = 'off';
+                $dicaLeads = 'Leads fluindo normalmente';
+            } elseif ($unsent > 0) {
+                $estadoLeads = 'warn';
+                $dicaLeads = $unsent . ' lead(s) aguardando entrega';
+            } elseif ($quarentena > 0) {
+                $estadoLeads = 'warn';
+                $dicaLeads = $quarentena . ' lead(s) em quarentena esperando revisão';
+            } else {
+                $estadoLeads = 'ok';
+                $dicaLeads = 'Leads fluindo normalmente';
+            }
+
             return array(
-                'visao'       => array('state' => !$connected ? 'off' : ($unsent > 0 ? 'warn' : 'ok'), 'hint' => $unsent > 0 ? $unsent . ' lead(s) aguardando entrega' : 'Leads fluindo normalmente'),
-                'inicio'      => array('state' => !$connected ? 'off' : ($unsent > 0 ? 'warn' : 'ok'), 'hint' => $unsent > 0 ? $unsent . ' lead(s) aguardando entrega' : 'Leads fluindo normalmente'),
+                'visao'       => array('state' => $estadoLeads, 'hint' => $dicaLeads),
+                'inicio'      => array('state' => $estadoLeads, 'hint' => $dicaLeads),
                 'conexao'     => array('state' => $connected ? 'ok' : 'warn', 'hint' => $connected ? 'Conectado ao AdSpirit' : 'Falta conectar ao AdSpirit'),
                 'medicao'     => array('state' => $measuring ? 'ok' : 'off', 'hint' => $measuring ? 'Medição ativa' : 'Nenhuma medição configurada'),
                 'agente'      => array('state' => $agente_on ? 'ok' : 'off', 'hint' => $agente_on ? 'Assistente conectado a este site' : 'Assistente sem credencial'),
@@ -443,9 +467,15 @@ class AdSpirit_Menu {
             $gh = isset($health[$current_group]) ? $health[$current_group] : null;
             if (is_array($gh) && ($gh['state'] ?? '') === 'warn' && !empty($gh['hint'])) :
                 $fix_url = ''; $fix_label = '';
-                if ($current_group === 'inicio') {
-                    $fix_url = admin_url('admin.php?page=' . self::PAGE_SLUG . '&tab=submissions&sl_status=problemas');
-                    $fix_label = 'Ver os leads pendentes';
+                if ($current_group === 'inicio' || $current_group === 'visao') {
+                    // O link tem que abrir a lista JÁ FILTRADA pelo motivo do
+                    // aviso. Mandar pra "problemas" quando o caso é quarentena
+                    // faz a pessoa chegar numa lista vazia e concluir que o
+                    // aviso estava errado.
+                    $ehQuarentena = strpos((string) $gh['hint'], 'quarentena') !== false;
+                    $fix_url = admin_url('admin.php?page=' . self::PAGE_SLUG . '&tab=submissions&sl_status='
+                        . ($ehQuarentena ? 'spam' : 'problemas'));
+                    $fix_label = $ehQuarentena ? 'Revisar os bloqueados' : 'Ver os leads pendentes';
                 } elseif ($current_group === 'conexao') {
                     $fix_url = admin_url('admin.php?page=' . self::PAGE_SLUG . '&tab=connection');
                     $fix_label = 'Abrir a conexão';

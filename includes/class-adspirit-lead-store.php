@@ -668,6 +668,29 @@ class AdSpirit_Lead_Store {
         }, 0, 'lead_store_count');
     }
 
+    /**
+     * Quantos leads estão em quarentena aguardando revisão humana.
+     *
+     * Bloqueio de spam é decisão AUTOMÁTICA sobre dinheiro entrando, e até
+     * agora era silenciosa: o painel contava os bloqueios como métrica, mas
+     * nunca avisava. Aconteceu de verdade — um lead perfil A barrado por
+     * análise de texto só apareceu porque o Pedro reparou na lista, não
+     * porque o plugin disse alguma coisa (incidente 28/08).
+     *
+     * 'resolved' fica fora pelo mesmo motivo de count_unsent(): é o "já
+     * olhei isso", e reacender o aviso depois de revisado seria ruído.
+     */
+    public static function count_quarantined() {
+        if (!self::available()) return 0;
+        return (int) AdSpirit_Safe_Hook::try_run(function () {
+            global $wpdb;
+            $table = self::table_name();
+            return (int) $wpdb->get_var(
+                "SELECT COUNT(*) FROM {$table} WHERE status = 'spam'"
+            );
+        }, 0, 'lead_store_count_quarantine');
+    }
+
     // ─────────────────────────────────────────────────────────
     // Reenvio — reusa o submission_id (dedup do CRM não duplica)
     // ─────────────────────────────────────────────────────────
