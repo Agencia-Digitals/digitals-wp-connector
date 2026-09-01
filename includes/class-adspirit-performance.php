@@ -62,6 +62,7 @@ class AdSpirit_Performance {
             'adiar_video' => '1',
             'travar_hero' => '1',
             'limpar_shortcode_orfao' => '1',
+            'dispensar_carrossel' => '1',
         );
         $c = get_option(self::OPTION, array());
         return array_merge($padrao, is_array($c) ? $c : array());
@@ -75,7 +76,11 @@ class AdSpirit_Performance {
         if (defined('REST_REQUEST') && REST_REQUEST) return;
 
         $cfg = self::config();
-        if ($cfg['adiar_video'] !== '1' && $cfg['travar_hero'] !== '1') return;
+        $alguma = false;
+        foreach (array('adiar_video', 'travar_hero', 'limpar_shortcode_orfao', 'dispensar_carrossel') as $peca) {
+            if (($cfg[$peca] ?? '0') === '1') { $alguma = true; break; }
+        }
+        if (!$alguma) return;
 
         ob_start(array($this, 'processar'));
     }
@@ -96,6 +101,7 @@ class AdSpirit_Performance {
             if ($cfg['adiar_video'] === '1') $html = $this->adiar_video($html);
             if ($cfg['travar_hero'] === '1') $html = $this->travar_hero($html);
             if ($cfg['limpar_shortcode_orfao'] === '1') $html = $this->limpar_shortcode_orfao($html);
+            if (($cfg['dispensar_carrossel'] ?? '1') === '1') $html = $this->dispensar_carrossel($html);
             return $html;
         } catch (\Throwable $e) {
             if (class_exists('AdSpirit_Crash_Tracker')) {
@@ -237,4 +243,39 @@ JS;
         if ($pos === false) return $html;
         return substr($html, 0, $pos) . $css . substr($html, $pos);
     }
+
+
+    /**
+     * Deixa de carregar a biblioteca de carrossel em página que não tem
+     * carrossel.
+     *
+     * O oxy-ninja enfileira o Splide em TODAS as páginas — biblioteca, CSS e
+     * a extensão de auto-scroll, três requisições. Verificado em 01/09 num
+     * navegador de verdade, em cinco páginas do site: a biblioteca carrega,
+     * e zero elementos a usam. É peso que nunca vira pixel na tela.
+     *
+     * A remoção é condicionada a PROVA DE NÃO-USO, não a uma lista de
+     * páginas: se a marcação do carrossel aparecer, ou se algum script
+     * chamar a API, o módulo sai de cena sozinho. Assim o dia em que alguém
+     * puser um carrossel numa página, ele funciona — sem ninguém lembrar de
+     * mexer aqui.
+     */
+    private function dispensar_carrossel($html) {
+        if (stripos($html, 'splide') === false) return $html;
+
+        // Prova de uso — qualquer uma basta pra não mexer.
+        if (preg_match('/class\s*=\s*("[^"]*|\'[^\']*)\bsplide/i', $html)) return $html;
+        if (preg_match('/\bnew\s+Splide\b|\bSplide\s*\(/', $html)) return $html;
+
+        $antes = $html;
+        $novo = preg_replace(
+            '#<script\b[^>]*\bsrc=(["\'])[^"\']*splide[^"\']*\1[^>]*>\s*</script>#i', '', $html);
+        if (is_string($novo)) $html = $novo;
+        $novo = preg_replace(
+            '#<link\b[^>]*\bhref=(["\'])[^"\']*splide[^"\']*\1[^>]*>#i', '', $html);
+        if (is_string($novo)) $html = $novo;
+
+        return $html === '' ? $antes : $html;
+    }
+
 }

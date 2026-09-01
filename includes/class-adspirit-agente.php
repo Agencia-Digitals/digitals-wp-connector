@@ -183,7 +183,7 @@ class AdSpirit_Agente {
             'category' => self::CATEGORIA,
             'meta' => $this->meta(false),
             'label' => 'Desempenho da página',
-            'description' => 'Lê e ajusta as otimizações de saída deste site: adiar o vídeo de fundo (com imagem de capa) e travar a geometria do herói pra não haver salto de layout. Sem `acao`, só devolve o estado. Nada disso toca o conteúdo salvo do construtor — atua no HTML de saída, e desligar volta tudo ao original.',
+            'description' => 'Lê e ajusta as otimizações de saída deste site: adiar o vídeo de fundo (com imagem de capa), travar a geometria do herói pra não haver salto de layout e dispensar biblioteca de carrossel não usada. Sem `acao`, só devolve o estado. Nada disso toca o conteúdo salvo do construtor — atua no HTML de saída, e desligar volta tudo ao original.',
             'input_schema' => array(
                 'type' => 'object',
                 'default' => new stdClass(),
@@ -191,6 +191,7 @@ class AdSpirit_Agente {
                     'acao' => array('type' => 'string', 'enum' => array('ler', 'ajustar'), 'description' => 'Padrão: ler.'),
                     'adiar_video' => array('type' => 'boolean'),
                     'travar_hero' => array('type' => 'boolean'),
+                    'dispensar_carrossel' => array('type' => 'boolean', 'description' => 'Deixa de carregar a biblioteca de carrossel em página que não tem carrossel. Só age com prova de não-uso.'),
                     'poster_url' => array('type' => 'string', 'description' => 'Imagem mostrada enquanto o vídeo não chega. Idealmente o primeiro quadro dele, pra troca não dar salto.'),
                 ),
             ),
@@ -303,7 +304,7 @@ class AdSpirit_Agente {
         }
 
         $patch = array();
-        foreach (array('adiar_video', 'travar_hero') as $k) {
+        foreach (array('adiar_video', 'travar_hero', 'dispensar_carrossel') as $k) {
             if (array_key_exists($k, $input)) $patch[$k] = !empty($input[$k]) ? '1' : '0';
         }
         if (array_key_exists('poster_url', $input)) {
