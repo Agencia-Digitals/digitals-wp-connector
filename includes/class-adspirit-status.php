@@ -234,6 +234,29 @@ class AdSpirit_Status {
             if (($c['at'] ?? 0) >= $cwindow) $recent_crashes++;
         }
         ?>
+        <?php
+        // Atraso de versão: o site não tem como saber que está parado no
+        // tempo, e o silêncio se parece com "está em dia". Fica ANTES do
+        // aviso geral porque quem está abaixo da 2.28 não recebe correção
+        // nenhuma — inclusive as de captação de lead.
+        $atraso = class_exists('AdSpirit_Quickwins') && method_exists('AdSpirit_Quickwins', 'atraso_de_versao')
+            ? AdSpirit_Quickwins::atraso_de_versao() : null;
+        if (is_array($atraso) && ($atraso['sem_auto_update'] || $atraso['minor_atras'] >= 3)): ?>
+            <div class="as-notice <?php echo $atraso['sem_auto_update'] ? 'danger' : 'warn'; ?>" style="margin:10px 0 16px;">
+                <p style="margin:0;">
+                    <strong>Este site está na versão <?php echo esc_html($atraso['instalada']); ?>,
+                    e a atual é a <?php echo esc_html($atraso['publicada']); ?>.</strong>
+                    <?php if ($atraso['sem_auto_update']): ?>
+                        Versões anteriores à 2.28 não têm atualização automática — este site
+                        <strong>não vai se atualizar sozinho</strong>. Atualize uma vez pelo painel de plugins
+                        e daí em diante ele passa a acompanhar.
+                    <?php else: ?>
+                        A atualização automática parece não estar acontecendo.
+                        <a href="<?php echo esc_url(admin_url('plugins.php')); ?>">Atualizar agora</a>.
+                    <?php endif; ?>
+                </p>
+            </div>
+        <?php endif; ?>
         <?php if ($env['wp_armour'] || $safe_mode || $recent_crashes > 0): ?>
             <div class="as-notice warn"><p>
                 <?php if ($env['wp_armour']): ?>WP Armour é redundante — o anti-spam embutido cobre tudo; pode desinstalar. <?php endif; ?>

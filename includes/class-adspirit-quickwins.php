@@ -133,6 +133,46 @@ class AdSpirit_Quickwins {
         return $transient;
     }
 
+    /**
+     * Está muito atrás da versão publicada?
+     *
+     * Existe porque o silêncio é indistinguível de "está em dia". Quatro
+     * sites da frota rodam versões anteriores à 2.28 — a versão em que o
+     * auto-update nasceu — e por isso NUNCA vão se atualizar sozinhos. Um
+     * deles mandou lead hoje rodando a 2.19, sem nada na tela sugerindo
+     * que estivesse parado no tempo.
+     *
+     * Devolve null quando está em dia, ou quando não sabemos a versão
+     * publicada (rede fora, GitHub e manifest inacessíveis) — nesse caso
+     * não há o que afirmar, e chutar seria pior.
+     *
+     * O corte é por MINOR, não por release: quem está uma versão atrás
+     * está normal (acabou de sair). Três atrás é sinal de que a
+     * atualização automática não está acontecendo.
+     */
+    public static function atraso_de_versao() {
+        $cache = get_transient(self::UPDATE_TRANSIENT);
+        if (!is_array($cache) || empty($cache['version'])) return null;
+
+        $publicada = (string) $cache['version'];
+        $instalada = ADSPIRIT_CONNECTOR_VERSION;
+        if (version_compare($publicada, $instalada, '<=')) return null;
+
+        $pubPartes = array_map('intval', explode('.', $publicada));
+        $instPartes = array_map('intval', explode('.', $instalada));
+        $minorAtras = (($pubPartes[0] ?? 0) - ($instPartes[0] ?? 0)) * 1000
+            + (($pubPartes[1] ?? 0) - ($instPartes[1] ?? 0));
+
+        return array(
+            'instalada' => $instalada,
+            'publicada' => $publicada,
+            'minor_atras' => $minorAtras,
+            // Abaixo da 2.28 o plugin não tem o código que se auto-atualiza:
+            // não é atraso, é impossibilidade. Merece frase diferente.
+            'sem_auto_update' => version_compare($instalada, '2.28.0', '<'),
+        );
+    }
+
     public function plugin_info($result, $action, $args) {
         if ($action !== 'plugin_information') return $result;
         if (empty($args->slug) || $args->slug !== 'adspirit-connector') return $result;

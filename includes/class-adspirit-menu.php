@@ -238,6 +238,18 @@ class AdSpirit_Menu {
             $agente_on = class_exists('AdSpirit_Agente_Conexao')
                 && AdSpirit_Agente_Conexao::conectado();
 
+            // Falha PARCIAL de envio. O e-mail diário só dispara com ZERO
+            // leads em 24h — mas o cenário comum quando algo está meio
+            // quebrado é metade entregando e metade não, e isso passava
+            // batido. Proporção pega o que o zero absoluto não pega.
+            $m24 = class_exists('AdSpirit_Health_Checker') ? AdSpirit_Health_Checker::summarize() : array();
+            $env24 = (int) ($m24['cf7_sent_24h'] ?? 0);
+            $fal24 = (int) ($m24['cf7_failed_24h'] ?? 0);
+            $tent24 = $env24 + $fal24;
+            // Só a partir de 5 tentativas: com 1 ou 2, uma falha vira "50%"
+            // e o aviso passa a acender por ruído estatístico.
+            $taxaFalha = ($tent24 >= 5) ? (int) round(($fal24 / $tent24) * 100) : 0;
+
             // Entrega travada é mais urgente que revisão pendente: lead que
             // não chegou está perdido agora; lead em quarentena está parado,
             // mas guardado. Por isso a entrega vence na frase.
@@ -247,6 +259,10 @@ class AdSpirit_Menu {
             } elseif ($unsent > 0) {
                 $estadoLeads = 'warn';
                 $dicaLeads = $unsent . ' lead(s) aguardando entrega';
+            } elseif ($taxaFalha >= 20) {
+                $estadoLeads = 'warn';
+                $dicaLeads = $taxaFalha . '% dos envios falharam nas últimas 24h ('
+                    . $fal24 . ' de ' . $tent24 . ')';
             } elseif ($quarentena > 0) {
                 $estadoLeads = 'warn';
                 $dicaLeads = $quarentena . ' lead(s) em quarentena esperando revisão';
