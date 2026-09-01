@@ -33,6 +33,8 @@ class AdSpirit_Config_Sync {
     const OPTION_SYNC_ERR = 'adspirit_connector_config_sync_error';
     const OPTION_GERIDOS = 'adspirit_connector_config_geridos';
     const OPTION_MODO = 'adspirit_connector_config_modo';
+    /** Saúde da medição vista pelo AdSpirit (último evento, volume 30d). */
+    const OPTION_SAUDE = 'adspirit_connector_medicao_saude';
     const OPTION_COMPARACAO = 'adspirit_connector_config_comparacao';
     const CRON = 'adspirit_connector_config_sync';
 
@@ -176,6 +178,17 @@ class AdSpirit_Config_Sync {
         }
 
         $this->definir_modo_inicial();
+        // O AdSpirit conta se os eventos estão chegando — o site dispara e
+        // não recebe resposta, então sozinho ele nunca saberia que parou.
+        // Guardado mesmo em modo observação: é leitura, não configuração.
+        if (isset($dados['medicao_saude']) && is_array($dados['medicao_saude'])) {
+            update_option(self::OPTION_SAUDE, array(
+                'ultimo_evento_em' => (string) ($dados['medicao_saude']['ultimo_evento_em'] ?? ''),
+                'eventos_30d' => (int) ($dados['medicao_saude']['eventos_30d'] ?? 0),
+                'lido_em' => time(),
+            ), false);
+        }
+
         $comparacao = $this->comparar($dados['tracking']);
         update_option(self::OPTION_COMPARACAO, $comparacao, false);
 
@@ -245,6 +258,32 @@ class AdSpirit_Config_Sync {
      *   trocar    — os dois têm, e são diferentes. Só aí o AdSpirit manda.
      *   preencher — o AdSpirit tem, o site não. Escrita segura.
      */
+    /**
+     * A medição parou de chegar no AdSpirit?
+     *
+     * Devolve os dias sem evento, ou null quando não dá pra afirmar: site
+     * que nunca mandou evento (instalação nova) e leitura velha demais não
+     * são "parou", são "não sei" — e alarme por não saber é o que faz o
+     * painel perder credibilidade.
+     *
+     * O corte é 3 dias porque a marca pode ter pausado campanha no fim de
+     * semana; menos que isso acenderia toda segunda de manhã.
+     */
+    public static function dias_sem_evento() {
+        $s = get_option(self::OPTION_SAUDE, array());
+        if (!is_array($s) || empty($s['ultimo_evento_em'])) return null;
+        // Leitura de mais de 2 dias: o próprio sync está parado, e o número
+        // que temos não diz nada sobre agora.
+        if (empty($s['lido_em']) || (time() - (int) $s['lido_em']) > 2 * DAY_IN_SECONDS) return null;
+        // Site que nunca mediu não "parou de medir".
+        if ((int) ($s['eventos_30d'] ?? 0) === 0) return null;
+
+        $ts = strtotime((string) $s['ultimo_evento_em']);
+        if (!$ts) return null;
+        $dias = (int) floor((time() - $ts) / DAY_IN_SECONDS);
+        return $dias >= 3 ? $dias : null;
+    }
+
     private function comparar($t) {
         $site = $this->estado_do_site();
         $crm = $this->estado_do_adspirit($t);

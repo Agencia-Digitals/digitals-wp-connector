@@ -238,6 +238,10 @@ class AdSpirit_Menu {
             $agente_on = class_exists('AdSpirit_Agente_Conexao')
                 && AdSpirit_Agente_Conexao::conectado();
 
+            $diasSemEvento = (class_exists('AdSpirit_Config_Sync')
+                && method_exists('AdSpirit_Config_Sync', 'dias_sem_evento'))
+                ? AdSpirit_Config_Sync::dias_sem_evento() : null;
+
             // Falha PARCIAL de envio. O e-mail diário só dispara com ZERO
             // leads em 24h — mas o cenário comum quando algo está meio
             // quebrado é metade entregando e metade não, e isso passava
@@ -275,7 +279,17 @@ class AdSpirit_Menu {
                 'visao'       => array('state' => $estadoLeads, 'hint' => $dicaLeads),
                 'inicio'      => array('state' => $estadoLeads, 'hint' => $dicaLeads),
                 'conexao'     => array('state' => $connected ? 'ok' : 'warn', 'hint' => $connected ? 'Conectado ao AdSpirit' : 'Falta conectar ao AdSpirit'),
-                'medicao'     => array('state' => $measuring ? 'ok' : 'off', 'hint' => $measuring ? 'Medição ativa' : 'Nenhuma medição configurada'),
+                'medicao'     => array(
+                    // Configurado não é sinônimo de funcionando. O chip dizia
+                    // "Medição ativa" com base só na config — se o token do
+                    // CAPI vencesse, ele continuava verde enquanto nenhum
+                    // evento chegava. Agora o AdSpirit responde há quantos
+                    // dias não recebe nada.
+                    'state' => $diasSemEvento !== null ? 'warn' : ($measuring ? 'ok' : 'off'),
+                    'hint' => $diasSemEvento !== null
+                        ? 'O AdSpirit não recebe evento deste site há ' . $diasSemEvento . ' dia(s)'
+                        : ($measuring ? 'Medição ativa' : 'Nenhuma medição configurada'),
+                ),
                 'agente'      => array('state' => $agente_on ? 'ok' : 'off', 'hint' => $agente_on ? 'Assistente conectado a este site' : 'Assistente sem credencial'),
                 'avancado'    => array('state' => ($safe || $auth_err) ? 'warn' : ($integrating ? 'ok' : 'off'), 'hint' => $safe ? 'Modo de segurança ativo' : ($auth_err ? 'Chave rejeitada pelo AdSpirit' : ($integrating ? 'Integrações ativas' : 'Tudo quieto'))),
             );
