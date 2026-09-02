@@ -9,6 +9,23 @@
   var COOKIE = (window.__adspiritLgpdCfg || {}).cookie || 'adspirit_consent';
   var BANNER = document.getElementById('adspirit-lgpd');
   if (!BANNER) return;
+
+  // Quem decide se o aviso aparece é o NAVEGADOR, não o HTML. Com cache de
+  // página, o servidor responde a mesma cópia pra todo mundo: se a decisão
+  // morasse lá, a escolha do primeiro visitante viraria a de todos — e o
+  // aviso reapareceria a cada página pra quem já aceitou. O cookie é local,
+  // então ler aqui é o único lugar em que a resposta é sobre ESTA pessoa.
+  function jaDecidiu() {
+    var nome = String(COOKIE).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp('(?:^|;\\s*)' + nome + '=').test(document.cookie);
+  }
+  if (jaDecidiu()) {
+    // Some com a marcação: ela veio no HTML cacheado, mas pra esta pessoa
+    // não tem função. Nasce `visibility:hidden`, então nada piscou.
+    if (BANNER.parentNode) BANNER.parentNode.removeChild(BANNER);
+    return;
+  }
+
   var done = false;
   function consent(reload) {
     if (done) return; done = true;

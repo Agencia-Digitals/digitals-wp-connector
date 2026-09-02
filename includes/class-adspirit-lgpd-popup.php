@@ -109,14 +109,31 @@ class AdSpirit_Lgpd_Popup {
         return self::has_consent('tracking') || self::has_consent('all');
     }
 
-    /** O banner deve aparecer nesta request? (mesma regra no enqueue e no render) */
+    /**
+     * O banner vai pro HTML desta request? (mesma regra no enqueue e no render)
+     *
+     * Aqui NÃO se pergunta pelo cookie, e isso é deliberado. A pergunta era
+     * feita aqui até 02/09 e produzia um defeito que só aparece com cache de
+     * página ligado: quem decide o conteúdo da cópia cacheada é o PRIMEIRO
+     * visitante, e a decisão dele passa a valer pra todo mundo. Os dois lados
+     * quebram:
+     *
+     *   · cópia gerada por quem ainda não decidiu → o aviso fica gravado no
+     *     HTML e reaparece a cada página, mesmo pra quem já aceitou (foi o
+     *     que aconteceu no site da Digitals);
+     *   · cópia gerada por quem já aceitou → o aviso some do HTML e ninguém
+     *     mais vê, inclusive quem nunca decidiu — que é o lado grave.
+     *
+     * Então a marcação vai SEMPRE (quando o aviso está ligado) e quem decide
+     * é o navegador, lendo o cookie no `lgpd-popup.js`. O elemento nasce
+     * `visibility:hidden`, então não há piscada pra quem já aceitou. Custa
+     * alguns KB pra esse visitante e, em troca, o comportamento passa a ser o
+     * mesmo com ou sem cache — que é o único jeito de isto ser confiável.
+     */
     private function should_render() {
         if (is_admin()) return false;
         $c = self::get_settings();
-        if ($c['enabled'] !== '1') return false;
-        // Não mostra se já tem decisão
-        if (!empty($_COOKIE[self::COOKIE])) return false;
-        return true;
+        return $c['enabled'] === '1';
     }
 
     public function enqueue_assets() {
