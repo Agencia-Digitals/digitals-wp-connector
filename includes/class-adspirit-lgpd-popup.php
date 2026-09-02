@@ -40,6 +40,13 @@ class AdSpirit_Lgpd_Popup {
             'wp_enqueue_scripts',
             AdSpirit_Safe_Hook::action(array($this, 'enqueue_assets'), 'lgpd_enqueue')
         );
+        // Prioridade 1: quem consome (behavioral, Clarity) precisa do handle
+        // já registrado quando for enfileirar.
+        add_action(
+            'wp_enqueue_scripts',
+            AdSpirit_Safe_Hook::action(array($this, 'register_consent_helper'), 'lgpd_consent_helper'),
+            1
+        );
         add_action(
             'adspirit_connector_render_tab_lgpd',
             AdSpirit_Safe_Hook::action(array($this, 'render_tab'), 'lgpd_tab')
@@ -134,6 +141,25 @@ class AdSpirit_Lgpd_Popup {
         if (is_admin()) return false;
         $c = self::get_settings();
         return $c['enabled'] === '1';
+    }
+
+    /**
+     * Registra o leitor de consentimento do navegador.
+     *
+     * Só REGISTRA — quem enfileira é cada consumidor (behavioral, Clarity),
+     * pra página que não usa nenhum dos dois não carregar arquivo à toa. O
+     * nome do cookie viaja junto porque é configurável, e o arquivo precisa
+     * dele antes de qualquer leitura.
+     */
+    public function register_consent_helper() {
+        if (is_admin()) return;
+        $version = defined('ADSPIRIT_CONNECTOR_VERSION') ? ADSPIRIT_CONNECTOR_VERSION : '2.77.0';
+        wp_register_script('adspirit-consent', ADSPIRIT_CONNECTOR_URL . 'assets/consent.js', array(), $version, true);
+        wp_add_inline_script(
+            'adspirit-consent',
+            'window.__adspiritLgpdCfg = window.__adspiritLgpdCfg || ' . wp_json_encode(array('cookie' => self::COOKIE)) . ';',
+            'before'
+        );
     }
 
     public function enqueue_assets() {

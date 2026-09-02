@@ -31,6 +31,9 @@
     if (done) return; done = true;
     var d = new Date(); d.setTime(d.getTime() + 365 * 86400000);
     document.cookie = COOKIE + '=accept_all;expires=' + d.toUTCString() + ';path=/;samesite=lax';
+    // Avisa quem estava esperando (rastreadores gated por consentimento) pra
+    // começarem NESTA visita, não só na próxima página.
+    try { document.dispatchEvent(new Event('adspirit:consent')); } catch (e) {}
     BANNER.style.opacity = '0';
     setTimeout(function () { if (BANNER && BANNER.parentNode) BANNER.parentNode.removeChild(BANNER); }, 320);
     window.removeEventListener('scroll', onScroll);

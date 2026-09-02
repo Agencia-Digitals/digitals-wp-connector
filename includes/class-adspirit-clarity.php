@@ -113,18 +113,10 @@ class AdSpirit_Clarity {
         return (bool) preg_match(self::PROJECT_ID_REGEX, $id);
     }
 
-    /**
-     * Wrapper do consent. Frente 1 cria has_analytics_consent() no popup;
-     * se ainda não estiver disponível, cai pro has_consent('analytics').
-     */
-    private static function analytics_consent_ok() {
-        if (!class_exists('AdSpirit_Lgpd_Popup')) return false;
-        if (method_exists('AdSpirit_Lgpd_Popup', 'has_analytics_consent')) {
-            return (bool) AdSpirit_Lgpd_Popup::has_analytics_consent();
-        }
-        return (bool) AdSpirit_Lgpd_Popup::has_consent('analytics')
-            || (bool) AdSpirit_Lgpd_Popup::has_consent('all');
-    }
+    // O wrapper de consentimento no PHP saiu em 02/09. Ele decidia, no
+    // servidor, se o Clarity entrava na página — e com cache essa decisão
+    // vaza de um visitante pro outro. Quem decide agora é o navegador, no
+    // trecho do <head> e no consent.js. Não reintroduzir gate de saída aqui.
 
     // ─────────────────────────────────────────────────────────
     // LOADER no <head>
@@ -134,15 +126,35 @@ class AdSpirit_Clarity {
         $c = self::get_settings();
         if ($c['enabled'] !== '1') return;
         if (!self::is_valid_project_id($c['project_id'])) return;
-        if (!self::analytics_consent_ok()) return;
         $project_id = $c['project_id'];
+        $cookie = class_exists('AdSpirit_Lgpd_Popup') ? AdSpirit_Lgpd_Popup::COOKIE : 'adspirit_consent';
+        // O consentimento é lido AQUI, no navegador, e não no PHP: com cache
+        // de página a resposta do primeiro visitante viraria a de todos
+        // (02/09). A leitura está duplicada de propósito — este trecho vive no
+        // <head> e não pode depender do consent.js, que carrega no rodapé.
         ?>
 <script>
-(function(c,l,a,r,i,t,y){
-  c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
-  t=l.createElement(r);t.async=1;t.src='https://www.clarity.ms/tag/'+i;
-  y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
-})(window,document,'clarity','script','<?php echo esc_js($project_id); ?>');
+(function(){
+  var COOKIE = <?php echo wp_json_encode($cookie); ?>, ligado = false;
+  function ok(){
+    var n = COOKIE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    var m = document.cookie.match(new RegExp('(?:^|;\\s*)' + n + '=([^;]*)'));
+    if (!m) return false;
+    var raw = m[1];
+    if (raw === 'accept_all') return true;
+    if (raw.indexOf('custom:') === 0) return raw.slice(7).split(',').indexOf('analytics') !== -1;
+    return false;
+  }
+  function carrega(c,l,a,r,i,t,y){
+    if (ligado) return; ligado = true;
+    c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+    t=l.createElement(r);t.async=1;t.src='https://www.clarity.ms/tag/'+i;
+    y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+  }
+  function tenta(){ if (ok()) carrega(window,document,'clarity','script',<?php echo wp_json_encode($project_id); ?>); }
+  tenta();
+  document.addEventListener('adspirit:consent', tenta);
+})();
 </script>
         <?php
     }
@@ -155,12 +167,20 @@ class AdSpirit_Clarity {
         $c = self::get_settings();
         if ($c['enabled'] !== '1') return;
         if (!self::is_valid_project_id($c['project_id'])) return;
-        if (!self::analytics_consent_ok()) return;
 
-        $handle = 'adspirit-clarity-init';
-        $url = ADSPIRIT_CONNECTOR_URL . 'assets/clarity-init.js';
-        wp_enqueue_script($handle, $url, array(), ADSPIRIT_CONNECTOR_VERSION, true);
-        wp_localize_script($handle, 'AdSpiritClarityCfg', array(
+        // Mesma razão do loader: quem decide é o navegador. O arquivo
+        // clarity-init.js continua idêntico — muda quem manda buscar.
+        $url = ADSPIRIT_CONNECTOR_URL . 'assets/clarity-init.js?ver=' . rawurlencode(ADSPIRIT_CONNECTOR_VERSION);
+        wp_enqueue_script('adspirit-consent');
+        wp_add_inline_script('adspirit-consent', sprintf(
+            '(function(){if(!window.AdSpiritConsent)return;'
+            . 'window.AdSpiritConsent.onGrant("analytics",function(){'
+            . 'if(window.__adspiritClarityOn)return;window.__adspiritClarityOn=1;'
+            . 'var s=document.createElement("script");s.src=%s;s.async=true;'
+            . '(document.head||document.documentElement).appendChild(s);});})();',
+            wp_json_encode($url)
+        ));
+        wp_localize_script('adspirit-consent', 'AdSpiritClarityCfg', array(
             'identify_on_lead' => $c['identify_on_lead'] === '1',
             'share_visitor_id' => $c['share_visitor_id'] === '1',
             'hash_email'       => $c['hash_email'] === '1',

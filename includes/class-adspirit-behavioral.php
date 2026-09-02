@@ -106,13 +106,17 @@ class AdSpirit_Behavioral {
         $s = self::get_settings();
         if ($s['enabled'] !== '1') return;
 
-        // Consent gate
-        $has_consent = false;
-        if (class_exists('AdSpirit_Lgpd_Popup')) {
-            $has_consent = AdSpirit_Lgpd_Popup::has_consent('tracking')
-                || AdSpirit_Lgpd_Popup::has_consent('all');
-        }
-        if (!$has_consent) return;
+        // O consentimento NÃO é decidido aqui, e isso é deliberado (02/09).
+        //
+        // Perguntar pelo cookie no PHP parece certo e é o defeito: com cache
+        // de página, a resposta do PRIMEIRO visitante fica gravada na cópia
+        // servida a todos. Na Digitals a cópia saiu de alguém que não tinha
+        // decidido, e o resultado foi este arquivo nunca carregar — nem pra
+        // quem aceitou. O outro lado é pior: cópia gerada por quem aceitou
+        // carregaria o rastreador pra quem nunca decidiu.
+        //
+        // Então quem decide é o navegador, lendo o cookie local. O arquivo
+        // `behavioral.js` continua idêntico; o que muda é quem manda buscar.
 
         // Core config (endpoint + pixel token)
         $core = class_exists('AdSpirit_Settings') ? AdSpirit_Settings::get_core() : array();
@@ -120,11 +124,22 @@ class AdSpirit_Behavioral {
         $pixel_token = isset($core['pixel_token']) ? (string) $core['pixel_token'] : '';
         if ($endpoint === '' || $pixel_token === '') return;
 
-        $handle = 'adspirit-behavioral';
-        $src    = ADSPIRIT_CONNECTOR_URL . 'assets/behavioral.js';
-        wp_enqueue_script($handle, $src, array(), ADSPIRIT_CONNECTOR_VERSION, true);
+        $src = ADSPIRIT_CONNECTOR_URL . 'assets/behavioral.js?ver=' . rawurlencode(ADSPIRIT_CONNECTOR_VERSION);
 
-        wp_localize_script($handle, 'AdspiritBehavioralCfg', array(
+        // A config vai sempre — é só ajuste, e o pixel_token já viaja no
+        // telemetry.js, que roda por legítimo interesse. Sem consentimento
+        // ela fica na página sem ninguém ler.
+        wp_enqueue_script('adspirit-consent');
+        wp_add_inline_script('adspirit-consent', sprintf(
+            '(function(){if(!window.AdSpiritConsent)return;'
+            . 'window.AdSpiritConsent.onGrant("tracking",function(){'
+            . 'if(window.__adspiritBhvOn)return;window.__adspiritBhvOn=1;'
+            . 'var s=document.createElement("script");s.src=%s;s.async=true;'
+            . '(document.head||document.documentElement).appendChild(s);});})();',
+            wp_json_encode($src)
+        ));
+
+        wp_localize_script('adspirit-consent', 'AdspiritBehavioralCfg', array(
             'endpoint_url'      => esc_url_raw($endpoint),
             'pixel_token'       => $pixel_token,
             'flush_interval_ms' => (int) $s['flush_interval_ms'],
