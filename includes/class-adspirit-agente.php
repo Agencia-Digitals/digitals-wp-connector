@@ -183,16 +183,14 @@ class AdSpirit_Agente {
             'category' => self::CATEGORIA,
             'meta' => $this->meta(false),
             'label' => 'Desempenho da página',
-            'description' => 'Lê e ajusta as otimizações de saída deste site: adiar o vídeo de fundo (com imagem de capa), travar a geometria do herói pra não haver salto de layout e dispensar biblioteca de carrossel não usada. Sem `acao`, só devolve o estado. Nada disso toca o conteúdo salvo do construtor — atua no HTML de saída, e desligar volta tudo ao original.',
+            'description' => 'Lê e ajusta as otimizações de saída deste site: travar a geometria do herói pra não haver salto de layout e dispensar biblioteca de carrossel não usada. O adiamento do vídeo de fundo saiu na 2.79.0 — custava a entrada do herói e não movia a nota. Sem `acao`, só devolve o estado. Nada disso toca o conteúdo salvo do construtor — atua no HTML de saída, e desligar volta tudo ao original.',
             'input_schema' => array(
                 'type' => 'object',
                 'default' => new stdClass(),
                 'properties' => array(
                     'acao' => array('type' => 'string', 'enum' => array('ler', 'ajustar'), 'description' => 'Padrão: ler.'),
-                    'adiar_video' => array('type' => 'boolean'),
                     'travar_hero' => array('type' => 'boolean'),
                     'dispensar_carrossel' => array('type' => 'boolean', 'description' => 'Deixa de carregar a biblioteca de carrossel em página que não tem carrossel. Só age com prova de não-uso.'),
-                    'poster_url' => array('type' => 'string', 'description' => 'Imagem mostrada enquanto o vídeo não chega. Idealmente o primeiro quadro dele, pra troca não dar salto.'),
                 ),
             ),
             'execute_callback' => array($this, 'desempenho'),
@@ -304,18 +302,8 @@ class AdSpirit_Agente {
         }
 
         $patch = array();
-        foreach (array('adiar_video', 'travar_hero', 'dispensar_carrossel') as $k) {
+        foreach (array('travar_hero', 'dispensar_carrossel') as $k) {
             if (array_key_exists($k, $input)) $patch[$k] = !empty($input[$k]) ? '1' : '0';
-        }
-        if (array_key_exists('poster_url', $input)) {
-            $u = trim((string) $input['poster_url']);
-            // Vazio limpa; qualquer outra coisa precisa ser URL de verdade —
-            // poster quebrado é pior que poster nenhum (fica um ícone de
-            // imagem falhada em cima do herói).
-            if ($u !== '' && !filter_var($u, FILTER_VALIDATE_URL)) {
-                return array('ok' => false, 'erro' => 'poster_url não é uma URL válida.');
-            }
-            $patch['poster_url'] = $u === '' ? '' : esc_url_raw($u);
         }
         if (!$patch) return array('ok' => false, 'erro' => 'Nada pra ajustar.');
 

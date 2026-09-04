@@ -2,28 +2,30 @@
 /**
  * AdSpirit Connector — desempenho da página, sem tocar no conteúdo salvo.
  *
- * POR QUE ESTE MÓDULO EXISTE, E POR QUE ASSIM
+ * O módulo trabalha na SAÍDA: intercepta o HTML já montado e ajusta o que dá
+ * pra ajustar sem editar o construtor. A razão é cicatriz: em 30/08 uma
+ * edição do conteúdo do Oxygen por fora do editor derrubou a seção do herói
+ * em produção, com campanha no ar — o Oxygen clássico assina cada seção e
+ * conteúdo alterado por fora quebra a assinatura.
  *
- * A home da Digitals tirou 20/100 no PageSpeed em celular. Duas métricas
- * respondiam por metade da nota, e as duas nasciam do mesmo herói:
+ * O QUE ELE FAZ HOJE
  *
- *   · LCP 15,2 s — o maior elemento da tela É o vídeo de fundo. A página só
- *     "termina de pintar" quando o arquivo inteiro chega. Ele é autoplay e
- *     sem `preload` declarado, então o navegador baixa tudo competindo com o
- *     que precisa aparecer primeiro.
- *   · CLS 1,001 — um único salto: um <div> decorativo de tela cheia
- *     (`width:100vw; height:100vh`) nasce com altura 0 e depois ocupa a tela.
- *     Elemento que cresce do nada pra tela inteira dá CLS 1,0 sozinho.
+ *   · trava a geometria do herói. O `#background-div` é um <div> vazio de
+ *     tela cheia que nasce com altura 0 e depois ocupa a tela — um salto de
+ *     0 pra tela inteira dá CLS 1,0 sozinho. A correção declara a MESMA
+ *     geometria antes, em CSS no <head>: não muda o visual, só garante que
+ *     valha desde o primeiro quadro.
+ *   · some com shortcode órfão de plugin desativado.
+ *   · dispensa biblioteca de carrossel em página que não tem carrossel.
  *
- * A correção óbvia seria editar a página no Oxygen. Não é o que fazemos aqui,
- * e a razão é cicatriz: em 30/08 uma edição do conteúdo do construtor por
- * fora do editor derrubou a seção do herói em produção, com campanha no ar.
- * O Oxygen clássico assina cada seção; conteúdo alterado por fora quebra a
- * assinatura e a seção some.
+ * O QUE SAIU, E POR QUE (2.79.0)
  *
- * Então este módulo trabalha na SAÍDA: intercepta o HTML já montado e ajusta
- * atributos. O conteúdo salvo continua intocado, o editor continua abrindo
- * igual, e desligar é remover o filtro — não há o que "desfazer" no banco.
+ * O adiamento do vídeo de fundo. Ele tirava o vídeo do caminho crítico e o
+ * LCP medido caía pra menos de 1s — mas a nota do PageSpeed não se moveu, e
+ * a entrada do herói passou a ser: tela vazia, imagem, e o vídeo entrando
+ * depois. Isso lê como falha, não como cinema. Trocar a impressão da
+ * primeira tela por uma métrica que nem melhorou é troca ruim, e a decisão é
+ * do Pedro (03/09).
  *
  * O QUE ELE NÃO FAZ, DE PROPÓSITO
  *
@@ -52,6 +54,12 @@ class AdSpirit_Performance {
         // matéria-prima do builder, não página pra visitante.
         add_action('template_redirect',
             AdSpirit_Safe_Hook::action(array($this, 'ligar_buffer'), 'perf_buffer'));
+        // Depois de uma atualização, a cópia cacheada ainda descreve o
+        // comportamento ANTIGO. Enquanto ela viver, quem visita continua
+        // vendo o que acabou de ser desfeito — foi o caso do adiamento do
+        // vídeo, removido na 2.79.0. Uma limpeza única por versão resolve.
+        add_action('wp_loaded',
+            AdSpirit_Safe_Hook::action(array($this, 'limpar_cache_apos_atualizacao'), 'perf_purge'));
     }
 
     public static function config() {
@@ -59,13 +67,29 @@ class AdSpirit_Performance {
             // Cada peça liga sozinha. Quem quiser desligar uma sem perder a
             // outra consegue — e um efeito colateral inesperado não obriga a
             // derrubar o módulo inteiro.
-            'adiar_video' => '1',
             'travar_hero' => '1',
             'limpar_shortcode_orfao' => '1',
             'dispensar_carrossel' => '1',
         );
         $c = get_option(self::OPTION, array());
         return array_merge($padrao, is_array($c) ? $c : array());
+    }
+
+    /**
+     * Limpa o cache de página uma vez a cada versão nova do plugin.
+     *
+     * Só chama a purga do próprio LiteSpeed. Deliberadamente NÃO apaga
+     * arquivo nenhum: em 30/08 uma limpeza que removia o CSS por página do
+     * Oxygen clássico derrubou o layout do site em produção, porque o
+     * Oxygen clássico só regenera esse arquivo quando o construtor salva.
+     */
+    public function limpar_cache_apos_atualizacao() {
+        $atual = defined('ADSPIRIT_CONNECTOR_VERSION') ? ADSPIRIT_CONNECTOR_VERSION : '';
+        if ($atual === '') return;
+        $cfg = self::config();
+        if (($cfg['versao_limpa'] ?? '') === $atual) return;
+        update_option(self::OPTION, array_merge($cfg, array('versao_limpa' => $atual)), false);
+        if (has_action('litespeed_purge_all')) do_action('litespeed_purge_all');
     }
 
     public function ligar_buffer() {
@@ -77,7 +101,7 @@ class AdSpirit_Performance {
 
         $cfg = self::config();
         $alguma = false;
-        foreach (array('adiar_video', 'travar_hero', 'limpar_shortcode_orfao', 'dispensar_carrossel') as $peca) {
+        foreach (array('travar_hero', 'limpar_shortcode_orfao', 'dispensar_carrossel') as $peca) {
             if (($cfg[$peca] ?? '0') === '1') { $alguma = true; break; }
         }
         if (!$alguma) return;
@@ -98,7 +122,6 @@ class AdSpirit_Performance {
             if (stripos($html, '<html') === false) return $html;
 
             $cfg = self::config();
-            if ($cfg['adiar_video'] === '1') $html = $this->adiar_video($html);
             if ($cfg['travar_hero'] === '1') $html = $this->travar_hero($html);
             if ($cfg['limpar_shortcode_orfao'] === '1') $html = $this->limpar_shortcode_orfao($html);
             if (($cfg['dispensar_carrossel'] ?? '1') === '1') $html = $this->dispensar_carrossel($html);
@@ -109,79 +132,6 @@ class AdSpirit_Performance {
             }
             return $html;
         }
-    }
-
-    /**
-     * Faz o vídeo de fundo parar de disputar a abertura da página.
-     *
-     * Três mudanças no elemento, todas reversíveis por serem só atributos:
-     *
-     *   preload="none"  — o navegador não baixa nada até decidir tocar.
-     *   poster=...      — dá o que mostrar enquanto isso. Sem poster, o
-     *                     espaço fica preto e o LCP continua sendo o vídeo.
-     *   loading do src  — o `src` sai do <source> e vira `data-src`, e um
-     *                     trecho mínimo de JS devolve depois que a página
-     *                     carregou. É isso que tira o vídeo do caminho
-     *                     crítico de verdade; só `preload="none"` não basta
-     *                     com `autoplay`, porque o autoplay força o download.
-     *
-     * O poster sai de `adspirit_performance_poster` (filtro) ou da opção
-     * `poster_url`. Sem poster configurado, ainda vale a pena: o vídeo deixa
-     * de bloquear, e o fundo da seção aparece no lugar.
-     */
-    private function adiar_video($html) {
-        if (stripos($html, '<video') === false) return $html;
-
-        $poster = apply_filters('adspirit_performance_poster', (string) (self::config()['poster_url'] ?? ''));
-
-        $novo = preg_replace_callback(
-            '#<video\b([^>]*)>(.*?)</video>#is',
-            function ($m) use ($poster) {
-                $attrs = $m[1];
-                $miolo = $m[2];
-
-                // Só mexe em vídeo de fundo (autoplay). Vídeo que a pessoa
-                // dá play é outro caso: adiar ali não ganha nada e pode
-                // atrapalhar quem clica rápido.
-                if (stripos($attrs, 'autoplay') === false) return $m[0];
-                // Idempotente: se já passou por aqui, não mexe de novo.
-                if (stripos($attrs, 'data-adspirit-defer') !== false) return $m[0];
-
-                $attrs = preg_replace('/\s+preload\s*=\s*("[^"]*"|\'[^\']*\'|\S+)/i', '', $attrs);
-                $attrs .= ' preload="none" data-adspirit-defer="1"';
-                if ($poster !== '' && stripos($attrs, 'poster=') === false) {
-                    $attrs .= ' poster="' . esc_url($poster) . '"';
-                }
-
-                // src → data-src, tanto no <source> quanto no próprio <video>.
-                $miolo = preg_replace('/<source\b([^>]*?)\ssrc=/i', '<source$1 data-src=', $miolo);
-                $attrs = preg_replace('/\ssrc=/i', ' data-src=', $attrs);
-
-                return '<video' . $attrs . '>' . $miolo . '</video>';
-            },
-            $html
-        );
-        if (!is_string($novo)) return $html;
-        if ($novo === $html) return $html;
-
-        return $this->injetar_script($novo);
-    }
-
-    /**
-     * Devolve o src depois que a página carregou. Fica no rodapé, sem
-     * dependência de biblioteca, e não faz nada se não houver vídeo adiado.
-     */
-    private function injetar_script($html) {
-        $js = <<<'JS'
-<script>(function(){function g(){document.querySelectorAll('video[data-adspirit-defer]').forEach(function(v){
-var s=v.getAttribute('data-src');if(s){v.setAttribute('src',s);v.removeAttribute('data-src');}
-v.querySelectorAll('source[data-src]').forEach(function(o){o.setAttribute('src',o.getAttribute('data-src'));o.removeAttribute('data-src');});
-v.removeAttribute('data-adspirit-defer');try{v.load();var p=v.play();if(p&&p.catch)p.catch(function(){});}catch(e){}});}
-if(document.readyState==='complete'){setTimeout(g,1);}else{window.addEventListener('load',function(){setTimeout(g,1);});}})();</script>
-JS;
-        $pos = strripos($html, '</body>');
-        if ($pos === false) return $html . $js;
-        return substr($html, 0, $pos) . $js . substr($html, $pos);
     }
 
     /**
@@ -243,7 +193,6 @@ JS;
         if ($pos === false) return $html;
         return substr($html, 0, $pos) . $css . substr($html, $pos);
     }
-
 
     /**
      * Deixa de carregar a biblioteca de carrossel em página que não tem
